@@ -97,13 +97,13 @@ struct Drowingpage2: View {
                         
                         RoundedRectangle(cornerRadius: 50)
                             .fill(.white)
-                            .frame(width: 350, height: 350)
+                            .frame(width: 350, height: 390)
                             .shadow(color: .black.opacity(0.3), radius: 40, x: 4, y: 4)
                         
                         //포스트잇 벗겨지는 동작
                         Image("메모지.black")
                             .resizable()
-                            .frame(width: 350, height: 350)
+                            .frame(width: 350, height: 390)
                             .rotation3DEffect(
                                 .degrees(peelPhase == 0 ? 0 : (peelPhase == 1 ? -40 : -85)),
                                 axis: (x: 0.6, y: 1, z: 0),
@@ -200,7 +200,7 @@ struct Drowingpage2: View {
                                 .contentShape(Rectangle())
                                 .onTapGesture { focusedField = .text }
                             }
-                            .frame(width: 350, height: 350)
+                            .frame(width: 350, height: 390)
                         }
                 }
                     .offset(x: shakeAmount, y: -30)

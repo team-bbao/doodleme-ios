@@ -26,7 +26,7 @@ struct DrawingCanvas: View {
                 context.stroke(path, with: .color(.black), lineWidth: 3)
             }
         }
-        .frame(width: 350, height: 350)
+        .frame(width: 350, height: 390)
         .contentShape(Rectangle())
         .gesture(
             DragGesture(minimumDistance: 0)

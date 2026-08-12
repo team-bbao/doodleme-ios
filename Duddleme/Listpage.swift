@@ -165,7 +165,7 @@ struct Listpage: View {
                 if let selectedPost {
                     ZStack {
                         Color.white
-                            .opacity(0.6)
+                            .opacity(0.9)
                             .ignoresSafeArea()
                             .onTapGesture {
                                 withAnimation {
