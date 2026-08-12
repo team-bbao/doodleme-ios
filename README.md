@@ -3,4 +3,4 @@
 
 | Teri | Seung | Jay | Kevin | Erica |
 | --- | --- | --- | --- | --- |
-| | | | |
+| | |jay jaewoo ahn/24/M | |
