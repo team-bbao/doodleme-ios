@@ -134,7 +134,7 @@ struct Drowingpage2: View {
                             .allowsHitTesting(!TapToStart)
 
                         VStack(spacing: 8) {
-                            Text("Tab to Start")
+                            Text("Tap to start")
                                 .fontWeight(.semibold)
                                 .foregroundColor(.white)
                                 .font(.system(size: 40))
@@ -221,27 +221,27 @@ struct Drowingpage2: View {
             .toolbar{
                 if !goNext {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button("Reset") {
+                        Button("초기화") {
                             timeRemaining = 30
                             TapToStart = false
                             peelPhase = 0
                         }
                         .disabled(!TapToStart)
-                        
+
                     }
                 }
                 if timeRemaining <= 29.9 && !goNext {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button("Next") {
+                        Button("다음") {
                             goNext = true
                         }
                         .buttonStyle(.glassProminent)
                     }
         }
-                
+
                 if goNext {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button("Reset") {
+                        Button("초기화") {
                             showResetAlert = true
                         }
                         .alert("정말 리셋하시겠습니까?", isPresented: $showResetAlert) {
@@ -252,7 +252,7 @@ struct Drowingpage2: View {
                         }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button("Save") {
+                        Button("저장") {
                             guard canSave else {
                                 triggerShake()
                                 return
@@ -298,6 +298,7 @@ struct Drowingpage2: View {
 
 #Preview {
     Drowingpage2(selectedTabIndex: .constant(0))
+        .modelContainer(for: Post.self, inMemory: true)
 }
 
 
