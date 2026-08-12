@@ -3,4 +3,4 @@
 
 | Teri | Seung | Jay | Kevin | Erica |
 | --- | --- | --- | --- | --- |
-| | | | |
+| | | Hi, I'm Kevin, the Dongsu | |
