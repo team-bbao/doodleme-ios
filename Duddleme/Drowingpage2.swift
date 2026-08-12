@@ -68,19 +68,29 @@ struct Drowingpage2: View {
                 
                 VStack{
                     if !goNext {
-                        Slider(value: $timeRemaining, in: 0...30)
-                            .onReceive(timer) { _ in
-                                if TapToStart && timeRemaining > 0
-                                {
-                                    timeRemaining -= 0.05
+                        VStack(spacing: 4) {
+                            Text("\(Int(timeRemaining))")
+                                .font(.system(size: 25, weight: .semibold))
+                                .contentTransition(.numericText(countsDown: true))
+                                .animation(.default, value: Int(timeRemaining))
+                                .opacity(TapToStart ? 1 : 0.35)
+
+                            Slider(value: $timeRemaining, in: 0...30)
+                                .onReceive(timer) { _ in
+                                    if TapToStart && timeRemaining > 0 {
+                                        timeRemaining -= 0.05
+                                    }
                                 }
-                            }
-                            .sliderThumbVisibility(.hidden)
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 20)
-                            .padding(.top, 40)
-                        
+                                .sliderThumbVisibility(.hidden)
+                                .padding(.horizontal, 20)
+                                .padding(.bottom, 40)
+                        }
                     }
+                }
+                .offset(y: -320)
+
+                VStack {
+                    Spacer()
                     DrawingToolPicker(
                         selectedTab: $selectedTab,
                         lines: $lines,
@@ -88,10 +98,7 @@ struct Drowingpage2: View {
                         undoStack: $undoStack,
                         goNext: $goNext
                     )
-                    
                 }
-              
-                .offset(y: -290)
                 
                     ZStack{
                         
@@ -141,18 +148,17 @@ struct Drowingpage2: View {
                         .opacity(TapToStart ? 0 : (peelPhase == 0 ? 1 : 0))
                         .allowsHitTesting(false)
                         .zIndex(2)
-                        
-                        if TapToStart {
-                            if !goNext {
-                                DrawingCanvas(
-                                    selectedTab: $selectedTab,
-                                    lines: $lines,
-                                    redoStack: $redoStack,
-                                    undoStack: $undoStack,
-                                    hasSavedSnapshot: $hasSavedSnapshot
-                                )
-                            }
+
+                        if TapToStart && !goNext {
+                            DrawingCanvas(
+                                selectedTab: $selectedTab,
+                                lines: $lines,
+                                redoStack: $redoStack,
+                                undoStack: $undoStack,
+                                hasSavedSnapshot: $hasSavedSnapshot
+                            )
                         }
+
                         if goNext {
                             VStack(spacing: 0) {
                                 // 위쪽: 이름 입력 영역
@@ -160,14 +166,17 @@ struct Drowingpage2: View {
                                     Text("To.")
                                         .font(.system(size: 24, weight: .bold))
                                         .foregroundStyle(.colorGray.opacity(0.8))
-                                    TextField("이름", text: $recipientName)
-                                        .font(.system(size: 18))
+                                    TextField(text: $recipientName, prompt: Text("이름").foregroundStyle(.black.opacity(0.42))) {
+                                        EmptyView()
+                                    }
+                                        .font(.system(size: 20))
                                         .fontWeight(.semibold)
                                         .submitLabel(.done)
                                         .focused($focusedField, equals: .name)
                                     Spacer()
                                 }
-                                .padding(.horizontal, 20)
+                                .padding(.top, 35)
+                                .padding(.horizontal, 30)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 80)
                                 .contentShape(Rectangle())
@@ -193,9 +202,9 @@ struct Drowingpage2: View {
                                     Text("\(inputText.count)/30")
                                         .font(.system(size: 17))
                                         .foregroundStyle(.colorGray)
-                                        .opacity(0.4)
+                                        .opacity(0.5)
                                         .fontWeight(.semibold)
-                                        .padding(.bottom, 15)
+                                        .padding(.bottom, 20)
                                 }
                                 .contentShape(Rectangle())
                                 .onTapGesture { focusedField = .text }
@@ -203,18 +212,8 @@ struct Drowingpage2: View {
                             .frame(width: 350, height: 390)
                         }
                 }
-                    .offset(x: shakeAmount, y: -30)
+                    .offset(x: shakeAmount, y: -40)
 
-                // 흔들림 효과 제외 - outer ZStack에 위치
-              //  if goNext {
-                  //  Text("상대방의 첫인상은 어땠나요?")
-                   //     .offset(y: -270)
-                   //     .font(.system(size: 25, weight: .semibold))
-                 //       .foregroundStyle(.colorGray)
-                  //      .font(.subheadline)
-                  //      .opacity(0.8)
-                  //      .shadow(radius: 1)
-              //  }
             }
             .ignoresSafeArea(edges: .bottom)
             .onTapGesture { focusedField = nil }
