@@ -96,12 +96,6 @@ struct PostGridView: View {
                         .padding(8)
                 }
             }
-            .overlay {
-                if mode == .choosingProfile {
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.colorGray, lineWidth: 2)
-                }
-            }
             .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
             .animation(.easeInOut(duration: 0.15), value: selected)
             .onTapGesture { handleTap(on: post) }
