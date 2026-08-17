@@ -88,8 +88,10 @@ struct PostGridView: View {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(.black.opacity(selected ? 0.4 : 0))
             }
+            // 여러 장을 골라야 하는 삭제에서만 선택 표시를 띄운다.
+            // 프로필은 누르는 즉시 확인 팝업이 떠서 체크 상태를 볼 일이 없다.
             .overlay(alignment: .topTrailing) {
-                if mode.isSelecting {
+                if mode == .deleting {
                     Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                         // 어두워진 카드 위에서도 보이도록 흰색을 쓴다.
                         .foregroundStyle(selected ? Color.white : .gray)

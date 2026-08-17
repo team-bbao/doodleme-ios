@@ -14,7 +14,4 @@ enum GalleryMode: Equatable {
     case choosingProfile
     /// 여러 장을 골라 삭제한다.
     case deleting
-
-    /// 카드에 선택 표시를 띄워야 하는 상태인지.
-    var isSelecting: Bool { self != .browsing }
 }
