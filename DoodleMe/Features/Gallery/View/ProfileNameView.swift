@@ -1,0 +1,36 @@
+//
+//  ProfileNameView.swift
+//  DoodleMe
+//
+
+import SwiftUI
+
+struct ProfileNameView: View {
+    @Binding var profileName: String
+
+    @State private var showingEditor = false
+    @State private var draftName = ""
+
+    var body: some View {
+        Button {
+            draftName = profileName
+            showingEditor = true
+        } label: {
+            Text(profileName.isEmpty ? "이름" : profileName)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(profileName.isEmpty ? .gray : .primary)
+                .padding(.top, 17)
+        }
+        .buttonStyle(.plain)
+        .alert("프로필 이름", isPresented: $showingEditor) {
+            TextField("이름", text: $draftName)
+            Button("저장") {
+                let trimmed = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
+                profileName = trimmed.isEmpty ? profileName : trimmed
+            }
+            Button("취소", role: .cancel) { }
+        } message: {
+            Text("프로필에 표시되는 이름을 수정합니다.")
+        }
+    }
+}
