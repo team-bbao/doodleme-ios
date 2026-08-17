@@ -3,8 +3,8 @@
 //  DoodleMe
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 /// 앱의 최상위 뷰. 탭 화면을 띄우고 `doodleme://` 딥링크 수신을 처리한다.
 struct RootView: View {
@@ -23,31 +23,10 @@ struct RootView: View {
             }
     }
 
-    func handleImport(url: URL) {
-        guard url.scheme == "duddleme",
-              url.host == "import",
-              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let dataParam = components.queryItems?.first(where: { $0.name == "data" })?.value
-        else { return }
-
-        // base64url → base64 표준 형식 복원
-        var base64 = dataParam
-            .replacingOccurrences(of: "-", with: "+")
-            .replacingOccurrences(of: "_", with: "/")
-        let padCount = (4 - base64.count % 4) % 4
-        base64 += String(repeating: "=", count: padCount)
-
-        guard let jsonData = Data(base64Encoded: base64),
-              let json = String(data: jsonData, encoding: .utf8),
-              let transferData = PostTransferData.decode(from: json)
-        else { return }
-
-        let newPost = Post(lines: transferData.makeDrawingLines(), text: transferData.t, isMine: false)
-        newPost.createdAt = Date(timeIntervalSince1970: transferData.dt)
-        newPost.senderName = transferData.n ?? "홍길동"
-        newPost.senderProfileLines = transferData.makeProfileLines() ?? []
-        modelContext.insert(newPost)
-
+    private func handleImport(url: URL) {
+        // 파싱·검증·변환은 모두 PostTransferData가 맡는다. QR 스캔도 같은 경로를 쓴다.
+        guard let transferData = PostTransferData.decode(deepLink: url) else { return }
+        modelContext.insert(transferData.makePost())
         importSuccess = true
     }
 }

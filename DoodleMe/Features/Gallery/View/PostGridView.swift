@@ -10,18 +10,19 @@ import SwiftData
 
 struct PostGridView: View {
     
-    @Query private var allPosts: [Post]
-    
+    // 필터·정렬을 SwiftData 에 맡긴다. 메모리에서 filter 하지 않으므로 순서도 항상 최신순으로 보장된다.
+    @Query(filter: #Predicate<Post> { $0.isMine },
+           sort: \Post.createdAt, order: .reverse) private var postsByMe: [Post]
+    @Query(filter: #Predicate<Post> { !$0.isMine },
+           sort: \Post.createdAt, order: .reverse) private var postsByOthers: [Post]
+    /// 프로필로 고를 수 있는 후보(이미 프로필인 그림은 제외).
+    @Query(filter: #Predicate<Post> { !$0.isProfile },
+           sort: \Post.createdAt, order: .reverse) private var profileCandidates: [Post]
+
     @Binding var selectedPostIDs: Set<PersistentIdentifier>
     @Binding var segmentedBar: Int
     @Binding var selectedTab: Bool
     @Binding var showActionDialog: Bool
-    var postsByMe: [Post] {
-        allPosts.filter { $0.isMine}
-    }
-    var postsByOthers: [Post] {
-        allPosts.filter { !$0.isMine }
-    }
     
     @Binding var selectedPost: Post?
     @Binding var isSelectingProfile: Bool
@@ -29,7 +30,7 @@ struct PostGridView: View {
 
     var body: some View {
         let currentPosts = isSelectingProfile
-            ? allPosts.filter { !$0.isProfile }
+            ? profileCandidates
             : (segmentedBar == 1 ? postsByMe : postsByOthers)
 
         let columns = [
@@ -50,7 +51,7 @@ struct PostGridView: View {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 20) {
                         ForEach(currentPosts) { post in
-                            Image("메모지.body")
+                            Image(.memoFront)
                                 .resizable()
                                 .scaledToFill()
                                 .frame(height: 170)
@@ -58,8 +59,8 @@ struct PostGridView: View {
                                 .overlay {
                                     GeometryReader { geo in
                                         Canvas { context, size in
-                                            let scaleX = geo.size.width / 350
-                                            let scaleY = geo.size.height / 390
+                                            let scaleX = geo.size.width / DoodleMetrics.canvasSize.width
+                                            let scaleY = geo.size.height / DoodleMetrics.canvasSize.height
                                             context.transform = CGAffineTransform(scaleX: scaleX, y: scaleY)
                                             for line in post.lines {
                                                 var path = Path()
@@ -74,7 +75,7 @@ struct PostGridView: View {
                                     if selectedTab || isSelectingProfile {
                                         let isSelected = isSelectingProfile
                                             ? profileCandidatePost?.persistentModelID == post.persistentModelID
-                                            : selectedPostIDs.contains(post.id)
+                                            : selectedPostIDs.contains(post.persistentModelID)
                                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                                             .foregroundStyle(isSelected ? Color.accent : .gray)
                                             .padding(8)
@@ -91,10 +92,10 @@ struct PostGridView: View {
                                     if isSelectingProfile {
                                         withAnimation(.spring()) { profileCandidatePost = post }
                                     } else if selectedTab {
-                                        if selectedPostIDs.contains(post.id) {
-                                            selectedPostIDs.remove(post.id)
+                                        if selectedPostIDs.contains(post.persistentModelID) {
+                                            selectedPostIDs.remove(post.persistentModelID)
                                         } else {
-                                            selectedPostIDs.insert(post.id)
+                                            selectedPostIDs.insert(post.persistentModelID)
                                             withAnimation(.spring()) { showActionDialog = true }
                                         }
                                     } else {

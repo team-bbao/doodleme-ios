@@ -5,14 +5,13 @@
 //  Created by Apple Developer Academy on 8/12/26.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct QRScannerView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var allPosts: [Post]
 
-    @State private var scanned: PostTransferData? = nil
+    @State private var scanned: PostTransferData?
     @State private var showAlert = false
     @State private var alertMessage = ""
 
@@ -21,7 +20,9 @@ struct QRScannerView: View {
             ZStack {
                 CameraPreviewView { result in
                     guard scanned == nil else { return }
-                    scanned = PostTransferData.decode(from: result)
+                    // QR 안에는 딥링크 URL 이 들어 있다. 딥링크 수신과 같은 경로로 해석한다.
+                    scanned = URL(string: result).flatMap(PostTransferData.decode(deepLink:))
+                        ?? PostTransferData.decode(from: result)
                 }
                 .ignoresSafeArea()
 
@@ -60,7 +61,7 @@ struct QRScannerView: View {
     }
 
     @ViewBuilder
-    func scannedPreview(data: PostTransferData) -> some View {
+    private func scannedPreview(data: PostTransferData) -> some View {
         VStack(spacing: 14) {
             Text("QR 인식됨")
                 .font(.headline)
@@ -103,13 +104,8 @@ struct QRScannerView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 
-    func importPost(data: PostTransferData) {
-        let newPost = Post(lines: data.makeDrawingLines(), text: data.t, isMine: false)
-        newPost.createdAt = Date(timeIntervalSince1970: data.dt)
-        newPost.senderName = data.n ?? "홍길동"
-        newPost.senderProfileLines = data.makeProfileLines() ?? []
-        modelContext.insert(newPost)
-
+    private func importPost(data: PostTransferData) {
+        modelContext.insert(data.makePost())
         alertMessage = "By others에 그림이 저장됐어요."
         showAlert = true
     }

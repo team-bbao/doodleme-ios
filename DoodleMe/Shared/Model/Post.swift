@@ -25,3 +25,13 @@ class Post {
         self.createdAt = Date()
     }
 }
+
+extension Post {
+    /// 보낸 사람 이름을 모를 때 대신 보여주는 이름.
+    static let unknownSenderName = "홍길동"
+
+    /// 화면에 표시할 보낸 사람 이름.
+    var displaySenderName: String {
+        senderName.isEmpty ? Self.unknownSenderName : senderName
+    }
+}

@@ -5,35 +5,23 @@
 //  Created by Apple Developer Academy on 8/12/26.
 //
 
-import SwiftUI
+import CoreImage.CIFilterBuiltins
 import SwiftData
-import CoreImage
+import SwiftUI
 
 struct QRShareView: View {
     let post: Post
     let senderName: String
-    @Query private var allPosts: [Post]
 
-    private var profilePost: Post? { allPosts.first(where: { $0.isProfile }) }
-
-    private var qrContent: String? {
-        guard let json = PostTransferData.encode(
-            post: post,
-            profilePost: profilePost,
-            senderName: senderName.isEmpty ? nil : senderName
-        ) else { return nil }
-        guard let jsonData = json.data(using: .utf8) else { return nil }
-        // base64url 인코딩 (URL 안전 문자로 변환)
-        let base64url = jsonData.base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "=", with: "")
-        return "duddleme://import?data=\(base64url)"
-    }
+    @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
 
     private var qrImage: UIImage? {
-        guard let content = qrContent else { return nil }
-        return generateQRCode(from: content)
+        guard let url = PostTransferData.makeShareURL(
+            post: post,
+            profilePost: profilePosts.first,
+            senderName: senderName.isEmpty ? nil : senderName
+        ) else { return nil }
+        return makeQRCode(from: url.absoluteString)
     }
 
     var body: some View {
@@ -47,6 +35,7 @@ struct QRShareView: View {
                     .interpolation(.none)
                     .resizable()
                     .frame(width: 260, height: 260)
+                    .accessibilityLabel("공유용 QR 코드")
 
                 Text("스캔하여 전달 받으세요")
                     .font(.caption)
@@ -70,16 +59,16 @@ struct QRShareView: View {
         .presentationDetents([.medium])
     }
 
-    private func generateQRCode(from string: String) -> UIImage? {
-        let data = Data(string.utf8)
-        guard let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
-        filter.setValue(data, forKey: "inputMessage")
-        filter.setValue("M", forKey: "inputCorrectionLevel")
+    /// 문자열 키(`setValue(_:forKey:)`) 대신 타입 안전한 빌트인 필터를 쓴다.
+    private func makeQRCode(from string: String) -> UIImage? {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(string.utf8)
+        filter.correctionLevel = "M"
+
         guard let outputImage = filter.outputImage else { return nil }
-        let scale = 520.0 / outputImage.extent.width
+        let scale = 520 / outputImage.extent.width
         let scaled = outputImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-        let context = CIContext()
-        guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else { return nil }
+        guard let cgImage = CIContext().createCGImage(scaled, from: scaled.extent) else { return nil }
         return UIImage(cgImage: cgImage)
     }
 }

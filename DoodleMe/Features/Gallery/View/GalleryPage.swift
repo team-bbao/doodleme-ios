@@ -10,14 +10,11 @@ import SwiftData
 
 struct GalleryPage: View {
 
-    @Query private var allPosts: [Post]
+    // 정렬자를 주지 않으면 SwiftData 는 순서를 보장하지 않는다. 항상 최신순.
+    @Query(sort: \Post.createdAt, order: .reverse) private var allPosts: [Post]
+    @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
 
-    var postsByMe: [Post] {
-        allPosts.filter { $0.isMine}
-    }
-    var postsByOthers: [Post] {
-        allPosts.filter { !$0.isMine }
-    }
+    private var profilePost: Post? { profilePosts.first }
 
     @Environment(\.modelContext) private var modelContext
 
@@ -34,16 +31,17 @@ struct GalleryPage: View {
     @State private var showProfileEditPopup = false
     @State private var confettiTrigger = 0
 
-    let columns = [
-        GridItem(.flexible()),
-        GridItem(.flexible())
-    ]
+    /// 액션 시트의 "프로필로 설정"은 한 장만 골랐을 때만 뜻이 통한다.
+    private var singleSelectedPost: Post? {
+        guard selectedPostIDs.count == 1 else { return nil }
+        return allPosts.first { selectedPostIDs.contains($0.persistentModelID) }
+    }
 
     var body: some View {
         NavigationStack{
             ZStack {
                 GeometryReader { proxy in
-                    Image("papertype1")
+                    Image(.papertype1)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: proxy.size.width)
@@ -57,9 +55,9 @@ struct GalleryPage: View {
                             Circle()
                                 .foregroundStyle(.white)
 
-                            if let profilePost = allPosts.first(where: { $0.isProfile }) {
+                            if let profilePost {
                                 Canvas { context, size in
-                                    let scale = size.width / 350
+                                    let scale = size.width / DoodleMetrics.canvasSize.width
                                     context.transform = CGAffineTransform(scaleX: scale, y: scale)
                                     for line in profilePost.lines {
                                         var path = Path()
@@ -71,7 +69,7 @@ struct GalleryPage: View {
                                     withAnimation(.spring()) { showProfileEditPopup = true }
                                 }
                             } else {
-                                Image("profile.default")
+                                Image(.profileDefault)
                                     .resizable()
                                     .scaledToFill()
                                     .onTapGesture {
@@ -181,9 +179,7 @@ struct GalleryPage: View {
                         VStack(spacing: 0) {
                             HStack(spacing: 24) {
                                 Button {
-                                    for post in allPosts {
-                                        post.isProfile = selectedPostIDs.contains(post.persistentModelID)
-                                    }
+                                    modelContext.setProfilePost(singleSelectedPost)
                                     confettiTrigger += 1
                                     selectedPostIDs.removeAll()
                                     selectedTab = false
@@ -197,6 +193,8 @@ struct GalleryPage: View {
                                         .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 30))
                                         .foregroundStyle(.white)
                                 }
+                                .disabled(singleSelectedPost == nil)
+                                .opacity(singleSelectedPost == nil ? 0.4 : 1)
 
                                 Button(role: .destructive) {
                                     for post in allPosts where selectedPostIDs.contains(post.persistentModelID) {
@@ -254,7 +252,7 @@ struct GalleryPage: View {
 
                     VStack(spacing: 20) {
                         Canvas { context, size in
-                            let scale = size.width / 350
+                            let scale = size.width / DoodleMetrics.canvasSize.width
                             context.transform = CGAffineTransform(scaleX: scale, y: scale)
                             for line in candidate.lines {
                                 var path = Path()
@@ -277,9 +275,7 @@ struct GalleryPage: View {
 
                         HStack(spacing: 24) {
                             Button("예") {
-                                for post in allPosts {
-                                    post.isProfile = (post.persistentModelID == candidate.persistentModelID)
-                                }
+                                modelContext.setProfilePost(candidate)
                                 confettiTrigger += 1
                                 withAnimation(.spring()) {
                                     profileCandidatePost = nil
@@ -334,9 +330,7 @@ struct GalleryPage: View {
                             .foregroundStyle(.white)
                             
                             Button("삭제", role: .destructive) {
-                                for post in allPosts where post.isProfile {
-                                    post.isProfile = false
-                                }
+                                modelContext.setProfilePost(nil)
                                 withAnimation(.spring()) { showProfileEditPopup = false }
                             }
                             .frame(maxWidth: .infinity)
