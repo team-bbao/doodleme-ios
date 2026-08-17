@@ -23,7 +23,7 @@
 ```
 DoodleMe/
 ├── DoodleMeApp.swift                      # @main 진입점
-├── RootView.swift                         # 딥링크 수신 + 탭 구성
+├── RootView.swift                         # 탭 구성
 ├── Features/
 │   ├── Drawing/
 │   │   ├── View/
