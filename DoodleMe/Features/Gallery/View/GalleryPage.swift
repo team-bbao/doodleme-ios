@@ -315,8 +315,7 @@ struct GalleryPage: View {
                             .multilineTextAlignment(.center)
                             .padding(.bottom, 30)
                             .padding(.top, 15)
-                            .font(.system(size: 25))
-                        
+
                         HStack(spacing: 24) {
                             Button("예") {
                                 withAnimation(.spring()) {
