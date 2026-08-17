@@ -102,7 +102,7 @@ struct QRShareView: View {
                     .resizable()
                     .frame(width: 260, height: 260)
 
-                Text("상대방이 이 QR코드를 스캔하면\n자동으로 저장돼요")
+                Text("스캔하여 전달 받으세요")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

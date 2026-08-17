@@ -13,7 +13,7 @@ struct LazyVGridDuddle: View {
     @Query private var allPosts: [Post]
     
     @Binding var selectedPostIDs: Set<PersistentIdentifier>
-    @Binding var segmentedBar: Bool
+    @Binding var segmentedBar: Int
     @Binding var selectedTab: Bool
     @Binding var showActionDialog: Bool
     var postsByMe: [Post] {
@@ -30,47 +30,36 @@ struct LazyVGridDuddle: View {
     var body: some View {
         let currentPosts = isSelectingProfile
             ? allPosts.filter { !$0.isProfile }
-            : (segmentedBar ? postsByMe : postsByOthers)
+            : (segmentedBar == 1 ? postsByMe : postsByOthers)
 
-        let gradientColors: [Color] = [
-            .gradientTop,
-            .gradientTop,
-            .gradientBottom
-        ]
-        
         let columns = [
             GridItem(.flexible(), spacing: 30),
             GridItem(.flexible(), spacing: 30)
         ]
 
         if currentPosts.isEmpty {
-            Text("0개의 항목")
+            Text("친구의 얼굴을 그려보세요")
                 .foregroundStyle(.colorGray)
                 .padding(.top, 70)
                 .fontWeight(.bold)
                 .font(.system(size: 25))
-                .opacity(0.7)
+                .opacity(0.4)
             Spacer()
             
         } else {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 20) {
                         ForEach(currentPosts) { post in
-                            RoundedRectangle(cornerRadius: 12)
-                                //     .fill(Color.white)
-                                .fill(
-                                        LinearGradient(
-                                            colors: gradientColors,
-                                            startPoint: .topTrailing,
-                                            endPoint: .bottomLeading
-                                        )
-                                    )
+                            Image("메모지.body")
+                                .resizable()
+                                .scaledToFill()
                                 .frame(height: 170)
+                                .clipped()
                                 .overlay {
                                     GeometryReader { geo in
                                         Canvas { context, size in
                                             let scaleX = geo.size.width / 350
-                                            let scaleY = geo.size.height / 350
+                                            let scaleY = geo.size.height / 390
                                             context.transform = CGAffineTransform(scaleX: scaleX, y: scaleY)
                                             for line in post.lines {
                                                 var path = Path()
@@ -80,13 +69,14 @@ struct LazyVGridDuddle: View {
                                         }
                                     }
                                 }
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
                                 .overlay(alignment: .topTrailing) {
                                     if selectedTab || isSelectingProfile {
                                         let isSelected = isSelectingProfile
                                             ? profileCandidatePost?.persistentModelID == post.persistentModelID
                                             : selectedPostIDs.contains(post.id)
                                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(isSelected ? .blue : .gray)
+                                            .foregroundStyle(isSelected ? Color.accent : .gray)
                                             .padding(8)
                                     }
                                 }
@@ -121,7 +111,7 @@ struct LazyVGridDuddle: View {
 #Preview {
     LazyVGridDuddle(
         selectedPostIDs: .constant([]),
-        segmentedBar: .constant(false),
+        segmentedBar: .constant(0),
         selectedTab: .constant(false),
         showActionDialog: .constant(false),
         selectedPost: .constant(nil),
