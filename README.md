@@ -12,10 +12,11 @@
 
 ## 기능
 
-- 탭해서 30초 타이머 실행 시키고 첫인상 그리기
+- 탭해서 30초 타이머 실행 시키고 첫인상 그리기 (PencilKit)
 - 그린 첫인상 카드에 메모 남기기
 - 내 첫인상들 모아보기
 - 내 첫인상을 프로필로 설정하기
+- 가까이 있는 친구와 그림 주고받기 (MultipeerConnectivity)
 
 ## 프로젝트 구조
 
@@ -27,30 +28,37 @@ DoodleMe/
 │   ├── Drawing/
 │   │   ├── View/
 │   │   │   ├── DrawingPage.swift
-│   │   │   ├── DrawingCanvas.swift
+│   │   │   ├── DrawingCanvas.swift        # PKCanvasView 래퍼
 │   │   │   └── DrawingToolPicker.swift
 │   │   └── DataModel/
+│   │       ├── DrawingSession.swift
 │   │       └── DrawingFocusField.swift
-│   └── Gallery/
+│   ├── Gallery/
+│   │   ├── View/
+│   │   │   ├── GalleryPage.swift
+│   │   │   ├── PostGridView.swift
+│   │   │   ├── PostDetailView.swift
+│   │   │   ├── ProfileNameView.swift
+│   │   │   ├── CustomSegmentedControl.swift
+│   │   │   └── ConfettiBurst.swift
+│   │   └── DataModel/
+│   │       └── ConfettiParticle.swift
+│   └── Sharing/                           # 가까운 기기끼리 그림 주고받기
 │       ├── View/
-│       │   ├── GalleryPage.swift
-│       │   ├── PostGridView.swift
-│       │   ├── PostDetailView.swift
-│       │   ├── ProfileNameView.swift
-│       │   ├── CustomSegmentedControl.swift
-│       │   ├── ConfettiBurst.swift
-│       │   ├── QRShareView.swift
-│       │   ├── QRScannerView.swift
-│       │   └── CameraPreviewView.swift
+│       │   └── NearbySharingView.swift
 │       └── DataModel/
-│           └── ConfettiParticle.swift
+│           └── MultipeerSession.swift
 ├── Shared/
 │   ├── Model/                             # 공통으로 쓰이는 Model 들 저장
 │   │   ├── Post.swift
-│   │   ├── Line.swift
-│   │   └── PostTransferData.swift
+│   │   ├── PostTransferData.swift
+│   │   └── DoodleMetrics.swift
+│   ├── View/                              # 피처를 가리지 않고 쓰이는 View
+│   │   └── DoodleImageView.swift
 │   ├── Extension/                         # Extension 파일들 저장
-│   │   └── CGPoint+Distance.swift
+│   │   ├── PKDrawing+Doodle.swift
+│   │   ├── Duration+Seconds.swift
+│   │   └── ModelContext+Profile.swift
 │   └── Persistence/
 │       └── LocalDataStore.swift           # Swift Data 코드 저장
 └── Resources/

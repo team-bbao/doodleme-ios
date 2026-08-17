@@ -16,7 +16,7 @@ struct PostDetailView: View {
     @AppStorage("userName") private var userName = ""
 
     @State private var isFlipped = false
-    @State private var showsQRCode = false
+    @State private var showSharingSheet = false
     @State private var showSaveAlert = false
     @State private var saveMessage = ""
 
@@ -30,15 +30,14 @@ struct PostDetailView: View {
 
             HStack {
                 Button {
-                    showsQRCode = true
-                    isFlipped = true
+                    showSharingSheet = true
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                         .font(.title2)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 14)
                 }
-                .accessibilityLabel("QR로 공유")
+                .accessibilityLabel("가까운 친구에게 보내기")
 
                 Button {
                     Task { await saveDrawingToGallery() }
@@ -59,7 +58,7 @@ struct PostDetailView: View {
                     .resizable()
                     .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
                     .shadow(color: .black.opacity(0.25), radius: 10)
-                    .overlay { drawingCanvas(lines: post.lines) }
+                    .overlay { DoodleImageView(drawingData: post.drawingData) }
                     .opacity(isFlipped ? 0 : 1)
 
                 // 뒷면: 정보
@@ -68,16 +67,7 @@ struct PostDetailView: View {
                     .scaleEffect(x: -1, y: 1)
                     .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
                     .shadow(color: .black.opacity(0.25), radius: 10)
-                    .overlay {
-                        if showsQRCode {
-                            QRShareView(post: post, senderName: shareSenderName)
-                                .onTapGesture {
-                                    showsQRCode = false
-                                }
-                        } else {
-                            backFaceContent
-                        }
-                    }
+                    .overlay { backFaceContent }
                     .opacity(isFlipped ? 1 : 0)
                     .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
             }
@@ -89,6 +79,9 @@ struct PostDetailView: View {
             }
         }
         .padding()
+        .sheet(isPresented: $showSharingSheet) {
+            NearbySharingView(post: post)
+        }
         .alert("사진 저장", isPresented: $showSaveAlert) {
             Button("확인") { }
         } message: {
@@ -116,14 +109,14 @@ struct PostDetailView: View {
 
             if !post.isMine {
                 HStack(spacing: 10) {
-                    if post.senderProfileLines.isEmpty {
+                    if let profileData = post.senderProfileDrawingData, !profileData.isEmpty {
+                        DoodleImageView(drawingData: profileData, contentMode: .fill)
+                            .frame(width: 36, height: 36)
+                            .clipShape(Circle())
+                    } else {
                         Image(systemName: "person.badge.plus")
                             .font(.system(size: 28))
                             .foregroundStyle(.gray)
-                    } else {
-                        drawingCanvas(lines: post.senderProfileLines)
-                            .frame(width: 36, height: 36)
-                            .clipShape(Circle())
                     }
                     Text(post.displaySenderName)
                         .font(.headline)
@@ -148,20 +141,6 @@ struct PostDetailView: View {
                 .font(.caption)
                 .foregroundStyle(.gray)
                 .padding(.bottom, 16)
-        }
-    }
-
-    // MARK: - 그림 그리기
-
-    private func drawingCanvas(lines: [Line]) -> some View {
-        Canvas { context, size in
-            let scale = size.width / DoodleMetrics.canvasSize.width
-            context.transform = CGAffineTransform(scaleX: scale, y: scale)
-            for line in lines {
-                var path = Path()
-                path.addLines(line.points)
-                context.stroke(path, with: .color(.black), lineWidth: 2)
-            }
         }
     }
 
@@ -198,7 +177,7 @@ struct PostDetailView: View {
 
     /// 저장용 이미지. 화면에 보이는 카드가 아니라 흰 배경 위의 그림만 담는다.
     private var drawingSnapshot: some View {
-        drawingCanvas(lines: post.lines)
+        DoodleImageView(drawingData: post.drawingData)
             .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.width)
             .background(.white)
     }
@@ -210,6 +189,6 @@ struct PostDetailView: View {
 }
 
 #Preview {
-    PostDetailView(post: Post(lines: [], text: "테스트", isMine: false))
+    PostDetailView(post: Post(drawingData: Data(), text: "테스트", isMine: false))
         .modelContainer(LocalDataStore.makePreviewContainer())
 }

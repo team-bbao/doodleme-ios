@@ -263,7 +263,7 @@ struct DrawingPage: View {
             triggerShake()
             return
         }
-        let newPost = Post(lines: session.lines, text: inputText, isMine: true)
+        let newPost = Post(drawingData: session.drawingData, text: inputText, isMine: true)
         newPost.recipientName = recipientName
         modelContext.insert(newPost)
         resetAll()

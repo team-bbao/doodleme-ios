@@ -14,7 +14,6 @@ struct DrawingToolPicker: View {
     var body: some View {
         HStack(spacing: 28) {
 
-            // Undo
             Button {
                 session.undo()
             } label: {
@@ -25,10 +24,9 @@ struct DrawingToolPicker: View {
             .disabled(!session.canUndo)
             .accessibilityLabel("실행 취소")
 
-            toolButton(icon: "pencil.tip", tool: .pencil, label: "연필")
+            toolButton(icon: "pencil.tip", tool: .pen, label: "연필")
             toolButton(icon: "eraser.fill", tool: .eraser, label: "지우개")
 
-            // Redo
             Button {
                 session.redo()
             } label: {

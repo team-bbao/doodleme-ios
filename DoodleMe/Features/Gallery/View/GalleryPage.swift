@@ -30,6 +30,7 @@ struct GalleryPage: View {
     @State private var profileCandidatePost: Post? = nil
     @State private var showProfileEditPopup = false
     @State private var confettiTrigger = 0
+    @State private var showReceiveSheet = false
 
     /// 액션 시트의 "프로필로 설정"은 한 장만 골랐을 때만 뜻이 통한다.
     private var singleSelectedPost: Post? {
@@ -56,15 +57,7 @@ struct GalleryPage: View {
                                 .foregroundStyle(.white)
 
                             if let profilePost {
-                                Canvas { context, size in
-                                    let scale = size.width / DoodleMetrics.canvasSize.width
-                                    context.transform = CGAffineTransform(scaleX: scale, y: scale)
-                                    for line in profilePost.lines {
-                                        var path = Path()
-                                        path.addLines(line.points)
-                                        context.stroke(path, with: .color(.black), lineWidth: 2)
-                                    }
-                                }
+                                DoodleImageView(drawingData: profilePost.drawingData, contentMode: .fill)
                                 .onTapGesture {
                                     withAnimation(.spring()) { showProfileEditPopup = true }
                                 }
@@ -102,6 +95,14 @@ struct GalleryPage: View {
                         )
                         .padding(.bottom, 20)
                         .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button {
+                                    showReceiveSheet = true
+                                } label: {
+                                    Image(systemName: "antenna.radiowaves.left.and.right")
+                                }
+                                .accessibilityLabel("가까운 친구에게 그림 받기")
+                            }
                             ToolbarItem(placement: .topBarTrailing){
                                 Button(selectedTab ? "취소" : "편집") {
                                     selectedTab.toggle()
@@ -251,15 +252,7 @@ struct GalleryPage: View {
                         }
 
                     VStack(spacing: 20) {
-                        Canvas { context, size in
-                            let scale = size.width / DoodleMetrics.canvasSize.width
-                            context.transform = CGAffineTransform(scaleX: scale, y: scale)
-                            for line in candidate.lines {
-                                var path = Path()
-                                path.addLines(line.points)
-                                context.stroke(path, with: .color(.black), lineWidth: 2)
-                            }
-                        }
+                        DoodleImageView(drawingData: candidate.drawingData, contentMode: .fill)
                         .frame(width: 80, height: 80)
                         .background(.white)
                         .clipShape(Circle())
@@ -348,6 +341,9 @@ struct GalleryPage: View {
             }
             .toolbarVisibility((selectedPost == nil && !showActionDialog) ? .visible : .hidden, for: .tabBar, .navigationBar)
             .ignoresSafeArea()
+            .sheet(isPresented: $showReceiveSheet) {
+                NearbySharingView()
+            }
         }
     }
 }

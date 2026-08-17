@@ -57,18 +57,7 @@ struct PostGridView: View {
                                 .frame(height: 170)
                                 .clipped()
                                 .overlay {
-                                    GeometryReader { geo in
-                                        Canvas { context, size in
-                                            let scaleX = geo.size.width / DoodleMetrics.canvasSize.width
-                                            let scaleY = geo.size.height / DoodleMetrics.canvasSize.height
-                                            context.transform = CGAffineTransform(scaleX: scaleX, y: scaleY)
-                                            for line in post.lines {
-                                                var path = Path()
-                                                path.addLines(line.points)
-                                                context.stroke(path, with: .color(.black), lineWidth: 2)
-                                            }
-                                        }
-                                    }
+                                    DoodleImageView(drawingData: post.drawingData)
                                 }
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                                 .overlay(alignment: .topTrailing) {
