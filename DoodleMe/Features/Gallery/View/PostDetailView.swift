@@ -16,7 +16,7 @@ struct PostDetailView: View {
     @AppStorage("userName") private var userName = ""
 
     @State private var isFlipped = false
-    @State private var showSharingSheet = false
+    @State private var showSharingPopup = false
     @State private var showSaveAlert = false
     @State private var saveMessage = ""
 
@@ -26,11 +26,27 @@ struct PostDetailView: View {
     }
 
     var body: some View {
+        ZStack {
+            card
+
+            if showSharingPopup {
+                DoodlePopup(onBackgroundTap: closeSharingPopup) {
+                    NearbySharingPopup(post: post, onClose: closeSharingPopup)
+                }
+            }
+        }
+    }
+
+    private func closeSharingPopup() {
+        withAnimation(.spring()) { showSharingPopup = false }
+    }
+
+    private var card: some View {
         VStack(spacing: 24) {
 
             HStack {
                 Button {
-                    showSharingSheet = true
+                    withAnimation(.spring()) { showSharingPopup = true }
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                         .font(.title2)
@@ -79,9 +95,6 @@ struct PostDetailView: View {
             }
         }
         .padding()
-        .sheet(isPresented: $showSharingSheet) {
-            NearbySharingView(post: post)
-        }
         .alert("사진 저장", isPresented: $showSaveAlert) {
             Button("확인") { }
         } message: {

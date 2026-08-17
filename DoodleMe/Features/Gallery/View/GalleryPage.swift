@@ -30,7 +30,16 @@ struct GalleryPage: View {
     @State private var profileCandidatePost: Post? = nil
     @State private var showProfileEditPopup = false
     @State private var confettiTrigger = 0
-    @State private var showReceiveSheet = false
+    @State private var showReceivePopup = false
+
+    /// 화면을 덮는 오버레이가 하나라도 떠 있으면 툴바·탭바를 숨긴다.
+    private var isOverlayShowing: Bool {
+        selectedPost != nil || showActionDialog || showReceivePopup
+    }
+
+    private func closeReceivePopup() {
+        withAnimation(.spring()) { showReceivePopup = false }
+    }
 
     /// 액션 시트의 "프로필로 설정"은 한 장만 골랐을 때만 뜻이 통한다.
     private var singleSelectedPost: Post? {
@@ -97,7 +106,7 @@ struct GalleryPage: View {
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
                                 Button {
-                                    showReceiveSheet = true
+                                    withAnimation(.spring()) { showReceivePopup = true }
                                 } label: {
                                     Image(systemName: "antenna.radiowaves.left.and.right")
                                 }
@@ -338,12 +347,16 @@ struct GalleryPage: View {
                     .padding(.horizontal, 40)
                     .transition(.scale(scale: 0.9).combined(with: .opacity))
                 }
+
+                // 그림 받기 팝업
+                if showReceivePopup {
+                    DoodlePopup(onBackgroundTap: closeReceivePopup) {
+                        NearbySharingPopup(onClose: closeReceivePopup)
+                    }
+                }
             }
-            .toolbarVisibility((selectedPost == nil && !showActionDialog) ? .visible : .hidden, for: .tabBar, .navigationBar)
+            .toolbarVisibility(isOverlayShowing ? .hidden : .visible, for: .tabBar, .navigationBar)
             .ignoresSafeArea()
-            .sheet(isPresented: $showReceiveSheet) {
-                NearbySharingView()
-            }
         }
     }
 }
