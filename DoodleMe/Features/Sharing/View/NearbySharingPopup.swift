@@ -13,9 +13,9 @@ import SwiftUI
 /// 여기는 안쪽만 그리므로, 디자인을 바꿀 때는 이 파일만 손보면 된다.
 /// 통신 로직은 `MultipeerSession` 에 있어서 화면을 갈아엎어도 그대로 쓸 수 있다.
 ///
-/// `post` 가 있으면 보내기 겸 받기, `nil` 이면 받기 전용으로 동작한다.
+/// 보내는 쪽에서 여는 팝업이지만, 열려 있는 동안 상대가 보낸 그림도 함께 받는다.
 struct NearbySharingPopup: View {
-    var post: Post?
+    let post: Post
     var onClose: () -> Void
 
     @Environment(\.modelContext) private var modelContext
@@ -27,11 +27,9 @@ struct NearbySharingPopup: View {
     @State private var savedMessage: String?
     @State private var sentPeerNames: Set<String> = []
 
-    private var isSending: Bool { post != nil }
-
     var body: some View {
         VStack(spacing: 16) {
-            Text(isSending ? "가까운 친구에게 보내기" : "그림 받기")
+            Text("가까운 친구에게 보내기")
                 .font(.headline)
 
             if let session {
@@ -96,19 +94,17 @@ struct NearbySharingPopup: View {
         VStack(spacing: 8) {
             ForEach(session.connectedPeers, id: \.self) { peer in
                 peerRow(name: peer.displayName, systemImage: "person.fill.checkmark") {
-                    if isSending {
-                        if sentPeerNames.contains(peer.displayName) {
-                            Text("보냄")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Button("보내기") { send(from: session, to: peer) }
-                                .font(.footnote.weight(.semibold))
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 6)
-                                .background(Color.accentColor, in: Capsule())
-                                .foregroundStyle(.white)
-                        }
+                    if sentPeerNames.contains(peer.displayName) {
+                        Text("보냄")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Button("보내기") { send(from: session, to: peer) }
+                            .font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(Color.accentColor, in: Capsule())
+                            .foregroundStyle(.white)
                     }
                 }
             }
@@ -163,7 +159,6 @@ struct NearbySharingPopup: View {
     // MARK: - 동작
 
     private func send(from session: MultipeerSession, to peer: MCPeerID) {
-        guard let post else { return }
         session.send(
             PostTransferData(
                 post: post,
