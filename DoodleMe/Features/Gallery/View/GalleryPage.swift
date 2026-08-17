@@ -31,6 +31,11 @@ struct GalleryPage: View {
 
     private var isChoosingProfile: Bool { mode == .choosingProfile }
 
+    /// 프로필 고르기에는 취소 버튼이 없다. 카드가 아닌 빈 곳을 누르면 빠져나온다.
+    private var emptyAreaTapAction: (() -> Void)? {
+        isChoosingProfile ? { exitSelection() } : nil
+    }
+
     /// 화면을 덮는 오버레이가 하나라도 떠 있으면 툴바·탭바를 숨긴다.
     /// 프로필을 고를 때도 그림에만 집중하도록 함께 숨긴다.
     private var isOverlayShowing: Bool {
@@ -76,7 +81,8 @@ struct GalleryPage: View {
                         selectedPostIDs: $selectedPostIDs,
                         segmentedBar: $segmentedBar,
                         selectedPost: $selectedPost,
-                        profileCandidatePost: $profileCandidatePost
+                        profileCandidatePost: $profileCandidatePost,
+                        onEmptyAreaTap: emptyAreaTapAction
                     )
                     .frame(maxHeight: .infinity)
                 }

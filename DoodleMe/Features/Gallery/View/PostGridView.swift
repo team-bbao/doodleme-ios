@@ -25,6 +25,12 @@ struct PostGridView: View {
     @Binding var selectedPost: Post?
     @Binding var profileCandidatePost: Post?
 
+    /// 카드가 아닌 빈 곳을 눌렀을 때. 프로필 고르기에서 빠져나오는 데 쓴다.
+    ///
+    /// 그리드는 `ScrollView` 라 화면 아래쪽 대부분을 차지한다.
+    /// 뒤에 깔린 레이어가 탭을 받을 수 없으므로 여기서 직접 받아 넘겨준다.
+    var onEmptyAreaTap: (() -> Void)?
+
     /// 프로필을 고를 때는 세그먼트와 무관하게 후보 전체를 보여준다.
     private var currentPosts: [Post] {
         mode == .choosingProfile
@@ -45,7 +51,9 @@ struct PostGridView: View {
                 .fontWeight(.bold)
                 .font(.system(size: 25))
                 .opacity(0.4)
-            Spacer()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .contentShape(Rectangle())
+                .onTapGesture { onEmptyAreaTap?() }
         } else {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 20) {
@@ -53,7 +61,13 @@ struct PostGridView: View {
                         card(for: post)
                     }
                 }
+                // 마지막 줄 아래에도 누를 수 있는 여백을 남긴다.
+                .padding(.bottom, 40)
+                .frame(maxWidth: .infinity, minHeight: 0, alignment: .top)
             }
+            // 카드보다 바깥쪽 제스처라, 카드 탭은 카드가 먼저 가져간다.
+            .contentShape(Rectangle())
+            .onTapGesture { onEmptyAreaTap?() }
         }
     }
 
