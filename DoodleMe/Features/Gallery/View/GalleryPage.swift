@@ -27,6 +27,7 @@ struct GalleryPage: View {
     @State private var profileCandidatePost: Post?
     @State private var showProfileEditPopup = false
     @State private var showDeleteConfirm = false
+    @State private var showSelectMenu = false
     @State private var confettiTrigger = 0
 
     private var isChoosingProfile: Bool { mode == .choosingProfile }
@@ -111,6 +112,16 @@ struct GalleryPage: View {
                     profileEditPopup
                 }
 
+                if showSelectMenu {
+                    // 바깥을 누르면 닫힌다. 그리드 위에 있어야 탭을 가로챌 수 있다.
+                    Color.clear
+                        .ignoresSafeArea()
+                        .contentShape(Rectangle())
+                        .onTapGesture { closeSelectMenu() }
+
+                    selectMenu
+                }
+
                 if mode == .deleting {
                     selectionBar
                 }
@@ -189,29 +200,75 @@ struct GalleryPage: View {
         ToolbarItem(placement: .topBarTrailing) {
             switch mode {
             case .browsing:
-                // 버튼 자리에서 위아래로 펼쳐진다.
-                Menu {
-                    Button {
-                        withAnimation(.spring()) { mode = .choosingProfile }
-                    } label: {
-                        Label("프로필", systemImage: "person.crop.circle")
+                // 시스템 Menu 는 최소 너비가 정해져 있어 짧은 한글 라벨이면 오른쪽이 휑하다.
+                // 내용에 맞는 크기로 직접 그린다(selectMenu).
+                Button("선택") {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        showSelectMenu.toggle()
                     }
-
-                    Button(role: .destructive) {
-                        withAnimation(.spring()) { mode = .deleting }
-                    } label: {
-                        Label("삭제", systemImage: "trash")
-                    }
-                } label: {
-                    Text("선택")
                 }
-                // 메뉴가 위로 열려도 프로필 → 삭제 순서를 유지한다.
-                .menuOrder(.fixed)
 
             // 프로필 고르기는 팝업이, 삭제는 하단 선택 바가 대신한다.
             case .choosingProfile, .deleting:
                 EmptyView()
             }
+        }
+    }
+
+    // MARK: - 선택 메뉴
+
+    /// "선택" 버튼 아래에 붙는 드롭다운. 내용에 맞는 너비로 그린다.
+    private var selectMenu: some View {
+        VStack(spacing: 0) {
+            menuRow(title: "프로필", systemImage: "person.crop.circle") {
+                mode = .choosingProfile
+            }
+
+            Divider()
+                .padding(.horizontal, 12)
+
+            menuRow(title: "삭제", systemImage: "trash", isDestructive: true) {
+                mode = .deleting
+            }
+        }
+        .frame(width: 150)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
+        .padding(.top, 108)
+        .padding(.trailing, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        .transition(.scale(scale: 0.9, anchor: .topTrailing).combined(with: .opacity))
+    }
+
+    private func menuRow(
+        title: String,
+        systemImage: String,
+        isDestructive: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            withAnimation(.spring()) {
+                showSelectMenu = false
+                action()
+            }
+        } label: {
+            HStack {
+                Text(title)
+                Spacer()
+                Image(systemName: systemImage)
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(isDestructive ? Color.red : .primary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func closeSelectMenu() {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            showSelectMenu = false
         }
     }
 
