@@ -111,12 +111,18 @@ struct GalleryPage: View {
                     profileEditPopup
                 }
 
+                if mode == .deleting {
+                    selectionBar
+                }
+
                 if showDeleteConfirm {
                     deleteConfirmPopup
                 }
             }
             .toolbar { toolbarContent }
-            .toolbarVisibility(isOverlayShowing ? .hidden : .visible, for: .tabBar, .navigationBar)
+            .toolbarVisibility(isOverlayShowing ? .hidden : .visible, for: .navigationBar)
+            // 삭제 중에는 탭바 자리를 선택 바가 대신 쓴다.
+            .toolbarVisibility(isOverlayShowing || mode == .deleting ? .hidden : .visible, for: .tabBar)
             .ignoresSafeArea()
         }
     }
@@ -202,17 +208,57 @@ struct GalleryPage: View {
                 // 메뉴가 위로 열려도 프로필 → 삭제 순서를 유지한다.
                 .menuOrder(.fixed)
 
-            case .choosingProfile:
+            // 프로필 고르기는 팝업이, 삭제는 하단 선택 바가 대신한다.
+            case .choosingProfile, .deleting:
                 EmptyView()
-
-            case .deleting:
-                Button(selectedPostIDs.isEmpty ? "삭제" : "삭제 \(selectedPostIDs.count)") {
-                    withAnimation(.spring()) { showDeleteConfirm = true }
-                }
-                .disabled(selectedPostIDs.isEmpty)
-                .tint(.red)
             }
         }
+    }
+
+    // MARK: - 삭제 선택 바
+
+    /// 사진 앱 선택 모드처럼, 탭바 자리에 고른 개수와 삭제 버튼을 띄운다.
+    private var selectionBar: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            ZStack(alignment: .bottom) {
+                // 아래로 갈수록 짙어지는 회색.
+                // 카드가 바 뒤로 스크롤돼도 글씨가 묻히지 않게 받쳐준다.
+                LinearGradient(
+                    colors: [.gray.opacity(0), .gray.opacity(0.65)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 180)
+                .allowsHitTesting(false)
+
+                ZStack {
+                    Text(selectedPostIDs.isEmpty
+                         ? "지울 그림을 골라주세요"
+                         : "\(selectedPostIDs.count)장의 그림이 선택됨")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.black)
+
+                    HStack {
+                        Spacer()
+                        Button {
+                            withAnimation(.spring()) { showDeleteConfirm = true }
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.title3)
+                                .foregroundStyle(selectedPostIDs.isEmpty ? .gray : .red)
+                        }
+                        .disabled(selectedPostIDs.isEmpty)
+                        .accessibilityLabel("고른 그림 삭제")
+                    }
+                }
+                .padding(.horizontal, 28)
+                .padding(.bottom, 32)
+            }
+        }
+        .ignoresSafeArea(edges: .bottom)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     // MARK: - 팝업
