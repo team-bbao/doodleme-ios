@@ -16,7 +16,7 @@ struct PostDetailView: View {
     @AppStorage("userName") private var userName = ""
 
     @State private var isFlipped = false
-    @State private var showSharingPopup = false
+    @State private var showSharingScreen = false
     @State private var showSaveAlert = false
     @State private var saveMessage = ""
 
@@ -26,19 +26,10 @@ struct PostDetailView: View {
     }
 
     var body: some View {
-        ZStack {
-            card
-
-            if showSharingPopup {
-                DoodlePopup(onBackgroundTap: closeSharingPopup) {
-                    NearbySharingPopup(post: post, onClose: closeSharingPopup)
-                }
+        card
+            .fullScreenCover(isPresented: $showSharingScreen) {
+                NearbySharingScreen(post: post) { showSharingScreen = false }
             }
-        }
-    }
-
-    private func closeSharingPopup() {
-        withAnimation(.spring()) { showSharingPopup = false }
     }
 
     private var card: some View {
@@ -46,7 +37,7 @@ struct PostDetailView: View {
 
             HStack {
                 Button {
-                    withAnimation(.spring()) { showSharingPopup = true }
+                    showSharingScreen = true
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                         .font(.title2)

@@ -13,10 +13,12 @@ extension MCPeerID: @retroactive @unchecked Sendable {}
 /// 가까운 기기끼리 그림을 주고받는다.
 ///
 /// 같은 화면을 연 두 사람이 서로를 자동으로 찾도록, 광고(advertise)와 탐색(browse)을 동시에 켠다.
-/// 상대가 초대하면 자동으로 수락하고, 연결되면 그림을 보낼 수 있다.
+/// 상대가 초대하면 자동으로 수락한다.
+///
+/// 화면에는 "연결" 단계가 없다. 보내기를 누르면 필요한 연결까지 알아서 맺고 이어서 보낸다.
 ///
 /// MultipeerConnectivity 의 델리게이트는 임의의 큐에서 불린다.
-/// 관찰 대상 상태는 모두 메인 액터에서만 건드리도록 `Task { @MainActor in }` 으로 넘긴다.
+/// 관찰 대상 상태는 모두 메인 액터에서만 건드리도록 어댑터를 거쳐 넘긴다.
 @Observable
 @MainActor
 final class MultipeerSession {
@@ -25,17 +27,17 @@ final class MultipeerSession {
     /// Info.plist 의 NSBonjourServices 항목과 반드시 같아야 한다.
     static let serviceType = "doodleme"
 
-    enum Status: Equatable {
-        case stopped
-        case searching
-        case connected(peerCount: Int)
+    /// 한 사람에게 보내는 일이 어디까지 진행됐는지.
+    enum TransferState: Equatable {
+        case idle
+        case sending
+        case sent
         case failed(String)
     }
 
-    private(set) var status: Status = .stopped
-    /// 주변에서 발견된, 아직 연결되지 않은 기기.
-    private(set) var nearbyPeers: [MCPeerID] = []
-    private(set) var connectedPeers: [MCPeerID] = []
+    /// 주변에서 찾은 사람들. 연결되더라도 목록에서 빼지 않는다(화면에 계속 보여야 한다).
+    private(set) var peers: [MCPeerID] = []
+    private(set) var transferStates: [MCPeerID: TransferState] = [:]
     /// 방금 받은 그림. 화면에서 저장한 뒤 nil 로 되돌린다.
     private(set) var received: PostTransferData?
     private(set) var lastError: String?
@@ -48,6 +50,8 @@ final class MultipeerSession {
     @ObservationIgnored private let delegateAdapter: DelegateAdapter
     @ObservationIgnored private var advertiser: MCNearbyServiceAdvertiser?
     @ObservationIgnored private var browser: MCNearbyServiceBrowser?
+    /// 아직 연결이 안 돼서 기다리고 있는 전송분.
+    @ObservationIgnored private var pendingTransfers: [MCPeerID: Data] = [:]
 
     init(displayName: String) {
         // MCPeerID 는 빈 문자열이나 64자 초과를 허용하지 않는다.
@@ -87,8 +91,6 @@ final class MultipeerSession {
         browser.delegate = delegateAdapter
         browser.startBrowsingForPeers()
         self.browser = browser
-
-        status = .searching
     }
 
     func stop() {
@@ -97,31 +99,45 @@ final class MultipeerSession {
         browser?.stopBrowsingForPeers()
         browser = nil
         session.disconnect()
-        nearbyPeers = []
-        connectedPeers = []
-        status = .stopped
-    }
-
-    // MARK: - 연결
-
-    /// 발견한 기기에게 연결을 요청한다.
-    func invite(_ peer: MCPeerID) {
-        browser?.invitePeer(peer, to: session, withContext: nil, timeout: 20)
+        peers = []
+        transferStates = [:]
+        pendingTransfers = [:]
     }
 
     // MARK: - 전송
 
-    /// 연결된 모든 기기에 그림을 보낸다.
-    func send(_ transfer: PostTransferData) {
-        guard !session.connectedPeers.isEmpty else {
-            lastError = "연결된 기기가 없어요."
+    func state(for peer: MCPeerID) -> TransferState {
+        transferStates[peer] ?? .idle
+    }
+
+    /// 한 사람에게 그림을 보낸다. 아직 연결돼 있지 않으면 연결부터 맺고 이어서 보낸다.
+    func send(_ transfer: PostTransferData, to peer: MCPeerID) {
+        guard state(for: peer) != .sending else { return }
+
+        guard let data = try? transfer.encoded() else {
+            transferStates[peer] = .failed("그림을 준비하지 못했어요.")
             return
         }
+
+        transferStates[peer] = .sending
+
+        if session.connectedPeers.contains(peer) {
+            deliver(data, to: peer)
+        } else {
+            // 연결이 맺어지면 handleStateChange 에서 이어서 보낸다.
+            pendingTransfers[peer] = data
+            browser?.invitePeer(peer, to: session, withContext: nil, timeout: 20)
+        }
+    }
+
+    private func deliver(_ data: Data, to peer: MCPeerID) {
         do {
-            try session.send(try transfer.encoded(), toPeers: session.connectedPeers, with: .reliable)
+            try session.send(data, toPeers: [peer], with: .reliable)
+            transferStates[peer] = .sent
             lastError = nil
         } catch {
-            lastError = "보내기에 실패했어요: \(error.localizedDescription)"
+            transferStates[peer] = .failed("보내지 못했어요.")
+            lastError = error.localizedDescription
         }
     }
 
@@ -133,27 +149,36 @@ final class MultipeerSession {
     // MARK: - 델리게이트 콜백 (메인 액터로 넘어온 뒤 호출됨)
 
     fileprivate func handleFoundPeer(_ peer: MCPeerID) {
-        guard !nearbyPeers.contains(peer), !connectedPeers.contains(peer) else { return }
-        nearbyPeers.append(peer)
+        guard !peers.contains(peer) else { return }
+        peers.append(peer)
     }
 
     fileprivate func handleLostPeer(_ peer: MCPeerID) {
-        nearbyPeers.removeAll { $0 == peer }
+        // 이미 보냈거나 보내는 중이면 결과를 보여줘야 하므로 목록에 남긴다.
+        guard state(for: peer) == .idle else { return }
+        peers.removeAll { $0 == peer }
     }
 
     fileprivate func handleStateChange(peer: MCPeerID, state: MCSessionState) {
         switch state {
         case .connected:
-            nearbyPeers.removeAll { $0 == peer }
-            if !connectedPeers.contains(peer) { connectedPeers.append(peer) }
+            if !peers.contains(peer) { peers.append(peer) }
+            if let waiting = pendingTransfers.removeValue(forKey: peer) {
+                deliver(waiting, to: peer)
+            }
+
         case .connecting:
             break
+
         case .notConnected:
-            connectedPeers.removeAll { $0 == peer }
+            // 보내려고 기다리던 중이었다면 연결에 실패한 것이다.
+            if pendingTransfers.removeValue(forKey: peer) != nil {
+                transferStates[peer] = .failed("연결하지 못했어요.")
+            }
+
         @unknown default:
             break
         }
-        status = connectedPeers.isEmpty ? .searching : .connected(peerCount: connectedPeers.count)
     }
 
     fileprivate func handleReceived(_ data: Data) {
@@ -166,7 +191,6 @@ final class MultipeerSession {
 
     fileprivate func handleFailure(_ message: String) {
         lastError = message
-        status = .failed(message)
     }
 
     /// MultipeerConnectivity 델리게이트를 받아 메인 액터로 넘겨주는 어댑터.
