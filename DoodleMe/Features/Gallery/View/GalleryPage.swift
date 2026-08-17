@@ -29,12 +29,16 @@ struct GalleryPage: View {
     @State private var showDeleteConfirm = false
     @State private var confettiTrigger = 0
 
+    private var isChoosingProfile: Bool { mode == .choosingProfile }
+
     /// 화면을 덮는 오버레이가 하나라도 떠 있으면 툴바·탭바를 숨긴다.
+    /// 프로필을 고를 때도 그림에만 집중하도록 함께 숨긴다.
     private var isOverlayShowing: Bool {
         selectedPost != nil
             || showDeleteConfirm
             || showProfileEditPopup
             || profileCandidatePost != nil
+            || isChoosingProfile
     }
 
     var body: some View {
@@ -49,9 +53,23 @@ struct GalleryPage: View {
                         .ignoresSafeArea()
                 }
 
+                // 프로필을 고를 때는 그림 말고 다 어둡게 덮는다.
+                // 그리드는 이 레이어보다 위에 그려지므로 카드만 밝게 남는다.
+                if isChoosingProfile {
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                        .contentShape(Rectangle())
+                        // 취소 버튼을 없앤 대신, 어두운 곳을 누르면 빠져나온다.
+                        .onTapGesture { exitSelection() }
+                        .transition(.opacity)
+                }
+
                 VStack {
                     header
                         .padding(.top, 140)
+                        // 헤더는 어두운 레이어 위에 있으므로 직접 흐리게 만든다.
+                        .opacity(isChoosingProfile ? 0.4 : 1)
+                        .allowsHitTesting(!isChoosingProfile)
 
                     PostGridView(
                         mode: mode,
@@ -148,7 +166,9 @@ struct GalleryPage: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        if mode.isSelecting {
+        // 프로필 고르기는 카드를 누르면 바로 확인 팝업이 뜨고,
+        // 어두운 곳을 누르면 빠져나올 수 있어서 툴바 버튼이 필요 없다.
+        if mode == .deleting {
             ToolbarItem(placement: .topBarLeading) {
                 Button("취소") { exitSelection() }
             }
@@ -177,9 +197,7 @@ struct GalleryPage: View {
                 .menuOrder(.fixed)
 
             case .choosingProfile:
-                Text("한 장 고르기")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                EmptyView()
 
             case .deleting:
                 Button(selectedPostIDs.isEmpty ? "삭제" : "삭제 \(selectedPostIDs.count)") {
