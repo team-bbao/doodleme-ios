@@ -9,7 +9,24 @@ import PencilKit
 import SwiftUI
 
 /// PencilKit 캔버스. 손가락과 Apple Pencil 양쪽으로 그릴 수 있다.
-struct DrawingCanvas: UIViewRepresentable {
+///
+/// 크기를 이 뷰 안에서 못박는다. `UIViewRepresentable` 은 프레임을 주지 않으면
+/// 제안된 크기를 그대로 채우기 때문에, 호출하는 쪽에서 `.frame` 을 빠뜨리면
+/// 캔버스가 메모지를 넘어 화면 전체로 퍼지고 저장되는 좌표까지 어긋난다.
+struct DrawingCanvas: View {
+
+    let session: DrawingSession
+
+    var body: some View {
+        CanvasRepresentable(session: session)
+            .frame(
+                width: DoodleMetrics.canvasSize.width,
+                height: DoodleMetrics.canvasSize.height
+            )
+    }
+}
+
+private struct CanvasRepresentable: UIViewRepresentable {
 
     let session: DrawingSession
 
@@ -26,6 +43,7 @@ struct DrawingCanvas: UIViewRepresentable {
         canvas.isOpaque = false
         // 캔버스가 스크롤·확대되면 저장 좌표와 화면 좌표가 어긋난다.
         canvas.isScrollEnabled = false
+        canvas.contentInsetAdjustmentBehavior = .never
         canvas.tool = session.tool.pkTool
         canvas.drawing = session.drawing
 

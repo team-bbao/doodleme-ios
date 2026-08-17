@@ -5,11 +5,11 @@
 //  Created by Apple Developer Academy on 8/11/26.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct PostGridView: View {
-    
+
     // 필터·정렬을 SwiftData 에 맡긴다. 메모리에서 filter 하지 않으므로 순서도 항상 최신순으로 보장된다.
     @Query(filter: #Predicate<Post> { $0.isMine },
            sort: \Post.createdAt, order: .reverse) private var postsByMe: [Post]
@@ -19,93 +19,118 @@ struct PostGridView: View {
     @Query(filter: #Predicate<Post> { !$0.isProfile },
            sort: \Post.createdAt, order: .reverse) private var profileCandidates: [Post]
 
+    let mode: GalleryMode
     @Binding var selectedPostIDs: Set<PersistentIdentifier>
     @Binding var segmentedBar: Int
-    @Binding var selectedTab: Bool
-    @Binding var showActionDialog: Bool
-    
     @Binding var selectedPost: Post?
-    @Binding var isSelectingProfile: Bool
     @Binding var profileCandidatePost: Post?
 
-    var body: some View {
-        let currentPosts = isSelectingProfile
+    /// 프로필을 고를 때는 세그먼트와 무관하게 후보 전체를 보여준다.
+    private var currentPosts: [Post] {
+        mode == .choosingProfile
             ? profileCandidates
             : (segmentedBar == 1 ? postsByMe : postsByOthers)
+    }
 
-        let columns = [
-            GridItem(.flexible(), spacing: 30),
-            GridItem(.flexible(), spacing: 30)
-        ]
+    private let columns = [
+        GridItem(.flexible(), spacing: 30),
+        GridItem(.flexible(), spacing: 30)
+    ]
 
+    var body: some View {
         if currentPosts.isEmpty {
-            Text("친구의 얼굴을 그려보세요")
+            Text(mode == .choosingProfile ? "고를 수 있는 그림이 없어요" : "친구의 얼굴을 그려보세요")
                 .foregroundStyle(.colorGray)
                 .padding(.top, 70)
                 .fontWeight(.bold)
                 .font(.system(size: 25))
                 .opacity(0.4)
             Spacer()
-            
         } else {
-                ScrollView {
-                    LazyVGrid(columns: columns, spacing: 20) {
-                        ForEach(currentPosts) { post in
-                            Image(.memoFront)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(height: 170)
-                                .clipped()
-                                .overlay {
-                                    DoodleImageView(drawingData: post.drawingData)
-                                }
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .overlay(alignment: .topTrailing) {
-                                    if selectedTab || isSelectingProfile {
-                                        let isSelected = isSelectingProfile
-                                            ? profileCandidatePost?.persistentModelID == post.persistentModelID
-                                            : selectedPostIDs.contains(post.persistentModelID)
-                                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(isSelected ? Color.accent : .gray)
-                                            .padding(8)
-                                    }
-                                }
-                                .overlay {
-                                    if isSelectingProfile {
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.colorGray, lineWidth: 2)
-                                    }
-                                }
-                                .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
-                                .onTapGesture {
-                                    if isSelectingProfile {
-                                        withAnimation(.spring()) { profileCandidatePost = post }
-                                    } else if selectedTab {
-                                        if selectedPostIDs.contains(post.persistentModelID) {
-                                            selectedPostIDs.remove(post.persistentModelID)
-                                        } else {
-                                            selectedPostIDs.insert(post.persistentModelID)
-                                            withAnimation(.spring()) { showActionDialog = true }
-                                        }
-                                    } else {
-                                        selectedPost = post
-                                    }
-                                }
-                        }
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 20) {
+                    ForEach(currentPosts) { post in
+                        card(for: post)
                     }
                 }
+            }
+        }
+    }
+
+    private func card(for post: Post) -> some View {
+        let selected = isSelected(post)
+
+        return Image(.memoFront)
+            .resizable()
+            .scaledToFill()
+            .frame(height: 170)
+            .clipped()
+            .overlay {
+                DoodleImageView(drawingData: post.drawingData)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            // 고른 카드는 어둡게 덮어서 한눈에 구분되게 한다.
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.black.opacity(selected ? 0.4 : 0))
+            }
+            .overlay(alignment: .topTrailing) {
+                if mode.isSelecting {
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        // 어두워진 카드 위에서도 보이도록 흰색을 쓴다.
+                        .foregroundStyle(selected ? Color.white : .gray)
+                        .padding(8)
+                }
+            }
+            .overlay {
+                if mode == .choosingProfile {
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.colorGray, lineWidth: 2)
+                }
+            }
+            .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
+            .animation(.easeInOut(duration: 0.15), value: selected)
+            .onTapGesture { handleTap(on: post) }
+            .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
+    private func isSelected(_ post: Post) -> Bool {
+        switch mode {
+        case .browsing:
+            false
+        case .choosingProfile:
+            profileCandidatePost?.persistentModelID == post.persistentModelID
+        case .deleting:
+            selectedPostIDs.contains(post.persistentModelID)
+        }
+    }
+
+    private func handleTap(on post: Post) {
+        switch mode {
+        case .browsing:
+            selectedPost = post
+
+        case .choosingProfile:
+            // 한 장만 고른다. 확인 팝업은 GalleryPage 가 띄운다.
+            withAnimation(.spring()) { profileCandidatePost = post }
+
+        case .deleting:
+            // 여러 장을 골랐다 뺐다 할 수 있다.
+            if selectedPostIDs.contains(post.persistentModelID) {
+                selectedPostIDs.remove(post.persistentModelID)
+            } else {
+                selectedPostIDs.insert(post.persistentModelID)
+            }
         }
     }
 }
 
 #Preview {
     PostGridView(
+        mode: .browsing,
         selectedPostIDs: .constant([]),
         segmentedBar: .constant(0),
-        selectedTab: .constant(false),
-        showActionDialog: .constant(false),
         selectedPost: .constant(nil),
-        isSelectingProfile: .constant(false),
         profileCandidatePost: .constant(nil)
     )
     .modelContainer(LocalDataStore.makePreviewContainer())
