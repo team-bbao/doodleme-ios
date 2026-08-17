@@ -105,7 +105,7 @@ struct Listpage: View {
                         .padding(.bottom, 20)
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing){
-                                Button(selectedTab ? "취소" : "그림 지우기") {
+                                Button(selectedTab ? "취소" : "편집") {
                                     selectedTab.toggle()
                                     if !selectedTab {
                                         selectedPostIDs.removeAll()
@@ -179,7 +179,7 @@ struct Listpage: View {
                     VStack {
                         Spacer()
                         VStack(spacing: 0) {
-                            HStack(spacing: 50) {
+                            HStack(spacing: 24) {
                                 Button {
                                     for post in allPosts {
                                         post.isProfile = selectedPostIDs.contains(post.persistentModelID)
@@ -190,10 +190,12 @@ struct Listpage: View {
                                     withAnimation(.spring()) { showActionDialog = false }
                                 } label: {
                                     Text("프로필로 설정")
-                                        .padding(.horizontal, 20)
-                                        .padding(.vertical, 20)
+                                        .padding(.horizontal, 12)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
                                         .font(.body)
-                                        .background(.ultraThinMaterial.opacity(0.9), in: RoundedRectangle(cornerRadius: 30))
+                                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 30))
+                                        .foregroundStyle(.white)
                                 }
 
                                 Button(role: .destructive) {
@@ -205,8 +207,9 @@ struct Listpage: View {
                                     withAnimation(.spring()) { showActionDialog = false }
                                 } label: {
                                     Text("삭제")
-                                        .padding(.horizontal, 20)
-                                        .padding(.vertical, 20)
+                                        .padding(.horizontal, 12)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
                                         .font(.body)
                                         .foregroundStyle(.red)
                                         .background(.ultraThinMaterial.opacity(0.9), in: RoundedRectangle(cornerRadius: 30))
@@ -235,7 +238,7 @@ struct Listpage: View {
                         .background(.white, in: RoundedRectangle(cornerRadius: 30))
                         .padding(.horizontal, 20)
                         .padding(.bottom, 10)
-                        .padding(.top, 15)
+                        .padding(.top, 30)
                         .padding(30)
                     }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -262,13 +265,17 @@ struct Listpage: View {
                         .frame(width: 80, height: 80)
                         .background(.white)
                         .clipShape(Circle())
-                        .shadow(radius: 4)
+                        .overlay {
+                            Circle()
+                                .strokeBorder(.accent.opacity(0.3), lineWidth: 1)
+                        }
+                        //                        .shadow(radius: 4)
 
                         Text("프로필로 설정하시겠습니까?")
                             .font(.headline)
                             .multilineTextAlignment(.center)
 
-                        HStack(spacing: 60) {
+                        HStack(spacing: 24) {
                             Button("예") {
                                 for post in allPosts {
                                     post.isProfile = (post.persistentModelID == candidate.persistentModelID)
@@ -284,7 +291,7 @@ struct Listpage: View {
                             .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 30))
                             .foregroundStyle(.white)
 
-                            Button("아니오") {
+                            Button("아니오", role: .destructive) {
                                 withAnimation(.spring()) { profileCandidatePost = nil }
                             }
                             .frame(maxWidth: .infinity)
@@ -313,33 +320,31 @@ struct Listpage: View {
                             .padding(.bottom, 30)
                             .padding(.top, 15)
                             .font(.system(size: 25))
-
-                        HStack(spacing: 35) {
+                        
+                        HStack(spacing: 24) {
                             Button("예") {
                                 withAnimation(.spring()) {
                                     showProfileEditPopup = false
                                     isSelectingProfile = true
                                 }
                             }
-                            .padding(.horizontal, 30)
+                            .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
-                            .fontWeight(.semibold)
-                            .background(Color.accentColor.opacity(0.6), in: RoundedRectangle(cornerRadius: 30))
+                            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 30))
                             .foregroundStyle(.white)
-                            .shadow(color: .black.opacity(0.4), radius: 2)
-
-                            Button("삭제") {
+                            
+                            Button("삭제", role: .destructive) {
                                 for post in allPosts where post.isProfile {
                                     post.isProfile = false
                                 }
                                 withAnimation(.spring()) { showProfileEditPopup = false }
                             }
-                            .padding(.horizontal, 30)
+                            .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
-                            .fontWeight(.semibold)
-                            .background(.red.opacity(0.8), in: RoundedRectangle(cornerRadius: 30))
-                            .foregroundStyle(.white)
-                            .shadow(color: .black.opacity(0.4), radius: 2)
+                            .background(
+                                .gray.opacity(0.15),
+                                in: RoundedRectangle(cornerRadius: 30)
+                            )
                         }
                     }
                     .padding(50)
@@ -438,8 +443,8 @@ struct ConfettiBurst: View {
                     .frame(width: particle.width, height: particle.height)
                     .rotationEffect(.degrees(particle.spin * Double(progress)))
                     .offset(
-                        x: cos(particle.angle) * (60 + particle.distance * progress),
-                        y: sin(particle.angle) * (60 + particle.distance * progress)
+                        x: CGFloat(cos(particle.angle)) * CGFloat((60 + particle.distance * progress)),
+                        y: CGFloat(sin(particle.angle)) * CGFloat((60 + particle.distance * progress))
                     )
                     .opacity(Double(1 - progress))
             }

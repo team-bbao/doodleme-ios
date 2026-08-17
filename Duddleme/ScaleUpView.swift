@@ -19,12 +19,15 @@ struct ScaleUpView: View {
 
     @State private var isFlipped = false
     @State private var showSaveAlert = false
+    @State private var showsQRCode = false
 
     var body: some View {
         VStack(spacing: 24) {
 
             HStack {
                 Button {
+                    showsQRCode = true
+                    isFlipped = true
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                         .font(.title2)
@@ -43,6 +46,7 @@ struct ScaleUpView: View {
             }
             .glassEffect(.regular, in: .capsule)
             .padding(.bottom, 10)
+            
             ZStack {
                 // 앞면: 그림
                 Image("메모지.body")
@@ -68,7 +72,16 @@ struct ScaleUpView: View {
                     .scaleEffect(x: -1, y: 1)
                     .frame(width: 350, height: 390)
                     .shadow(color: .black.opacity(0.25), radius: 10)
-                    .overlay { backFaceContent }
+                    .overlay {
+                        if showsQRCode {
+                            QRShareView(post: post, senderName: post.senderName)
+                                .onTapGesture {
+                                    showsQRCode = false
+                                }
+                        } else {
+                            backFaceContent
+                        }
+                    }
                     .opacity(isFlipped ? 1 : 0)
                     .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
             }

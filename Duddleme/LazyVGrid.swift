@@ -76,7 +76,7 @@ struct LazyVGridDuddle: View {
                                             ? profileCandidatePost?.persistentModelID == post.persistentModelID
                                             : selectedPostIDs.contains(post.id)
                                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(isSelected ? .blue : .gray)
+                                            .foregroundStyle(isSelected ? Color.accent : .gray)
                                             .padding(8)
                                     }
                                 }

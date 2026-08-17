@@ -15,7 +15,7 @@ class Post {
     var recipientName: String = ""
     var senderName: String = ""
     var senderProfileLines: [Line] = []
-
+    
     init(lines: [Line], text: String, isMine: Bool) {
         self.lines = lines
         self.text = text
@@ -48,9 +48,9 @@ struct Drowingpage2: View {
     @State private var showResetAlert = false
     @State private var goNext = false
     @State private var peelPhase: Int = 0
-
+    
     @Environment(\.modelContext) private var modelContext
-
+    
     var canSave: Bool { !recipientName.isEmpty && !inputText.isEmpty }
     
     var body: some View {
@@ -64,7 +64,7 @@ struct Drowingpage2: View {
                         .clipped()
                         .ignoresSafeArea()
                 }
-                    
+                
                 
                 VStack{
                     if !goNext {
@@ -74,7 +74,7 @@ struct Drowingpage2: View {
                                 .contentTransition(.numericText(countsDown: true))
                                 .animation(.default, value: Int(timeRemaining))
                                 .opacity(TapToStart ? 1 : 0.35)
-
+                            
                             Slider(value: $timeRemaining, in: 0...30)
                                 .onReceive(timer) { _ in
                                     if TapToStart && timeRemaining > 0 {
@@ -88,7 +88,7 @@ struct Drowingpage2: View {
                     }
                 }
                 .offset(y: -320)
-
+                
                 VStack {
                     Spacer()
                     DrawingToolPicker(
@@ -98,122 +98,124 @@ struct Drowingpage2: View {
                         undoStack: $undoStack,
                         goNext: $goNext
                     )
+                    .padding(.bottom, 90)
                 }
+                .safeAreaPadding(.all)
                 
-                    ZStack{
-                        
-                        RoundedRectangle(cornerRadius: 50)
-                            .fill(.white)
-                            .frame(width: 350, height: 390)
-                            .shadow(color: .black.opacity(0.3), radius: 40, x: 4, y: 4)
-                        
-                        //포스트잇 벗겨지는 동작
-                        Image("메모지.black")
-                            .resizable()
-                            .frame(width: 350, height: 390)
-                            .rotation3DEffect(
-                                .degrees(peelPhase == 0 ? 0 : (peelPhase == 1 ? -40 : -85)),
-                                axis: (x: 0.6, y: 1, z: 0),
-                                anchor: .topTrailing,
-                                perspective: 0.4
-                            )
-                            .rotationEffect(.degrees(peelPhase == 0 ? 0 : (peelPhase == 1 ? 4 : 30)), anchor: .topTrailing)
-                            .offset(x: peelPhase == 2 ? 500 : 0, y: peelPhase == 2 ? -200 : 0)
-                            .opacity(TapToStart ? 0 : (peelPhase == 2 ? 0 : 1))
-                            .shadow(radius: 5)
-                            .zIndex(1)
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.4)) { peelPhase = 1 }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                                    withAnimation(.easeIn(duration: 0.3)) { peelPhase = 2 }
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                                        TapToStart = true
-                                    }
+                ZStack{
+                    
+                    RoundedRectangle(cornerRadius: 50)
+                        .fill(.white)
+                        .frame(width: 350, height: 390)
+                        .shadow(color: .black.opacity(0.3), radius: 40, x: 4, y: 4)
+                    
+                    //포스트잇 벗겨지는 동작
+                    Image("메모지.black")
+                        .resizable()
+                        .frame(width: 350, height: 390)
+                        .rotation3DEffect(
+                            .degrees(peelPhase == 0 ? 0 : (peelPhase == 1 ? -40 : -85)),
+                            axis: (x: 0.6, y: 1, z: 0),
+                            anchor: .topTrailing,
+                            perspective: 0.4
+                        )
+                        .rotationEffect(.degrees(peelPhase == 0 ? 0 : (peelPhase == 1 ? 4 : 30)), anchor: .topTrailing)
+                        .offset(x: peelPhase == 2 ? 500 : 0, y: peelPhase == 2 ? -200 : 0)
+                        .opacity(TapToStart ? 0 : (peelPhase == 2 ? 0 : 1))
+                        .shadow(radius: 5)
+                        .zIndex(1)
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.4)) { peelPhase = 1 }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                withAnimation(.easeIn(duration: 0.3)) { peelPhase = 2 }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                    TapToStart = true
                                 }
                             }
-                            .allowsHitTesting(!TapToStart)
-
-                        VStack(spacing: 8) {
-                            Text("Tap to start")
+                        }
+                        .allowsHitTesting(!TapToStart)
+                    
+                    VStack(spacing: 8) {
+                        Text("Tap to start")
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .font(.system(size: 40))
+                            .shadow(color: .white.opacity(0.2), radius: 2)
+                        Text("상대방의 첫인상을 그려보세요")
+                            .fontWeight(.regular)
+                            .foregroundColor(.white)
+                            .font(.system(size: 16))
+                            .padding(.top, 10)
+                    }
+                    .opacity(TapToStart ? 0 : (peelPhase == 0 ? 1 : 0))
+                    .allowsHitTesting(false)
+                    .zIndex(2)
+                    
+                    if TapToStart && !goNext {
+                        DrawingCanvas(
+                            selectedTab: $selectedTab,
+                            lines: $lines,
+                            redoStack: $redoStack,
+                            undoStack: $undoStack,
+                            hasSavedSnapshot: $hasSavedSnapshot
+                        )
+                    }
+                    
+                    if goNext {
+                        VStack(spacing: 0) {
+                            // 위쪽: 이름 입력 영역
+                            HStack(spacing: 6) {
+                                Text("To.")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundStyle(.colorGray.opacity(0.8))
+                                TextField(text: $recipientName, prompt: Text("이름").foregroundStyle(.black.opacity(0.42))) {
+                                    EmptyView()
+                                }
+                                .font(.system(size: 20))
                                 .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .font(.system(size: 40))
-                                .shadow(color: .white.opacity(0.2), radius: 2)
-                            Text("상대방의 첫인상을 그려보세요")
-                                .fontWeight(.regular)
-                                .foregroundColor(.white)
-                                .font(.system(size: 16))
-                                .padding(.top, 10)
-                        }
-                        .opacity(TapToStart ? 0 : (peelPhase == 0 ? 1 : 0))
-                        .allowsHitTesting(false)
-                        .zIndex(2)
-
-                        if TapToStart && !goNext {
-                            DrawingCanvas(
-                                selectedTab: $selectedTab,
-                                lines: $lines,
-                                redoStack: $redoStack,
-                                undoStack: $undoStack,
-                                hasSavedSnapshot: $hasSavedSnapshot
-                            )
-                        }
-
-                        if goNext {
-                            VStack(spacing: 0) {
-                                // 위쪽: 이름 입력 영역
-                                HStack(spacing: 6) {
-                                    Text("To.")
-                                        .font(.system(size: 24, weight: .bold))
-                                        .foregroundStyle(.colorGray.opacity(0.8))
-                                    TextField(text: $recipientName, prompt: Text("이름").foregroundStyle(.black.opacity(0.42))) {
-                                        EmptyView()
-                                    }
-                                        .font(.system(size: 20))
-                                        .fontWeight(.semibold)
-                                        .submitLabel(.done)
-                                        .focused($focusedField, equals: .name)
-                                    Spacer()
-                                }
-                                .padding(.top, 35)
-                                .padding(.horizontal, 30)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 80)
-                                .contentShape(Rectangle())
-                                .onTapGesture { focusedField = .name }
-
-                                // 아래쪽: 첫인상 텍스트 입력 영역
-                                ZStack(alignment: .bottom) {
-                                    TextField("첫 대화를 건네보세요 :)", text: $inputText, axis: .vertical)
-                                        .lineLimit(1...5)
-                                        .multilineTextAlignment(.center)
-                                        .font(.system(size: 25, weight: .semibold))
-                                        .padding(.horizontal, 30)
-                                        .padding(.bottom, 60)
-                                        .focused($focusedField, equals: .text)
-                                        .lineSpacing(15)
-                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                        .onChange(of: inputText) { _, newValue in
-                                            if newValue.count > 30 {
-                                                inputText = String(newValue.prefix(30))
-                                            }
-                                        }
-
-                                    Text("\(inputText.count)/30")
-                                        .font(.system(size: 17))
-                                        .foregroundStyle(.colorGray)
-                                        .opacity(0.5)
-                                        .fontWeight(.semibold)
-                                        .padding(.bottom, 20)
-                                }
-                                .contentShape(Rectangle())
-                                .onTapGesture { focusedField = .text }
+                                .submitLabel(.done)
+                                .focused($focusedField, equals: .name)
+                                Spacer()
                             }
-                            .frame(width: 350, height: 390)
+                            .padding(.top, 35)
+                            .padding(.horizontal, 30)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 80)
+                            .contentShape(Rectangle())
+                            .onTapGesture { focusedField = .name }
+                            
+                            // 아래쪽: 첫인상 텍스트 입력 영역
+                            ZStack(alignment: .bottom) {
+                                TextField("첫 대화를 건네보세요 :)", text: $inputText, axis: .vertical)
+                                    .lineLimit(1...5)
+                                    .multilineTextAlignment(.center)
+                                    .font(.system(size: 25, weight: .semibold))
+                                    .padding(.horizontal, 30)
+                                    .padding(.bottom, 60)
+                                    .focused($focusedField, equals: .text)
+                                    .lineSpacing(15)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .onChange(of: inputText) { _, newValue in
+                                        if newValue.count > 30 {
+                                            inputText = String(newValue.prefix(30))
+                                        }
+                                    }
+                                
+                                Text("\(inputText.count)/30")
+                                    .font(.system(size: 17))
+                                    .foregroundStyle(.colorGray)
+                                    .opacity(0.5)
+                                    .fontWeight(.semibold)
+                                    .padding(.bottom, 20)
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture { focusedField = .text }
                         }
+                        .frame(width: 350, height: 390)
+                    }
                 }
-                    .offset(x: shakeAmount, y: -40)
-
+                .offset(x: shakeAmount, y: -40)
+                
             }
             .ignoresSafeArea(edges: .bottom)
             .onTapGesture { focusedField = nil }
@@ -227,7 +229,7 @@ struct Drowingpage2: View {
                             peelPhase = 0
                         }
                         .disabled(!TapToStart)
-
+                        
                     }
                 }
                 if timeRemaining <= 29.9 && !goNext {
@@ -237,8 +239,8 @@ struct Drowingpage2: View {
                         }
                         .buttonStyle(.glassProminent)
                     }
-        }
-
+                }
+                
                 if goNext {
                     ToolbarItem(placement: .topBarLeading) {
                         Button("초기화") {
@@ -246,7 +248,7 @@ struct Drowingpage2: View {
                         }
                         .alert("정말 리셋하시겠습니까?", isPresented: $showResetAlert) {
                             Button("예", role: .destructive) {
-                               resetAll()
+                                resetAll()
                             }
                             Button("아니오", role: .cancel) { }
                         }
@@ -284,7 +286,7 @@ struct Drowingpage2: View {
         shakeAmount = 0
         peelPhase = 0
     }
-
+    
     func triggerShake() {
         let d = 0.07
         withAnimation(.easeOut(duration: d))              { shakeAmount =  8 }
