@@ -26,7 +26,8 @@ struct CustomSegmentedControl: View {
                 } label: {
                     Text(titles[index])
                         // 선택 여부로 크기·굵기를 바꾸지 않는다. 색으로만 구분한다.
-                        .font(.system(size: 14, weight: .medium))
+                        // Figma 는 Medium 이지만 화면에서 얇아 보여 한 단계 올렸다.
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(isSelected ? Color.doodleSegmentSelected : .doodleSegmentUnselected)
                         .frame(maxWidth: .infinity)
                         .frame(height: Self.height)

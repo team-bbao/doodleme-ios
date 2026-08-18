@@ -18,7 +18,8 @@ struct ProfileNameView: View {
         } label: {
             Text(profileName.isEmpty ? "이름" : profileName)
                 // Figma `iPhone 17 - 1` 의 이름 스타일
-                .font(.system(size: 25, weight: .semibold))
+                // Figma 는 Semibold 이지만 화면에서 얇아 보여 한 단계 올렸다.
+                .font(.system(size: 25, weight: .bold))
                 .foregroundStyle(profileName.isEmpty ? Color.gray : .doodlePrimary)
                 .padding(.top, 17)
         }
