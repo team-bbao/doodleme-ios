@@ -243,7 +243,7 @@ Info.plist에 `ITSAppUsesNonExemptEncryption` 키를 미리 넣어두면
 5. 프로필 설정 (그림이 프로필이 된 화면)
 
 > 필요한 기기 크기와 개수는 App Store Connect가 요구하는 최신 기준을 확인하세요.
-> **iPad를 지원 기기에 포함해 두었으므로 iPad 스크린샷도 요구될 수 있습니다** (10번 항목 참고).
+> iPhone 전용으로 좁혔으므로 iPad 스크린샷은 필요 없습니다. 나중에 iPad 를 지원하면 그때 추가해야 합니다.
 
 ---
 
