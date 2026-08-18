@@ -252,7 +252,7 @@ struct GalleryPage: View {
     /// "선택" 버튼 아래에 붙는 드롭다운. 내용에 맞는 너비로 그린다.
     private var selectMenu: some View {
         VStack(spacing: 0) {
-            menuRow(title: "프로필", systemImage: "person.crop.circle") {
+            menuRow(title: "프로필 사진 설정", systemImage: "person.crop.circle") {
                 mode = .choosingProfile
             }
 
@@ -260,7 +260,7 @@ struct GalleryPage: View {
                 .padding(.horizontal, 12)
 
             // Figma `Frame 9` 오른쪽 바의 공유 심볼.
-            menuRow(title: "이미지 받기", systemImage: "airplay.audio") {
+            menuRow(title: "그림 공유받기", systemImage: "airplay.audio") {
                 showSharingScreen = true
             }
 
@@ -271,7 +271,7 @@ struct GalleryPage: View {
                 mode = .deleting
             }
         }
-        .frame(width: 150)
+        .frame(width: 190)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
         .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
         .padding(.top, 108)
@@ -292,10 +292,12 @@ struct GalleryPage: View {
                 action()
             }
         } label: {
-            HStack {
-                Text(title)
-                Spacer()
+            HStack(spacing: 10) {
+                // 심볼을 왼쪽에 둔다. 폭을 고정해야 세 줄의 글자 시작점이 맞는다.
                 Image(systemName: systemImage)
+                    .frame(width: 20)
+                Text(title)
+                Spacer(minLength: 0)
             }
             .font(.subheadline.weight(.medium))
             .foregroundStyle(isDestructive ? Color.red : .primary)

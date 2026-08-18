@@ -23,6 +23,9 @@ struct DrawingCanvas: View {
                 width: DoodleMetrics.canvasSize.width,
                 height: DoodleMetrics.canvasSize.height
             )
+            // 메모지는 모서리가 둥근데 캔버스는 네모라, 자르지 않으면
+            // 종이 바깥의 네 모서리에도 획이 그려진다.
+            .clipShape(RoundedRectangle(cornerRadius: DoodleMetrics.canvasCornerRadius))
     }
 }
 

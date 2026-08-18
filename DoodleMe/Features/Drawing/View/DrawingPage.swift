@@ -91,7 +91,7 @@ struct DrawingPage: View {
 
     private var memoCard: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 50)
+            RoundedRectangle(cornerRadius: DoodleMetrics.canvasCornerRadius)
                 .fill(.white)
                 .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
                 .shadow(color: .black.opacity(0.3), radius: 40, x: 4, y: 4)
