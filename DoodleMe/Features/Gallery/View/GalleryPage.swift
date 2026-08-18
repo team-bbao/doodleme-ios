@@ -28,6 +28,7 @@ struct GalleryPage: View {
     @State private var showProfileEditPopup = false
     @State private var showDeleteConfirm = false
     @State private var showSelectMenu = false
+    @State private var showSharingScreen = false
     @State private var confettiTrigger = 0
 
     private var isChoosingProfile: Bool { mode == .choosingProfile }
@@ -147,6 +148,10 @@ struct GalleryPage: View {
             // 삭제 중에는 탭바 자리를 선택 바가 대신 쓴다.
             .toolbarVisibility(isOverlayShowing || mode == .deleting ? .hidden : .visible, for: .tabBar)
             .ignoresSafeArea()
+            // 보낼 그림 없이 열면 받기 전용으로 동작한다.
+            .fullScreenCover(isPresented: $showSharingScreen) {
+                NearbySharingScreen { showSharingScreen = false }
+            }
         }
     }
 
@@ -244,6 +249,14 @@ struct GalleryPage: View {
         VStack(spacing: 0) {
             menuRow(title: "프로필", systemImage: "person.crop.circle") {
                 mode = .choosingProfile
+            }
+
+            Divider()
+                .padding(.horizontal, 12)
+
+            // Figma `Frame 9` 오른쪽 바의 공유 심볼.
+            menuRow(title: "공유하기", systemImage: "airplay.audio") {
+                showSharingScreen = true
             }
 
             Divider()

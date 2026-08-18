@@ -4,6 +4,7 @@
 //
 
 import MultipeerConnectivity
+import PencilKit
 import SwiftData
 import SwiftUI
 
@@ -11,8 +12,11 @@ import SwiftUI
 ///
 /// 가운데에는 보낼 그림이 그려진 순서대로 되살아나며 반복 재생된다.
 /// 통신은 `MultipeerSession` 이 맡고 여기서는 그리기만 한다.
+///
+/// `post` 가 없으면 받기 전용이다. 보낼 그림이 없으니 전송 버튼도 뜨지 않고,
+/// 상대가 보내주는 그림을 받기만 한다.
 struct NearbySharingScreen: View {
-    let post: Post
+    var post: Post?
     var onClose: () -> Void
 
     @Environment(\.modelContext) private var modelContext
@@ -42,8 +46,15 @@ struct NearbySharingScreen: View {
             VStack(spacing: 15) {
                 nameRow
 
-                DoodleStrokeAnimation(drawing: post.drawing)
-                    .frame(width: 337, height: 367)
+                Group {
+                    if let animatedDrawing {
+                        DoodleStrokeAnimation(drawing: animatedDrawing)
+                    } else {
+                        // 보낼 그림도 프로필도 없으면 자리만 비워 둔다. 아래 요소가 밀리지 않게.
+                        Color.clear
+                    }
+                }
+                .frame(width: 337, height: 367)
 
                 status
 
@@ -79,6 +90,13 @@ struct NearbySharingScreen: View {
         } message: {
             Text(savedMessage)
         }
+    }
+
+    /// 가운데에서 되살릴 그림. 보낼 그림이 없으면 내 프로필 그림이라도 보여준다.
+    private var animatedDrawing: PKDrawing? {
+        let candidate = post?.drawing ?? profilePosts.first?.drawing
+        guard let candidate, !candidate.strokes.isEmpty else { return nil }
+        return candidate
     }
 
     // MARK: - 상단
@@ -160,19 +178,22 @@ struct NearbySharingScreen: View {
 
             Spacer()
 
-            Button {
-                send(to: peer, session: session)
-            } label: {
-                Text(buttonTitle(for: state))
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Color.doodleOnPrimary)
-                    .frame(width: 83, height: 39)
-                    .background(
-                        state == .idle ? Self.primary : Self.muted,
-                        in: RoundedRectangle(cornerRadius: 30)
-                    )
+            // 받기 전용으로 열었으면 보낼 그림이 없으므로 버튼을 띄우지 않는다.
+            if post != nil {
+                Button {
+                    send(to: peer, session: session)
+                } label: {
+                    Text(buttonTitle(for: state))
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Color.doodleOnPrimary)
+                        .frame(width: 83, height: 39)
+                        .background(
+                            state == .idle ? Self.primary : Self.muted,
+                            in: RoundedRectangle(cornerRadius: 30)
+                        )
+                }
+                .disabled(state != .idle)
             }
-            .disabled(state != .idle)
         }
         .padding(.horizontal, 22)
     }
@@ -214,6 +235,7 @@ struct NearbySharingScreen: View {
     // MARK: - 동작
 
     private func send(to peer: MCPeerID, session: MultipeerSession) {
+        guard let post else { return }
         session.send(
             PostTransferData(
                 post: post,
