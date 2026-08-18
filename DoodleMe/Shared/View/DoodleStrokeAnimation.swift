@@ -16,6 +16,8 @@ struct DoodleStrokeAnimation: View {
     /// 획마다 등간격으로 뽑아둔 점들. 매 프레임 다시 계산하지 않도록 init 에서 한 번만 만든다.
     private let strokes: [[CGPoint]]
     private let totalPointCount: Int
+    /// 획들이 실제로 차지하는 영역. 캔버스 전체가 아니라 이 영역을 화면에 맞춘다.
+    private let contentBounds: CGRect
     private let lineWidth: CGFloat
     /// 한 바퀴 그리는 데 걸리는 시간.
     private let drawDuration: TimeInterval
@@ -36,6 +38,7 @@ struct DoodleStrokeAnimation: View {
                 .map { $0.location.applying(stroke.transform) }
         }
         self.totalPointCount = strokes.reduce(0) { $0 + $1.count }
+        self.contentBounds = Self.bounds(of: strokes)
         self.lineWidth = lineWidth
         self.drawDuration = drawDuration
         self.holdDuration = holdDuration
@@ -58,19 +61,39 @@ struct DoodleStrokeAnimation: View {
         return min(1, elapsed / drawDuration)
     }
 
+    /// 획들을 감싸는 최소 사각형.
+    private static func bounds(of strokes: [[CGPoint]]) -> CGRect {
+        var minX = CGFloat.infinity, minY = CGFloat.infinity
+        var maxX = -CGFloat.infinity, maxY = -CGFloat.infinity
+
+        for stroke in strokes {
+            for point in stroke {
+                minX = min(minX, point.x); maxX = max(maxX, point.x)
+                minY = min(minY, point.y); maxY = max(maxY, point.y)
+            }
+        }
+        guard minX <= maxX, minY <= maxY else { return .zero }
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
     private func draw(in graphics: GraphicsContext, size: CGSize, progress: Double) {
         guard totalPointCount > 0 else { return }
 
-        // 저장된 좌표는 기준 캔버스 기준이다. 비율을 지키며 주어진 영역에 맞춘다.
-        let scale = min(size.width / DoodleMetrics.canvasSize.width,
-                        size.height / DoodleMetrics.canvasSize.height)
-        let drawnSize = CGSize(width: DoodleMetrics.canvasSize.width * scale,
-                               height: DoodleMetrics.canvasSize.height * scale)
+        // 캔버스 전체가 아니라 그림이 실제로 차지하는 영역을 화면에 맞춘다.
+        // 캔버스 기준으로 맞추면 구석에 작게 그린 그림이 그대로 작고 치우쳐 보인다.
+        // 점 하나짜리 그림도 있을 수 있으니 폭·높이가 0 이면 배율을 1 로 둔다.
+        let scale = min(
+            contentBounds.width > 0 ? size.width / contentBounds.width : 1,
+            contentBounds.height > 0 ? size.height / contentBounds.height : 1
+        )
+        let drawnSize = CGSize(width: contentBounds.width * scale,
+                               height: contentBounds.height * scale)
 
         var graphics = graphics
         graphics.translateBy(x: (size.width - drawnSize.width) / 2,
                              y: (size.height - drawnSize.height) / 2)
         graphics.scaleBy(x: scale, y: scale)
+        graphics.translateBy(x: -contentBounds.minX, y: -contentBounds.minY)
 
         let style = StrokeStyle(lineWidth: lineWidth / scale, lineCap: .round, lineJoin: .round)
         var remaining = Int(progress * Double(totalPointCount))
