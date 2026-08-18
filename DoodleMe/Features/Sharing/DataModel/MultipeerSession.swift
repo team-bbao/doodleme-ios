@@ -42,6 +42,13 @@ final class MultipeerSession {
     private(set) var received: PostTransferData?
     private(set) var lastError: String?
 
+    /// 그림이 도착하면 바로 부른다.
+    ///
+    /// 예전에는 화면이 `received` 값의 변화를 지켜보다 저장했다.
+    /// 관찰이 한 번이라도 어긋나면 받은 그림이 조용히 사라지므로,
+    /// 도착한 그 자리에서 알려주는 편이 확실하다.
+    @ObservationIgnored var onReceive: ((PostTransferData) -> Void)?
+
     /// 상대에게 보이는 내 이름.
     let displayName: String
 
@@ -183,10 +190,13 @@ final class MultipeerSession {
 
     fileprivate func handleReceived(_ data: Data) {
         guard let transfer = PostTransferData.decode(from: data) else {
-            lastError = "받은 그림을 읽을 수 없어요."
+            // 크기가 함께 보여야 빈 데이터인지 형식이 어긋난 건지 가릴 수 있다.
+            lastError = "받은 그림을 읽지 못했어요. (\(data.count) 바이트)"
             return
         }
+        lastError = nil
         received = transfer
+        onReceive?(transfer)
     }
 
     fileprivate func handleFailure(_ message: String) {

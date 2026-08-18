@@ -80,11 +80,14 @@ struct NearbySharingScreen: View {
         .task {
             // 상대에게 보일 이름은 프로필 이름을 그대로 쓴다.
             let newSession = MultipeerSession(displayName: userName)
+            newSession.onReceive = { received in
+                saveReceived(received)
+            }
             session = newSession
             newSession.start()
         }
         .onDisappear { session?.stop() }
-        .onChange(of: session?.received == nil) { _, _ in saveReceivedIfNeeded() }
+
         // isPresented 에 .constant 를 주면 SwiftUI 가 닫힘을 되돌려 쓸 수 없어 표시가 불안정하다.
         .alert("받았어요", isPresented: $showSavedAlert) {
             Button("확인") { }
@@ -142,6 +145,13 @@ struct NearbySharingScreen: View {
             if count == 0 {
                 Text("상대도 서칭중인지 확인하세요")
                     .font(.system(size: 15, weight: .medium))
+            }
+
+            // 조용히 실패하면 무엇이 잘못됐는지 알 길이 없다.
+            if let lastError = session?.lastError {
+                Text(lastError)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.red)
             }
         }
         .foregroundStyle(Self.primary)
@@ -209,11 +219,13 @@ struct NearbySharingScreen: View {
                         .foregroundStyle(Color.doodleOnPrimary)
                         .frame(width: 83, height: 39)
                         .background(
-                            state == .idle ? Self.primary : Self.muted,
+                            canSend(in: state) ? Self.primary : Self.muted,
                             in: RoundedRectangle(cornerRadius: 30)
                         )
                 }
-                .disabled(state != .idle)
+                // 실패했으면 다시 눌러야 한다. 예전에는 idle 만 허용해서
+                // "재시도" 라고 써 놓고 정작 눌리지 않았다.
+                .disabled(!canSend(in: state))
             }
         }
         .padding(.horizontal, 22)
@@ -244,6 +256,14 @@ struct NearbySharingScreen: View {
         }
     }
 
+    /// 지금 보낼 수 있는 상태인가. 보내는 중이거나 이미 보냈으면 막는다.
+    private func canSend(in state: MultipeerSession.TransferState) -> Bool {
+        switch state {
+        case .idle, .failed: true
+        case .sending, .sent: false
+        }
+    }
+
     private func buttonTitle(for state: MultipeerSession.TransferState) -> String {
         switch state {
         case .idle: "전송"
@@ -267,10 +287,11 @@ struct NearbySharingScreen: View {
         )
     }
 
-    private func saveReceivedIfNeeded() {
-        guard let session, let received = session.received else { return }
+    private func saveReceived(_ received: PostTransferData) {
         modelContext.insert(received.makePost())
-        session.clearReceived()
+        // 저장을 미루면 화면을 닫는 사이에 사라질 수 있다. 받은 즉시 디스크에 남긴다.
+        try? modelContext.save()
+        session?.clearReceived()
         savedMessage = "\(received.senderName ?? Post.unknownSenderName) 님의 그림을 저장했어요."
         showSavedAlert = true
     }
