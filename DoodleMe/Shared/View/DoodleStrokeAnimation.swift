@@ -26,22 +26,40 @@ struct DoodleStrokeAnimation: View {
 
     @State private var startDate = Date()
 
+    /// 획마다 등간격으로 뽑아둔 점들을 그대로 받는다.
+    /// `PKDrawing` 이 아닌 그림(예: `DefaultDoodle`)도 같은 연출로 되살릴 수 있다.
+    init(
+        strokes: [[CGPoint]],
+        lineWidth: CGFloat = 2,
+        drawDuration: TimeInterval = 2.6,
+        holdDuration: TimeInterval = 0.7
+    ) {
+        self.strokes = strokes
+        self.totalPointCount = strokes.reduce(0) { $0 + $1.count }
+        self.contentBounds = Self.bounds(of: strokes)
+        self.lineWidth = lineWidth
+        self.drawDuration = drawDuration
+        self.holdDuration = holdDuration
+    }
+
     init(
         drawing: PKDrawing,
         lineWidth: CGFloat = 2,
         drawDuration: TimeInterval = 2.6,
         holdDuration: TimeInterval = 0.7
     ) {
-        self.strokes = drawing.strokes.map { stroke in
-            stroke.path
-                .interpolatedPoints(by: .distance(2))
-                .map { $0.location.applying(stroke.transform) }
-        }
-        self.totalPointCount = strokes.reduce(0) { $0 + $1.count }
-        self.contentBounds = Self.bounds(of: strokes)
-        self.lineWidth = lineWidth
-        self.drawDuration = drawDuration
-        self.holdDuration = holdDuration
+        // 획 안의 점 간격을 고르게 맞춰야 그리는 속도가 일정해진다.
+        // 원본 점은 손이 빠른 구간에서 듬성듬성해서 그대로 쓰면 속도가 들쭉날쭉하다.
+        self.init(
+            strokes: drawing.strokes.map { stroke in
+                stroke.path
+                    .interpolatedPoints(by: .distance(2))
+                    .map { $0.location.applying(stroke.transform) }
+            },
+            lineWidth: lineWidth,
+            drawDuration: drawDuration,
+            holdDuration: holdDuration
+        )
     }
 
     var body: some View {

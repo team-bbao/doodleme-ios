@@ -3,6 +3,7 @@
 //  DoodleMe
 //
 
+import CoreGraphics
 import MultipeerConnectivity
 import PencilKit
 import SwiftData
@@ -50,8 +51,7 @@ struct NearbySharingScreen: View {
                     if let animatedDrawing {
                         DoodleStrokeAnimation(drawing: animatedDrawing)
                     } else {
-                        // 보낼 그림도 프로필도 없으면 자리만 비워 둔다. 아래 요소가 밀리지 않게.
-                        Color.clear
+                        DoodleStrokeAnimation(strokes: DefaultDoodle.strokes)
                     }
                 }
                 .frame(width: 337, height: 367)
@@ -92,10 +92,15 @@ struct NearbySharingScreen: View {
         }
     }
 
-    /// 가운데에서 되살릴 그림. 보낼 그림이 없으면 내 프로필 그림이라도 보여준다.
+    /// 가운데에서 되살릴 그림.
+    ///
+    /// 받기 전용으로 열면 보낼 그림이 없어 가운데가 비어 버린다.
+    /// 그럴 때는 `DefaultDoodle` 이 대신 그려진다. (`nil` 을 돌려주는 경우)
+    ///
+    /// 내 프로필 그림으로 채우지 않는 이유는, 그러면 사람마다 다른 그림이 떠서
+    /// "보내는 그림을 보여주는 자리" 라는 뜻이 흐려지기 때문이다.
     private var animatedDrawing: PKDrawing? {
-        let candidate = post?.drawing ?? profilePosts.first?.drawing
-        guard let candidate, !candidate.strokes.isEmpty else { return nil }
+        guard let candidate = post?.drawing, !candidate.strokes.isEmpty else { return nil }
         return candidate
     }
 
