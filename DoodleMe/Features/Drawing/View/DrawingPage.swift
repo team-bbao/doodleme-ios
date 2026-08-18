@@ -71,10 +71,7 @@ struct DrawingPage: View {
                 // 예전에는 Slider 였는데, 썸을 숨겨도 트랙 드래그로 시간을 되감을 수 있었다.
                 // ProgressView 는 표시 전용이라 그런 조작이 불가능하다.
                 ProgressView(value: session.remaining, total: DrawingSession.duration)
-                    .tint(.accentColor)
-                    // 기본 두께가 얇아 눈에 잘 안 띈다. 세로로만 1.5배 늘린다.
-                    // 높이를 직접 지정하지 않는 이유는 기본값이 OS 버전마다 달라서다.
-                    .scaleEffect(y: 1.5, anchor: .center)
+                    .progressViewStyle(ThickBarProgressStyle(height: 10))
                     .padding(.horizontal, 20)
                     .padding(.bottom, 40)
                     .accessibilityLabel("남은 시간")
@@ -289,6 +286,31 @@ struct DrawingPage: View {
         withAnimation(.easeInOut(duration: d).delay(d*2)) { shakeAmount =  6 }
         withAnimation(.easeInOut(duration: d).delay(d*3)) { shakeAmount = -6 }
         withAnimation(.easeOut(duration: d).delay(d*4))   { shakeAmount =  0 }
+    }
+}
+
+/// 두께를 정할 수 있는 막대 게이지.
+///
+/// 기본 `ProgressView` 는 두께를 못 정한다.
+/// 예전에는 `scaleEffect` 로 늘렸는데, 늘릴수록 양 끝의 둥근 모양까지 눌려 찌그러진다.
+/// 직접 그리면 어떤 두께에서도 끝이 반듯하게 둥글다.
+///
+/// `ProgressView` 를 그대로 두고 스타일만 바꾸므로 접근성 값은 계속 읽힌다.
+private struct ThickBarProgressStyle: ProgressViewStyle {
+    var height: CGFloat
+
+    func makeBody(configuration: Configuration) -> some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(.quaternary)
+
+                Capsule()
+                    .fill(Color.accentColor)
+                    .frame(width: proxy.size.width * (configuration.fractionCompleted ?? 0))
+            }
+        }
+        .frame(height: height)
     }
 }
 
