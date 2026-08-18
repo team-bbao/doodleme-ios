@@ -137,7 +137,11 @@ struct NearbySharingScreen: View {
         .frame(maxWidth: .infinity)
         // Figma 카드는 높이 361 이고 화면 아래로 잘려 나간다. 행(85x3)만으로는 모자라 여백을 더한다.
         .padding(.bottom, 106)
-        .background(.white, in: RoundedRectangle(cornerRadius: 30))
+        .background {
+            RoundedRectangle(cornerRadius: 30)
+                .fill(.white)
+                .shadow(color: .black.opacity(0.12), radius: 16, y: -2)
+        }
         .padding(.horizontal, 20)
         .padding(.bottom, -60)
         .transition(.move(edge: .bottom))
@@ -182,9 +186,10 @@ struct NearbySharingScreen: View {
             Image(PeerAvatarPalette.image(for: peer.displayName))
                 .resizable()
                 .scaledToFit()
-                .frame(width: 29, height: 29)
+                .frame(width: 24, height: 24)
         }
-        .frame(width: 53, height: 53)
+        .frame(width: 46, height: 46)
+        .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
         .overlay {
             switch state {
             case .sending:

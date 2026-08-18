@@ -159,7 +159,15 @@ struct DrawingPage: View {
                 .fontWeight(.semibold)
                 .submitLabel(.done)
                 .focused($focusedField, equals: .name)
-                Spacer()
+                // 입력한 이름만큼만 차지하게 해야 "님에게" 가 바로 옆에 붙는다.
+                .fixedSize(horizontal: true, vertical: false)
+
+                // 카드 뒷면과 같은 말투로 맞춘다.
+                Text("님에게")
+                    .font(.system(size: 16))
+                    .foregroundStyle(Color.doodleSecondary)
+
+                Spacer(minLength: 0)
             }
             .padding(.top, 35)
             .padding(.horizontal, 30)

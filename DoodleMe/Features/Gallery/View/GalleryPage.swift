@@ -31,6 +31,8 @@ struct GalleryPage: View {
     @State private var confettiTrigger = 0
 
     private var isChoosingProfile: Bool { mode == .choosingProfile }
+    /// 프로필 고르기든 삭제든, 고르는 중에는 그림 말고 다 어둡게 덮는다.
+    private var isSelecting: Bool { mode != .browsing }
 
     // Figma `iPhone 17 - 1` 기준 치수
     /// 프로필 원 지름
@@ -67,14 +69,16 @@ struct GalleryPage: View {
                         .ignoresSafeArea()
                 }
 
-                // 프로필을 고를 때는 그림 말고 다 어둡게 덮는다.
+                // 고르는 중에는 그림 말고 다 어둡게 덮는다.
                 // 그리드는 이 레이어보다 위에 그려지므로 카드만 밝게 남는다.
-                if isChoosingProfile {
+                if isSelecting {
                     Color.black.opacity(0.4)
                         .ignoresSafeArea()
                         .contentShape(Rectangle())
-                        // 취소 버튼을 없앤 대신, 어두운 곳을 누르면 빠져나온다.
-                        .onTapGesture { exitSelection() }
+                        // 프로필 고르기에는 취소 버튼이 없어 여기를 눌러 빠져나온다.
+                        // 삭제는 상단에 취소가 있으므로 탭을 받지 않는다.
+                        .onTapGesture { if isChoosingProfile { exitSelection() } }
+                        .allowsHitTesting(isChoosingProfile)
                         .transition(.opacity)
                 }
 
@@ -82,8 +86,8 @@ struct GalleryPage: View {
                     header
                         .padding(.top, 140)
                         // 헤더는 어두운 레이어 위에 있으므로 직접 흐리게 만든다.
-                        .opacity(isChoosingProfile ? 0.4 : 1)
-                        .allowsHitTesting(!isChoosingProfile)
+                        .opacity(isSelecting ? 0.4 : 1)
+                        .allowsHitTesting(!isSelecting)
 
                     PostGridView(
                         mode: mode,
