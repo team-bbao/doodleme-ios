@@ -19,8 +19,13 @@ struct PostDetailView: View {
     @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
 
     @State private var isFlipped = false
-    /// 앞면에 접힌 모서리를 보여줄 차례인지. 1초마다 뒤집힌다.
+    /// 앞면에 접힌 모서리를 보여줄 차례인지.
     @State private var showFold = false
+
+    /// 접힘을 보여줬다 감추는 주기. 한 상태가 이만큼 머문다.
+    private static let foldInterval: Duration = .milliseconds(1250)
+    /// 두 상태를 오갈 때 걸리는 시간. 주기에 비해 길면 계속 움직이는 느낌이 든다.
+    private static let foldFade: TimeInterval = 0.35
     @State private var showSharingScreen = false
     @State private var showSaveAlert = false
     @State private var saveMessage = ""
@@ -68,7 +73,7 @@ struct PostDetailView: View {
             ZStack {
                 // 앞면: 그림
                 //
-                // 접힌 모서리와 접힘 없는 둥근 사각형을 1초마다 번갈아 보여준다.
+                // 접힌 모서리와 접힘 없는 둥근 사각형을 번갈아 보여준다.
                 // 뒤집을 수 있는 카드라는 걸 가만히 알려주는 신호다.
                 //
                 // 반경은 그리던 캔버스와 같은 값이라 그림이 잘린 모양과 정확히 맞물린다.
@@ -112,16 +117,16 @@ struct PostDetailView: View {
             }
         }
         .padding()
-        // 접힌 모서리를 1초마다 나타냈다 감춘다.
+        // 접힌 모서리를 일정 간격으로 나타냈다 감춘다.
         // Timer 대신 task 를 쓰면 화면이 사라질 때 알아서 멈춘다.
         .task {
             while !Task.isCancelled {
                 do {
-                    try await Task.sleep(for: .seconds(1))
+                    try await Task.sleep(for: Self.foldInterval)
                 } catch {
                     break
                 }
-                withAnimation(.easeInOut(duration: 0.35)) { showFold.toggle() }
+                withAnimation(.easeInOut(duration: Self.foldFade)) { showFold.toggle() }
             }
         }
         .alert("사진 저장", isPresented: $showSaveAlert) {
