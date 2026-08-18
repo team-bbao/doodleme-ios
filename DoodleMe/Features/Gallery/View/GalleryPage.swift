@@ -108,8 +108,13 @@ struct GalleryPage: View {
                 // 카드 확대 상세 뷰
                 if let selectedPost {
                     ZStack {
-                        Color.white
-                            .opacity(0.9)
+                        // 흰 장막을 짙게 깔면 종이 질감까지 덮여 화면이 허옇게 뜬다.
+                        // 카드도 거의 흰색이라 배경과 구분이 안 됐다.
+                        // 반대로 옅게 깔면 질감은 살지만 뒤쪽 카드가 그대로 보여 산만하다.
+                        //
+                        // 재질을 쓰면 뒤가 흐려져 카드는 정리되고 종이 색은 남는다.
+                        Rectangle()
+                            .fill(.regularMaterial)
                             .ignoresSafeArea()
                             .onTapGesture {
                                 withAnimation { self.selectedPost = nil }
