@@ -18,7 +18,22 @@ nonisolated extension PKDrawing {
     /// 그림이 실제로 차지하는 영역(`bounds`)이 아니라 캔버스 전체를 렌더링해야
     /// 그리드·상세·프로필에서 위치와 비율이 원본과 같게 유지된다.
     func canvasImage(scale: CGFloat = 3) -> UIImage {
-        image(from: CGRect(origin: .zero, size: DoodleMetrics.canvasSize), scale: scale)
+        let canvas = CGRect(origin: .zero, size: DoodleMetrics.canvasSize)
+        let rendered = image(from: canvas, scale: scale)
+
+        // 메모지 모서리 바깥으로 나간 획을 잘라낸다.
+        //
+        // 그리는 화면에서는 캔버스를 둥글게 잘라 두었지만, 그건 보이는 것만 자를 뿐
+        // 저장되는 좌표까지 막지는 못한다. 여기서 자르지 않으면 그리드·상세·프로필에서
+        // 종이 밖으로 획이 삐져나온다. 이미 저장된 그림도 여기서 함께 정리된다.
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = false
+
+        return UIGraphicsImageRenderer(size: canvas.size, format: format).image { _ in
+            UIBezierPath(roundedRect: canvas, cornerRadius: DoodleMetrics.canvasCornerRadius).addClip()
+            rendered.draw(in: canvas)
+        }
     }
 }
 

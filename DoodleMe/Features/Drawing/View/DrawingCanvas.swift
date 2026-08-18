@@ -7,6 +7,7 @@
 
 import PencilKit
 import SwiftUI
+import UIKit
 
 /// PencilKit 캔버스. 손가락과 Apple Pencil 양쪽으로 그릴 수 있다.
 ///
@@ -91,5 +92,18 @@ final class DoodleCanvasView: PKCanvasView {
 
     override var undoManager: UndoManager? {
         canvasUndoManager
+    }
+
+    /// 메모지 모서리 바깥은 터치를 받지 않는다.
+    ///
+    /// 캔버스를 둥글게 자르는 것만으로는 부족하다. 자르기는 보이는 것만 가리고,
+    /// 종이 밖을 눌러도 획은 그대로 만들어져 저장된다.
+    /// 여기서 막아야 애초에 그려지지 않는다.
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        guard super.point(inside: point, with: event) else { return false }
+        return UIBezierPath(
+            roundedRect: bounds,
+            cornerRadius: DoodleMetrics.canvasCornerRadius
+        ).contains(point)
     }
 }
