@@ -65,14 +65,7 @@ struct GalleryPage: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                GeometryReader { proxy in
-                    Image(.papertype1)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: proxy.size.width)
-                        .clipped()
-                        .ignoresSafeArea()
-                }
+                PaperBackground()
 
                 // 헤더는 어두운 레이어 **아래**에 둔다.
                 // 위에 두고 opacity/colorMultiply 로 낮추면 흰 원과 세그먼트가 밝게 남는다.

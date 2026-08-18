@@ -40,15 +40,7 @@ struct NearbySharingScreen: View {
         // Figma `iPhone 17 - 3` 세로 배치:
         // 닫기 y72 / 이름 y100 / 그림 y133(337x367) / 상태 y515. 사이 간격은 모두 15.
         ZStack {
-            // 다른 화면과 같은 종이 질감을 깐다.
-            GeometryReader { proxy in
-                Image(.papertype1)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: proxy.size.width)
-                    .clipped()
-                    .ignoresSafeArea()
-            }
+            PaperBackground()
 
             VStack(spacing: 15) {
                 nameRow

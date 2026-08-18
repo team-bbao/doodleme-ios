@@ -27,14 +27,7 @@ struct DrawingPage: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                GeometryReader { proxy in
-                    Image(.papertype1)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: proxy.size.width)
-                        .clipped()
-                        .ignoresSafeArea()
-                }
+                PaperBackground()
 
                 countdown
                     .offset(y: -320)
