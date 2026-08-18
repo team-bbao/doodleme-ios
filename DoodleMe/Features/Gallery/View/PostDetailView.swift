@@ -89,7 +89,10 @@ struct PostDetailView: View {
                 }
                 .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
                 .shadow(color: .black.opacity(0.25), radius: 10)
-                .overlay { DoodleImageView(drawingData: post.drawingData) }
+                .overlay {
+                    DoodleImageView(drawingData: post.drawingData)
+                        .mask { frontMask }
+                }
                 .opacity(isFlipped ? 0 : 1)
 
                 // 뒷면: 정보
@@ -141,6 +144,22 @@ struct PostDetailView: View {
         } message: {
             Text(saveMessage)
         }
+    }
+
+    /// 앞면의 그림을 가릴 마스크.
+    ///
+    /// 접혔을 때만 접힌 자리를 파낸다. 그리드처럼 마스크 두 장을 오가면
+    /// 겹치는 동안 그림 전체가 살짝 흐려진다. 여기서는 종이 전체를 깔아 두고
+    /// 접힌 자리만 `destinationOut` 으로 덜어내므로 나머지 밝기는 흔들리지 않는다.
+    private var frontMask: some View {
+        RoundedRectangle(cornerRadius: DoodleMetrics.canvasCornerRadius)
+            .overlay {
+                Image(.memoFoldRegion)
+                    .resizable()
+                    .opacity(showFold ? 1 : 0)
+                    .blendMode(.destinationOut)
+            }
+            .compositingGroup()
     }
 
     // MARK: - 뒷면
