@@ -216,11 +216,15 @@ struct GalleryPage: View {
             case .browsing:
                 // 시스템 Menu 는 최소 너비가 정해져 있어 짧은 한글 라벨이면 오른쪽이 휑하다.
                 // 내용에 맞는 크기로 직접 그린다(selectMenu).
-                Button("선택") {
+                Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         showSelectMenu.toggle()
                     }
+                } label: {
+                    // Figma 17-1 은 글자 대신 ellipsis 아이콘을 쓴다.
+                    Image(systemName: "ellipsis")
                 }
+                .accessibilityLabel("선택")
 
             // 프로필 고르기는 팝업이, 삭제는 하단 선택 바가 대신한다.
             case .choosingProfile, .deleting:

@@ -38,15 +38,15 @@ struct PostDetailView: View {
     private var card: some View {
         VStack(spacing: 24) {
 
-            HStack {
+            // Figma `Frame 9` 왼쪽 디자인: 136x55 알약 안에 64x48 버튼 둘
+            HStack(spacing: 0) {
                 Button {
                     showSharingScreen = true
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                         .font(.title2)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 14)
                 }
+                .buttonStyle(CardToolbarButtonStyle())
                 .accessibilityLabel("가까운 친구에게 보내기")
 
                 Button {
@@ -54,12 +54,13 @@ struct PostDetailView: View {
                 } label: {
                     Image(systemName: "square.and.arrow.down")
                         .font(.title2)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 14)
                 }
+                .buttonStyle(CardToolbarButtonStyle())
                 .accessibilityLabel("사진에 저장")
             }
+            .frame(width: 136, height: 55)
             .glassEffect(.regular, in: .capsule)
+            .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
             .padding(.bottom, 10)
 
             ZStack {
@@ -103,7 +104,17 @@ struct PostDetailView: View {
     /// 내가 그린 카드와 받은 카드가 같은 레이아웃을 쓰고 문구만 달라진다.
     @ViewBuilder
     private var backFaceContent: some View {
-        VStack(spacing: 0) {
+        ZStack {
+            // 본문은 카드 정가운데. 위아래 요소에 밀리지 않도록 따로 겹쳐 놓는다.
+            Text(post.text.isEmpty ? "(텍스트 없음)" : post.text)
+                .font(.system(size: 30, weight: .medium))
+                // Figma 행간 44. 30pt 본문의 기본 행높이에 약 8 을 더하면 비슷해진다.
+                .lineSpacing(8)
+                .foregroundStyle(Color.doodlePrimary)
+                .multilineTextAlignment(.center)
+                .frame(width: 253)
+
+            VStack(spacing: 0) {
             if !counterpartName.isEmpty {
                 HStack(spacing: 10) {
                     avatar
@@ -126,22 +137,31 @@ struct PostDetailView: View {
 
             Spacer()
 
-            Text(post.text.isEmpty ? "(텍스트 없음)" : post.text)
-                .font(.system(size: 30, weight: .medium))
-                // Figma 행간 44. 30pt 본문의 기본 행높이에 약 8 을 더하면 비슷해진다.
-                .lineSpacing(8)
-                .foregroundStyle(Color.doodlePrimary)
-                .multilineTextAlignment(.center)
-                .frame(width: 253)
-
-            Spacer()
-
             Text(post.createdAt.formatted(date: .abbreviated, time: .omitted))
                 .font(.system(size: 12))
                 .foregroundStyle(Color.doodleDetail)
                 .padding(.bottom, 27)
+            }
         }
     }
+}
+
+/// Figma `Frame 9` 왼쪽 디자인의 버튼. 누르면 회색 10% 배경이 깔린다.
+private struct CardToolbarButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(Color.doodlePrimary)
+            .frame(width: 64, height: 48)
+            .background {
+                if configuration.isPressed {
+                    Capsule().fill(Color.doodlePressed)
+                }
+            }
+            .contentShape(Capsule())
+    }
+}
+
+extension PostDetailView {
 
     /// 카드 뒷면 위쪽에 보여줄 상대. 내가 그렸으면 받는 사람, 받았으면 보낸 사람.
     private var counterpartName: String {
