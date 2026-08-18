@@ -51,7 +51,10 @@ struct NearbySharingScreen: View {
                     if let animatedDrawing {
                         DoodleStrokeAnimation(drawing: animatedDrawing)
                     } else {
+                        // 기본 낙서는 내 그림보다 조금 작게 둔다.
+                        // 자리를 꽉 채우면 대신 넣어 준 그림이 주인공처럼 보인다.
                         DoodleStrokeAnimation(strokes: DefaultDoodle.strokes)
+                            .padding(30)
                     }
                 }
                 .frame(width: 337, height: 367)
