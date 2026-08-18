@@ -27,4 +27,6 @@ extension Color {
     static let doodleHairline = Color(red: 0xE1 / 255, green: 0xE1 / 255, blue: 0xE1 / 255)
     /// 버튼 눌림 배경. Figma `rgba(121,121,121,0.1)`
     static let doodlePressed = Color(red: 121 / 255, green: 121 / 255, blue: 121 / 255).opacity(0.1)
+    /// 어두운 버튼 위 글자. Figma `#E8E8E8`
+    static let doodleOnPrimary = Color(red: 0xE8 / 255, green: 0xE8 / 255, blue: 0xE8 / 255)
 }

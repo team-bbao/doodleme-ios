@@ -12,10 +12,14 @@ import SwiftUI
 /// 그래서 미리 준비한 기본 그림 중 하나를 골라 붙인다.
 enum PeerAvatarPalette {
 
-    /// 여기에 기본 프로필 이미지를 추가하면 그만큼 종류가 늘어난다.
-    /// 에셋을 넣고 `.이름` 을 배열에 더하기만 하면 된다.
+    /// Figma `iPhone 17 - 4` 의 낙서 3개와 `iPhone 17 - 7` 의 2개를 벡터로 내보낸 것.
+    /// 더 늘리려면 에셋을 넣고 여기에 한 줄 추가하면 된다.
     static let images: [ImageResource] = [
-        .profileDefault
+        .peerAvatar1,
+        .peerAvatar2,
+        .peerAvatar3,
+        .peerAvatar4,
+        .peerAvatar5
     ]
 
     /// 이름을 기준으로 고른다.

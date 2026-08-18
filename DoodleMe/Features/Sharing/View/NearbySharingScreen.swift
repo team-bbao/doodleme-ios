@@ -135,8 +135,11 @@ struct NearbySharingScreen: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .background(.white, in: UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20))
+        // Figma 카드는 높이 361 이고 화면 아래로 잘려 나간다. 행(85x3)만으로는 모자라 여백을 더한다.
+        .padding(.bottom, 106)
+        .background(.white, in: RoundedRectangle(cornerRadius: 30))
         .padding(.horizontal, 20)
+        .padding(.bottom, -60)
         .transition(.move(edge: .bottom))
     }
 
@@ -147,7 +150,7 @@ struct NearbySharingScreen: View {
             avatar(for: peer, state: state)
 
             Text(peer.displayName)
-                .font(.headline)
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(Self.primary)
                 .lineLimit(1)
 
@@ -157,35 +160,41 @@ struct NearbySharingScreen: View {
                 send(to: peer, session: session)
             } label: {
                 Text(buttonTitle(for: state))
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
-                    .frame(width: 85, height: 38)
-                    .background(state == .idle ? Self.primary : Self.muted, in: Capsule())
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Color.doodleOnPrimary)
+                    .frame(width: 83, height: 39)
+                    .background(
+                        state == .idle ? Self.primary : Self.muted,
+                        in: RoundedRectangle(cornerRadius: 30)
+                    )
             }
             .disabled(state != .idle)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 22)
     }
 
     /// 아직 상대의 진짜 프로필은 알 수 없어서 기본 그림을 골라 붙인다.
     /// 전송이 시작되면 테두리가 돌고, 끝나면 테두리가 완성된다.
     private func avatar(for peer: MCPeerID, state: MultipeerSession.TransferState) -> some View {
-        Image(PeerAvatarPalette.image(for: peer.displayName))
-            .resizable()
-            .scaledToFill()
-            .frame(width: 55, height: 55)
-            .clipShape(Circle())
-            .padding(3)
-            .overlay {
-                switch state {
-                case .sending:
-                    SendingRing()
-                case .sent:
-                    Circle().stroke(Self.progressRing, lineWidth: 2)
-                default:
-                    Circle().stroke(.gray.opacity(0.2), lineWidth: 1)
-                }
+        ZStack {
+            Circle().fill(.white)
+
+            Image(PeerAvatarPalette.image(for: peer.displayName))
+                .resizable()
+                .scaledToFit()
+                .frame(width: 29, height: 29)
+        }
+        .frame(width: 53, height: 53)
+        .overlay {
+            switch state {
+            case .sending:
+                SendingRing()
+            case .sent:
+                Circle().stroke(Self.progressRing, lineWidth: 2)
+            default:
+                Circle().stroke(Color.doodleHairline, lineWidth: 1)
             }
+        }
     }
 
     private func buttonTitle(for state: MultipeerSession.TransferState) -> String {
