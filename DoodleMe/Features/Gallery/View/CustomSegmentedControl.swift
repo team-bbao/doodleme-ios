@@ -32,8 +32,10 @@ struct CustomSegmentedControl: View {
                         .frame(height: Self.height)
                         .background {
                             if isSelected {
-                                RoundedRectangle(cornerRadius: Self.cornerRadius)
+                                // Figma "button light" 스타일: 드롭 섀도 + 글래스
+                                Capsule()
                                     .fill(.white.opacity(0.6))
+                                    .glassEffect(.regular, in: .capsule)
                                     .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
                                     .matchedGeometryEffect(id: "segment", in: segmentAnimation)
                             }

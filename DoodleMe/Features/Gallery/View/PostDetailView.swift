@@ -15,6 +15,9 @@ struct PostDetailView: View {
     /// 내 그림을 공유할 때 보낼 이름. `GalleryPage`의 프로필 이름과 같은 저장소를 본다.
     @AppStorage("userName") private var userName = ""
 
+    /// 내가 그린 카드의 아바타로 쓸 내 프로필 그림.
+    @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
+
     @State private var isFlipped = false
     @State private var showSharingScreen = false
     @State private var showSaveAlert = false
@@ -95,57 +98,86 @@ struct PostDetailView: View {
 
     // MARK: - 뒷면
 
+    /// 카드 뒷면. Figma `Frame 6`(10:406) 기준.
+    ///
+    /// 내가 그린 카드와 받은 카드가 같은 레이아웃을 쓰고 문구만 달라진다.
     @ViewBuilder
     private var backFaceContent: some View {
         VStack(spacing: 0) {
-            if post.isMine && !post.recipientName.isEmpty {
-                HStack(spacing: 6) {
-                    Text("To.")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(.gray)
-                    Text(post.recipientName)
-                        .font(.system(size: 18, weight: .semibold))
-                    Spacer()
-                }
-                .padding(.horizontal, 30)
-                .padding(.top, 35)
-            }
-
-            if !post.isMine {
+            if !counterpartName.isEmpty {
                 HStack(spacing: 10) {
-                    if let profileData = post.senderProfileDrawingData, !profileData.isEmpty {
-                        DoodleImageView(drawingData: profileData, contentMode: .fill)
-                            .frame(width: 36, height: 36)
-                            .clipShape(Circle())
-                    } else {
-                        Image(systemName: "person.badge.plus")
-                            .font(.system(size: 28))
-                            .foregroundStyle(.gray)
+                    avatar
+
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(counterpartName)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(Color.doodlePrimary)
+
+                        Text(counterpartSuffix)
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.doodleSecondary)
                     }
-                    Text(post.displaySenderName)
-                        .font(.headline)
-                    Spacer()
+
+                    Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 30)
-                .padding(.top, 35)
+                .padding(.leading, 20)
+                .padding(.top, 19)
             }
 
             Spacer()
 
             Text(post.text.isEmpty ? "(텍스트 없음)" : post.text)
-                .font(.title2)
-                .fontWeight(.semibold)
+                .font(.system(size: 30, weight: .medium))
+                // Figma 행간 44. 30pt 본문의 기본 행높이에 약 8 을 더하면 비슷해진다.
+                .lineSpacing(8)
+                .foregroundStyle(Color.doodlePrimary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 35)
+                .frame(width: 253)
 
             Spacer()
 
             Text(post.createdAt.formatted(date: .abbreviated, time: .omitted))
-                .font(.caption)
-                .foregroundStyle(.gray)
-                .padding(.bottom, 16)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.doodleDetail)
+                .padding(.bottom, 27)
         }
+    }
+
+    /// 카드 뒷면 위쪽에 보여줄 상대. 내가 그렸으면 받는 사람, 받았으면 보낸 사람.
+    private var counterpartName: String {
+        post.isMine ? post.recipientName : post.displaySenderName
+    }
+
+    private var counterpartSuffix: String {
+        post.isMine ? "님에게" : "님이 보냄"
+    }
+
+    /// 상대 자리에 넣을 그림. 내가 그린 카드에는 내 프로필을 쓴다.
+    private var counterpartDrawingData: Data? {
+        let data = post.isMine ? profilePosts.first?.drawingData : post.senderProfileDrawingData
+        guard let data, !data.isEmpty else { return nil }
+        return data
+    }
+
+    /// Figma: 흰 원 55 + #E1E1E1 테두리, 안에 그림 30.
+    private var avatar: some View {
+        ZStack {
+            Circle()
+                .fill(.white)
+                .overlay { Circle().stroke(Color.doodleHairline, lineWidth: 1) }
+
+            Group {
+                if let counterpartDrawingData {
+                    DoodleImageView(drawingData: counterpartDrawingData)
+                } else {
+                    Image(.profileDefault)
+                        .resizable()
+                        .scaledToFit()
+                }
+            }
+            .frame(width: 30, height: 30)
+        }
+        .frame(width: 55, height: 55)
     }
 
     // MARK: - 사진 저장
