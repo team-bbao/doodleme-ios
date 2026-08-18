@@ -35,7 +35,7 @@ struct NearbySharingScreen: View {
     var body: some View {
         // Figma `iPhone 17 - 3` 세로 배치:
         // 닫기 y72 / 이름 y100 / 그림 y133(337x367) / 상태 y515. 사이 간격은 모두 15.
-        ZStack(alignment: .topTrailing) {
+        ZStack {
             Self.background
                 .ignoresSafeArea()
 
@@ -53,12 +53,17 @@ struct NearbySharingScreen: View {
                     peerCard(session: session)
                 }
             }
+            // 화면 폭을 다 쓰게 해야 안쪽 요소가 가운데로 온다.
+            .frame(maxWidth: .infinity)
             // 안전영역 아래 41 지점이 Figma 의 y100 이다.
             .padding(.top, 41)
 
+            // ZStack 정렬을 topTrailing 으로 주면 본문까지 딸려 가므로
+            // 닫기 버튼 자신만 모서리로 보낸다.
             closeButton
                 .padding(.top, 13)
                 .padding(.trailing, 20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         }
         .task {
             // 상대에게 보일 이름은 프로필 이름을 그대로 쓴다.
