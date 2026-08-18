@@ -41,7 +41,7 @@ struct GalleryPage: View {
 
     // Figma `iPhone 17 - 1` 기준 치수
     /// 프로필 원 지름
-    private static let profileDiameter: CGFloat = 116
+    private static let profileDiameter: CGFloat = 110
     /// 연필 뱃지 지름
     private static let profileBadgeDiameter: CGFloat = 25
     /// 세그먼트 컨트롤 좌우 여백. 바깥 VStack 이 이미 16 을 주므로 그만큼 뺀 값을 더한다.

@@ -56,13 +56,15 @@ struct PostGridView: View {
 
     var body: some View {
         if currentPosts.isEmpty {
+            // 위에 붙여 두면 카드가 놓일 자리가 아니라 헤더 바로 밑에서 뜬다.
+            // 그리드가 차지할 영역 한가운데에 두어 "여기가 빈 자리" 임을 보여준다.
             Text(emptyMessage)
                 .foregroundStyle(.colorGray)
-                .padding(.top, 70)
                 .fontWeight(.bold)
-                .font(.system(size: 25))
+                .font(.system(size: 20))
                 .opacity(0.4)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .contentShape(Rectangle())
                 .onTapGesture { onEmptyAreaTap?() }
         } else {
