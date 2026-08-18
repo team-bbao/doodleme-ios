@@ -19,12 +19,13 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTabIndex) {
-            Tab("갤러리", systemImage: "square.grid.2x2", value: 0) {
-                GalleryPage()
-            }
-
+            // 자리만 바꾼다. value 는 그대로 두어야 저장 후 갤러리로 돌아가는 코드가 계속 맞는다.
             Tab("그리기", systemImage: "pencil.tip", value: 1) {
                 DrawingPage(selectedTabIndex: $selectedTabIndex)
+            }
+
+            Tab("갤러리", systemImage: "square.grid.2x2", value: 0) {
+                GalleryPage()
             }
 
         }

@@ -159,23 +159,38 @@ struct NearbySharingScreen: View {
 
     // MARK: - 상대 목록
 
+    /// 상대 한 명이 차지하는 높이.
+    private static let peerRowHeight: CGFloat = 85
+    /// 스크롤 없이 한 번에 보여줄 사람 수. 그보다 많으면 목록만 스크롤한다.
+    private static let visiblePeerLimit = 3
+
     private func peerCard(session: MultipeerSession) -> some View {
-        VStack(spacing: 0) {
-            ForEach(session.peers, id: \.self) { peer in
-                peerRow(peer: peer, session: session)
-                    .frame(height: 85)
+        // 카드가 화면 밖으로 넘어가지 않게 높이를 사람 수에 맞춘다.
+        // 예전에는 Figma 대로 아래를 잘라 뒀는데, 4명째부터는 화면 밖이라
+        // 스크롤도 안 되고 보낼 방법이 없었다.
+        let rows = min(session.peers.count, Self.visiblePeerLimit)
+
+        return ScrollView {
+            VStack(spacing: 0) {
+                ForEach(session.peers, id: \.self) { peer in
+                    peerRow(peer: peer, session: session)
+                        .frame(height: Self.peerRowHeight)
+                }
             }
         }
+        .frame(height: Self.peerRowHeight * CGFloat(rows))
+        // 목록이 다 들어오면 튕기지 않게 한다. 스크롤될 때만 튕긴다.
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity)
-        // Figma 카드는 높이 361 이고 화면 아래로 잘려 나간다. 행(85x3)만으로는 모자라 여백을 더한다.
-        .padding(.bottom, 106)
+        .padding(.vertical, 14)
         .background {
             RoundedRectangle(cornerRadius: 30)
                 .fill(.white)
                 .shadow(color: .black.opacity(0.12), radius: 16, y: -2)
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, -60)
+        .padding(.bottom, 12)
         .transition(.move(edge: .bottom))
     }
 
