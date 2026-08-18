@@ -19,19 +19,12 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTabIndex) {
-            // 아이콘만 둔다. 글자는 빼되 접근성 라벨은 남긴다.
-            Tab(value: 0) {
+            Tab("갤러리", systemImage: "square.grid.2x2", value: 0) {
                 GalleryPage()
-            } label: {
-                Image(systemName: "square.grid.2x2")
-                    .accessibilityLabel("갤러리")
             }
 
-            Tab(value: 1) {
+            Tab("그리기", systemImage: "pencil.tip", value: 1) {
                 DrawingPage(selectedTabIndex: $selectedTabIndex)
-            } label: {
-                Image(systemName: "pencil.tip")
-                    .accessibilityLabel("드로잉")
             }
 
         }

@@ -260,7 +260,7 @@ struct GalleryPage: View {
                 .padding(.horizontal, 12)
 
             // Figma `Frame 9` 오른쪽 바의 공유 심볼.
-            menuRow(title: "공유하기", systemImage: "airplay.audio") {
+            menuRow(title: "이미지 받기", systemImage: "airplay.audio") {
                 showSharingScreen = true
             }
 

@@ -100,9 +100,15 @@ struct DoodleStrokeAnimation: View {
         // 캔버스 전체가 아니라 그림이 실제로 차지하는 영역을 화면에 맞춘다.
         // 캔버스 기준으로 맞추면 구석에 작게 그린 그림이 그대로 작고 치우쳐 보인다.
         // 점 하나짜리 그림도 있을 수 있으니 폭·높이가 0 이면 배율을 1 로 둔다.
+        // 획은 중심선을 따라 그려져서 굵기의 절반이 경계 밖으로 나간다.
+        // 내용 영역을 캔버스에 딱 맞추면 가장자리 획이 그만큼 잘린다.
+        // 굵기만큼 안쪽으로 물려서 맞춘다.
+        let margin = lineWidth
+        let available = CGSize(width: max(0, size.width - margin * 2),
+                               height: max(0, size.height - margin * 2))
         let scale = min(
-            contentBounds.width > 0 ? size.width / contentBounds.width : 1,
-            contentBounds.height > 0 ? size.height / contentBounds.height : 1
+            contentBounds.width > 0 ? available.width / contentBounds.width : 1,
+            contentBounds.height > 0 ? available.height / contentBounds.height : 1
         )
         let drawnSize = CGSize(width: contentBounds.width * scale,
                                height: contentBounds.height * scale)

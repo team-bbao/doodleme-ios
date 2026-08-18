@@ -51,12 +51,12 @@ struct NearbySharingScreen: View {
                     if let animatedDrawing {
                         DoodleStrokeAnimation(drawing: animatedDrawing)
                     } else {
-                        // 기본 낙서는 내 그림보다 조금 작게 둔다.
-                        // 자리를 꽉 채우면 대신 넣어 준 그림이 주인공처럼 보인다.
                         DoodleStrokeAnimation(strokes: DefaultDoodle.strokes)
-                            .padding(30)
                     }
                 }
+                // 자리를 꽉 채우면 그림이 답답하고 가장자리 획이 잘려 보인다.
+                // 보낼 그림이든 기본 낙서든 같은 여백을 둔다.
+                .padding(30)
                 .frame(width: 337, height: 367)
 
                 status
