@@ -19,7 +19,7 @@ struct PostDetailView: View {
     @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
 
     @State private var isFlipped = false
-    /// 앞면에 접힌 모서리를 보여줄 차례인지. 1.5초마다 뒤집힌다.
+    /// 앞면에 접힌 모서리를 보여줄 차례인지. 1초마다 뒤집힌다.
     @State private var showFold = false
     @State private var showSharingScreen = false
     @State private var showSaveAlert = false
@@ -68,7 +68,7 @@ struct PostDetailView: View {
             ZStack {
                 // 앞면: 그림
                 //
-                // 접힌 모서리와 접힘 없는 둥근 사각형을 1.5초마다 번갈아 보여준다.
+                // 접힌 모서리와 접힘 없는 둥근 사각형을 1초마다 번갈아 보여준다.
                 // 뒤집을 수 있는 카드라는 걸 가만히 알려주는 신호다.
                 //
                 // 반경은 그리던 캔버스와 같은 값이라 그림이 잘린 모양과 정확히 맞물린다.
@@ -112,12 +112,12 @@ struct PostDetailView: View {
             }
         }
         .padding()
-        // 접힌 모서리를 1.5초마다 나타냈다 감춘다.
+        // 접힌 모서리를 1초마다 나타냈다 감춘다.
         // Timer 대신 task 를 쓰면 화면이 사라질 때 알아서 멈춘다.
         .task {
             while !Task.isCancelled {
                 do {
-                    try await Task.sleep(for: .seconds(1.5))
+                    try await Task.sleep(for: .seconds(1))
                 } catch {
                     break
                 }
