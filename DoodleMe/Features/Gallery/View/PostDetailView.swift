@@ -22,6 +22,9 @@ struct PostDetailView: View {
     /// 앞면에 접힌 모서리를 보여줄 차례인지.
     @State private var showFold = false
 
+    /// 다 접혔을 때 접힌 정사각형 한 변의 길이.
+    /// memoFront 에셋의 접힌 자리를 캔버스 크기로 환산한 값이다.
+    private static let foldSize: CGFloat = 100
     /// 접힘을 보여줬다 감추는 주기. 한 상태가 이만큼 머문다.
     private static let foldInterval: Duration = .milliseconds(1250)
     /// 두 상태를 오갈 때 걸리는 시간. 주기에 비해 길면 계속 움직이는 느낌이 든다.
@@ -130,52 +133,30 @@ struct PostDetailView: View {
         }
     }
 
+    /// 지금 접힌 정도. 0 이면 펴진 상태.
+    private var foldDepth: CGFloat { showFold ? Self.foldSize : 0 }
+
     /// 접혔다 펴지는 종이 한 장.
     ///
-    /// 예전에는 접힌 종이 이미지와 민무늬 사각형을 서로 페이드로 갈아끼웠다.
-    /// 그러면 겹치는 순간 카드의 불투명도가 1 에 못 미쳐,
-    /// 뒤에 깔린 그림자가 비쳐 카드 전체가 잠깐 어두워졌다.
+    /// 예전에는 접힌 종이 이미지를 불투명도로 나타냈다 감췄다.
+    /// 그러면 종이가 접히는 게 아니라 모서리가 투명해졌다 나타나는 것처럼 보인다.
     ///
-    /// 그래서 종이는 늘 한 장만 불투명하게 깔고, 접힘은 그 위에 얹는다.
-    /// 접힌 삼각형은 색만 덮으므로 불투명도에 영향이 없고,
-    /// 잘려나가는 모서리만 마스크로 덜어낸다.
+    /// 지금은 접힌 크기 자체를 키웠다 줄인다.
+    /// 모서리가 실제로 접혀 들어오는 것처럼 보이고,
+    /// 잘려나가는 삼각형과 접혀 올라온 삼각형이 늘 짝을 이룬다.
     private var paperFace: some View {
-        RoundedRectangle(cornerRadius: DoodleMetrics.canvasCornerRadius)
-            .fill(Color.doodlePaper)
-            .overlay {
-                Image(.memoFoldFlap)
-                    .resizable()
-                    .opacity(showFold ? 1 : 0)
-            }
-            .mask { foldCutout }
+        ZStack {
+            FoldedPaperShape(depth: foldDepth, cornerRadius: DoodleMetrics.canvasCornerRadius)
+                .fill(Color.doodlePaper)
+
+            FoldFlapShape(depth: foldDepth)
+                .fill(Color.doodleFoldFlap)
+        }
     }
 
-    /// 접혔을 때 잘려나가는 모서리를 덜어내는 마스크.
-    private var foldCutout: some View {
-        RoundedRectangle(cornerRadius: DoodleMetrics.canvasCornerRadius)
-            .overlay {
-                Image(.memoFoldRegion)
-                    .resizable()
-                    .opacity(showFold ? 1 : 0)
-                    .blendMode(.destinationOut)
-            }
-            .compositingGroup()
-    }
-
-    /// 앞면의 그림을 가릴 마스크.
-    ///
-    /// 접혔을 때만 접힌 자리를 파낸다. 그리드처럼 마스크 두 장을 오가면
-    /// 겹치는 동안 그림 전체가 살짝 흐려진다. 여기서는 종이 전체를 깔아 두고
-    /// 접힌 자리만 `destinationOut` 으로 덜어내므로 나머지 밝기는 흔들리지 않는다.
+    /// 앞면의 그림을 가릴 마스크. 접힌 정사각형 자리에는 그림이 얹히지 않는다.
     private var frontMask: some View {
-        RoundedRectangle(cornerRadius: DoodleMetrics.canvasCornerRadius)
-            .overlay {
-                Image(.memoFoldRegion)
-                    .resizable()
-                    .opacity(showFold ? 1 : 0)
-                    .blendMode(.destinationOut)
-            }
-            .compositingGroup()
+        PaperBodyShape(depth: foldDepth, cornerRadius: DoodleMetrics.canvasCornerRadius)
     }
 
     // MARK: - 뒷면
@@ -328,4 +309,76 @@ extension PostDetailView {
 #Preview {
     PostDetailView(post: Post(drawingData: Data(), text: "테스트", isMine: false))
         .modelContainer(LocalDataStore.makePreviewContainer())
+}
+
+// MARK: - 접힌 종이 도형
+
+/// 왼쪽 아래 모서리가 접혀 잘려나간 종이.
+///
+/// 접힌 자리는 한 변이 `depth` 인 정사각형이고, 그 대각선을 접는 선으로 본다.
+/// 대각선 아래쪽 삼각형은 뜯겨 나가고, 위쪽 삼각형이 접혀 올라온다.
+private struct FoldedPaperShape: Shape {
+    var depth: CGFloat
+    var cornerRadius: CGFloat
+
+    var animatableData: CGFloat {
+        get { depth }
+        set { depth = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let paper = Path(roundedRect: rect, cornerRadius: cornerRadius)
+        guard depth > 0 else { return paper }
+
+        var cut = Path()
+        cut.move(to: CGPoint(x: rect.minX, y: rect.maxY - depth))
+        cut.addLine(to: CGPoint(x: rect.minX + depth, y: rect.maxY))
+        cut.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        cut.closeSubpath()
+
+        return paper.subtracting(cut)
+    }
+}
+
+/// 접혀 올라온 삼각형. 잘려나간 삼각형을 접는 선에 대고 뒤집은 모양이다.
+private struct FoldFlapShape: Shape {
+    var depth: CGFloat
+
+    var animatableData: CGFloat {
+        get { depth }
+        set { depth = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard depth > 0 else { return path }
+
+        path.move(to: CGPoint(x: rect.minX, y: rect.maxY - depth))
+        path.addLine(to: CGPoint(x: rect.minX + depth, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX + depth, y: rect.maxY - depth))
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// 그림이 보여도 되는 자리. 접힌 정사각형 전체를 뺀다.
+///
+/// 잘려나간 쪽뿐 아니라 접혀 올라온 쪽에도 그림이 얹히면 안 된다.
+/// 접힌 종이의 뒷면에 그림이 이어질 리가 없기 때문이다.
+private struct PaperBodyShape: Shape {
+    var depth: CGFloat
+    var cornerRadius: CGFloat
+
+    var animatableData: CGFloat {
+        get { depth }
+        set { depth = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let paper = Path(roundedRect: rect, cornerRadius: cornerRadius)
+        guard depth > 0 else { return paper }
+
+        let corner = Path(CGRect(x: rect.minX, y: rect.maxY - depth, width: depth, height: depth))
+        return paper.subtracting(corner)
+    }
 }
