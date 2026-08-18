@@ -58,6 +58,11 @@ final class MultipeerSession {
     @ObservationIgnored private var browser: MCNearbyServiceBrowser?
     /// 아직 연결이 안 돼서 기다리고 있는 전송분.
     @ObservationIgnored private var pendingTransfers: [MCPeerID: Data] = [:]
+    /// 지금 이 순간 주변에 보이는 사람들.
+    ///
+    /// `peers` 와 다르다. `peers` 는 결과를 보여주려고 떠난 사람도 남겨두지만,
+    /// 이건 실제로 초대를 받을 수 있는 사람만 담는다.
+    @ObservationIgnored private var visiblePeers: Set<MCPeerID> = []
 
     init(displayName: String) {
         // MCPeerID 는 빈 문자열이나 64자 초과를 허용하지 않는다.
@@ -130,6 +135,7 @@ final class MultipeerSession {
         browser = nil
         session.disconnect()
         peers = []
+        visiblePeers = []
         transferStates = [:]
         pendingTransfers = [:]
     }
@@ -153,6 +159,10 @@ final class MultipeerSession {
 
         if session.connectedPeers.contains(peer) {
             deliver(data, to: peer)
+        } else if !visiblePeers.contains(peer) {
+            // 이미 떠난 사람에게 초대를 보내면 20초를 기다렸다 실패한다.
+            // 기다릴 이유가 없으니 바로 알려준다.
+            transferStates[peer] = .failed("상대가 화면을 닫은 것 같아요.")
         } else {
             // 연결이 맺어지면 handleStateChange 에서 이어서 보낸다.
             pendingTransfers[peer] = data
@@ -179,11 +189,13 @@ final class MultipeerSession {
     // MARK: - 델리게이트 콜백 (메인 액터로 넘어온 뒤 호출됨)
 
     fileprivate func handleFoundPeer(_ peer: MCPeerID) {
+        visiblePeers.insert(peer)
         guard !peers.contains(peer) else { return }
         peers.append(peer)
     }
 
     fileprivate func handleLostPeer(_ peer: MCPeerID) {
+        visiblePeers.remove(peer)
         // 이미 보냈거나 보내는 중이면 결과를 보여줘야 하므로 목록에 남긴다.
         guard state(for: peer) == .idle else { return }
         peers.removeAll { $0 == peer }
@@ -192,6 +204,7 @@ final class MultipeerSession {
     fileprivate func handleStateChange(peer: MCPeerID, state: MCSessionState) {
         switch state {
         case .connected:
+            visiblePeers.insert(peer)
             if !peers.contains(peer) { peers.append(peer) }
             if let waiting = pendingTransfers.removeValue(forKey: peer) {
                 deliver(waiting, to: peer)
