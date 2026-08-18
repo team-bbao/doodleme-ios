@@ -24,10 +24,10 @@ struct NearbySharingScreen: View {
     @State private var savedMessage = ""
     @State private var showSavedAlert = false
 
-    // Figma 색상 스펙
-    private static let primary = Color(red: 0x42 / 255, green: 0x42 / 255, blue: 0x42 / 255)
-    private static let muted = Color(red: 0x92 / 255, green: 0x92 / 255, blue: 0x92 / 255)
-    private static let detail = Color(red: 0x82 / 255, green: 0x82 / 255, blue: 0x82 / 255)
+    // Figma 색상 스펙 (공용 값은 Color+Doodle 참고)
+    private static let primary = Color.doodlePrimary
+    private static let muted = Color.doodleMuted
+    private static let detail = Color.doodleDetail
     private static let background = Color(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF5 / 255)
     /// 전송 진행을 나타내는 테두리. 앱 강조색은 어두워서 눈에 띄지 않아 스펙대로 파란색을 쓴다.
     static let progressRing = Color.blue

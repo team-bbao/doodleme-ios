@@ -17,8 +17,9 @@ struct ProfileNameView: View {
             showingEditor = true
         } label: {
             Text(profileName.isEmpty ? "이름" : profileName)
-                .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(profileName.isEmpty ? .gray : .primary)
+                // Figma `iPhone 17 - 1` 의 이름 스타일
+                .font(.system(size: 25, weight: .semibold))
+                .foregroundStyle(profileName.isEmpty ? Color.gray : .doodlePrimary)
                 .padding(.top, 17)
         }
         .buttonStyle(.plain)

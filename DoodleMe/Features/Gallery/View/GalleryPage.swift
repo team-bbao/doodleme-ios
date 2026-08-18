@@ -32,6 +32,14 @@ struct GalleryPage: View {
 
     private var isChoosingProfile: Bool { mode == .choosingProfile }
 
+    // Figma `iPhone 17 - 1` 기준 치수
+    /// 프로필 원 지름
+    private static let profileDiameter: CGFloat = 116
+    /// 연필 뱃지 지름
+    private static let profileBadgeDiameter: CGFloat = 25
+    /// 세그먼트 컨트롤 좌우 여백. 바깥 VStack 이 이미 16 을 주므로 그만큼 뺀 값을 더한다.
+    private static let segmentExtraInset: CGFloat = 12
+
     /// 프로필 고르기에는 취소 버튼이 없다. 카드가 아닌 빈 곳을 누르면 빠져나온다.
     private var emptyAreaTapAction: (() -> Void)? {
         isChoosingProfile ? { exitSelection() } : nil
@@ -154,22 +162,26 @@ struct GalleryPage: View {
                 } else {
                     Image(.profileDefault)
                         .resizable()
-                        .scaledToFill()
+                        .scaledToFit()
+                        // 원을 꽉 채우지 않고 지름의 80% 크기로 가운데 놓는다.
+                        .frame(width: Self.profileDiameter * 0.8,
+                               height: Self.profileDiameter * 0.8)
                         .onTapGesture {
                             withAnimation(.spring()) { mode = .choosingProfile }
                         }
                 }
             }
-            .frame(width: 100, height: 100)
+            .frame(width: Self.profileDiameter, height: Self.profileDiameter)
             .clipShape(Circle())
             .shadow(color: .black.opacity(0.1), radius: 3, x: 2, y: 2)
             .overlay(alignment: .bottomTrailing) {
                 Image(systemName: "pencil")
+                    .font(.system(size: 12))
                     .foregroundStyle(.gray)
-                    .padding(6)
+                    .frame(width: Self.profileBadgeDiameter, height: Self.profileBadgeDiameter)
                     .background(Circle().fill(.white.opacity(0.6)))
                     .shadow(color: .black.opacity(0.1), radius: 2, x: 1, y: 1)
-                    .offset(x: 5, y: 5)
+                    .offset(x: -4)
             }
             .overlay { ConfettiBurst(trigger: confettiTrigger) }
             .offset(y: 5)
@@ -181,6 +193,7 @@ struct GalleryPage: View {
                 selection: $segmentedBar,
                 titles: ["너가 그린", "내가 그린"]
             )
+            .padding(.horizontal, Self.segmentExtraInset)
             .padding(.bottom, 20)
         }
     }
