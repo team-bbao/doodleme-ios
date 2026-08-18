@@ -40,14 +40,13 @@ final class MultipeerSession {
     private(set) var transferStates: [MCPeerID: TransferState] = [:]
     /// 방금 받은 그림. 화면에서 저장한 뒤 nil 로 되돌린다.
     private(set) var received: PostTransferData?
-    private(set) var lastError: String?
-
-    /// 그림이 도착하면 바로 부른다.
+    /// 지금까지 받은 횟수.
     ///
-    /// 예전에는 화면이 `received` 값의 변화를 지켜보다 저장했다.
-    /// 관찰이 한 번이라도 어긋나면 받은 그림이 조용히 사라지므로,
-    /// 도착한 그 자리에서 알려주는 편이 확실하다.
-    @ObservationIgnored var onReceive: ((PostTransferData) -> Void)?
+    /// 화면은 이 숫자만 지켜보면 된다.
+    /// `received` 값 자체를 비교하면 같은 그림이 두 번 왔을 때 놓치고,
+    /// 콜백을 쥐여주면 화면이 세션을 붙잡아 서로를 놓아주지 못한다.
+    private(set) var receivedCount = 0
+    private(set) var lastError: String?
 
     /// 상대에게 보이는 내 이름.
     let displayName: String
@@ -66,7 +65,7 @@ final class MultipeerSession {
         let safeName = trimmed.isEmpty ? "doodle.me 사용자" : String(trimmed.prefix(60))
         self.displayName = safeName
 
-        let peerID = MCPeerID(displayName: safeName)
+        let peerID = Self.storedPeerID(displayName: safeName)
         let adapter = DelegateAdapter()
         let session = MCSession(peer: peerID, securityIdentity: nil, encryptionPreference: .required)
         session.delegate = adapter
@@ -78,6 +77,30 @@ final class MultipeerSession {
 
         // self 가 완전히 초기화된 뒤에 연결한다.
         adapter.owner = self
+    }
+
+    /// 이 기기의 고정된 MCPeerID.
+    ///
+    /// 열 때마다 새로 만들면 같은 기기가 매번 다른 사람으로 보인다.
+    /// 상대의 목록에 예전 것이 남아 있으면 이미 사라진 상대에게 초대를 보내게 되고,
+    /// 그러면 연결이 맺어지지 않는다. 이름이 바뀌었을 때만 새로 만든다.
+    private static func storedPeerID(displayName: String) -> MCPeerID {
+        let defaults = UserDefaults.standard
+        let idKey = "multipeer.peerID"
+        let nameKey = "multipeer.peerName"
+
+        if defaults.string(forKey: nameKey) == displayName,
+           let data = defaults.data(forKey: idKey),
+           let saved = try? NSKeyedUnarchiver.unarchivedObject(ofClass: MCPeerID.self, from: data) {
+            return saved
+        }
+
+        let peerID = MCPeerID(displayName: displayName)
+        if let data = try? NSKeyedArchiver.archivedData(withRootObject: peerID, requiringSecureCoding: true) {
+            defaults.set(data, forKey: idKey)
+            defaults.set(displayName, forKey: nameKey)
+        }
+        return peerID
     }
 
     // MARK: - 시작 / 종료
@@ -178,9 +201,12 @@ final class MultipeerSession {
             break
 
         case .notConnected:
-            // 보내려고 기다리던 중이었다면 연결에 실패한 것이다.
             if pendingTransfers.removeValue(forKey: peer) != nil {
+                // 연결을 기다리던 중이었다면 연결 자체가 안 된 것이다.
                 transferStates[peer] = .failed("연결하지 못했어요.")
+            } else if self.state(for: peer) == .sending {
+                // 보내는 도중에 끊겼다. 이대로 두면 계속 "전송중" 에 멈춰 다시 누를 수도 없다.
+                transferStates[peer] = .failed("보내는 중에 연결이 끊겼어요.")
             }
 
         @unknown default:
@@ -196,7 +222,7 @@ final class MultipeerSession {
         }
         lastError = nil
         received = transfer
-        onReceive?(transfer)
+        receivedCount += 1
     }
 
     fileprivate func handleFailure(_ message: String) {
@@ -213,7 +239,10 @@ final class MultipeerSession {
                                          MCNearbyServiceBrowserDelegate, @unchecked Sendable {
         /// init 안에서 한 번만 설정된다.
         nonisolated(unsafe) weak var owner: MultipeerSession?
-        nonisolated(unsafe) weak var session: MCSession?
+        /// 초대에 답할 때 넘겨줘야 하므로 약하게 잡으면 안 된다.
+        /// 비어 있는 채로 답하면 수락은 되지만 연결이 맺어지지 않고 조용히 끝난다.
+        /// MCSession 은 델리게이트를 약하게 잡으므로 순환하지 않는다.
+        nonisolated(unsafe) var session: MCSession?
 
         // MARK: MCSessionDelegate
 

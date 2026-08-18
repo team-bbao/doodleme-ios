@@ -80,13 +80,12 @@ struct NearbySharingScreen: View {
         .task {
             // 상대에게 보일 이름은 프로필 이름을 그대로 쓴다.
             let newSession = MultipeerSession(displayName: userName)
-            newSession.onReceive = { received in
-                saveReceived(received)
-            }
             session = newSession
             newSession.start()
         }
         .onDisappear { session?.stop() }
+        // 받은 횟수만 지켜본다. 그림 값을 비교하면 같은 그림이 두 번 왔을 때 놓친다.
+        .onChange(of: session?.receivedCount) { _, _ in saveReceivedIfNeeded() }
 
         // isPresented 에 .constant 를 주면 SwiftUI 가 닫힘을 되돌려 쓸 수 없어 표시가 불안정하다.
         .alert("받았어요", isPresented: $showSavedAlert) {
@@ -287,11 +286,12 @@ struct NearbySharingScreen: View {
         )
     }
 
-    private func saveReceived(_ received: PostTransferData) {
+    private func saveReceivedIfNeeded() {
+        guard let session, let received = session.received else { return }
         modelContext.insert(received.makePost())
         // 저장을 미루면 화면을 닫는 사이에 사라질 수 있다. 받은 즉시 디스크에 남긴다.
         try? modelContext.save()
-        session?.clearReceived()
+        session.clearReceived()
         savedMessage = "\(received.senderName ?? Post.unknownSenderName) 님의 그림을 저장했어요."
         showSavedAlert = true
     }
