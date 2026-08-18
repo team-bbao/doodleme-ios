@@ -79,6 +79,9 @@ struct DrawingPage: View {
                 // ProgressView 는 표시 전용이라 그런 조작이 불가능하다.
                 ProgressView(value: session.remaining, total: DrawingSession.duration)
                     .tint(.accentColor)
+                    // 기본 두께가 얇아 눈에 잘 안 띈다. 세로로만 1.5배 늘린다.
+                    // 높이를 직접 지정하지 않는 이유는 기본값이 OS 버전마다 달라서다.
+                    .scaleEffect(y: 1.5, anchor: .center)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 40)
                     .accessibilityLabel("남은 시간")

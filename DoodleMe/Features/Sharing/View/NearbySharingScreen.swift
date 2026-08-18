@@ -33,7 +33,6 @@ struct NearbySharingScreen: View {
     private static let primary = Color.doodlePrimary
     private static let muted = Color.doodleMuted
     private static let detail = Color.doodleDetail
-    private static let background = Color(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF7 / 255)
     /// 전송 진행을 나타내는 테두리. 앱 강조색은 어두워서 눈에 띄지 않아 스펙대로 파란색을 쓴다.
     static let progressRing = Color.blue
 
@@ -41,8 +40,15 @@ struct NearbySharingScreen: View {
         // Figma `iPhone 17 - 3` 세로 배치:
         // 닫기 y72 / 이름 y100 / 그림 y133(337x367) / 상태 y515. 사이 간격은 모두 15.
         ZStack {
-            Self.background
-                .ignoresSafeArea()
+            // 다른 화면과 같은 종이 질감을 깐다.
+            GeometryReader { proxy in
+                Image(.papertype1)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: proxy.size.width)
+                    .clipped()
+                    .ignoresSafeArea()
+            }
 
             VStack(spacing: 15) {
                 nameRow
@@ -97,14 +103,14 @@ struct NearbySharingScreen: View {
 
     /// 가운데에서 되살릴 그림.
     ///
-    /// 받기 전용으로 열면 보낼 그림이 없어 가운데가 비어 버린다.
-    /// 그럴 때는 `DefaultDoodle` 이 대신 그려진다. (`nil` 을 돌려주는 경우)
-    ///
-    /// 내 프로필 그림으로 채우지 않는 이유는, 그러면 사람마다 다른 그림이 떠서
-    /// "보내는 그림을 보여주는 자리" 라는 뜻이 흐려지기 때문이다.
+    /// 보낼 그림 → 내 프로필 그림 순으로 찾는다.
+    /// 받기 전용으로 열면 보낼 그림이 없으므로 내 프로필이 그려진다.
+    /// 프로필도 정해두지 않았으면 `nil` 을 돌려주고 `DefaultDoodle` 이 대신 그려진다.
     private var animatedDrawing: PKDrawing? {
-        guard let candidate = post?.drawing, !candidate.strokes.isEmpty else { return nil }
-        return candidate
+        for candidate in [post?.drawing, profilePosts.first?.drawing] {
+            if let candidate, !candidate.strokes.isEmpty { return candidate }
+        }
+        return nil
     }
 
     // MARK: - 상단

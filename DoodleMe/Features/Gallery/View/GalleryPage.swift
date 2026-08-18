@@ -29,6 +29,8 @@ struct GalleryPage: View {
     @State private var showDeleteConfirm = false
     @State private var showSelectMenu = false
     @State private var showSharingScreen = false
+    /// 카드를 꾹 눌러 "그림 공유하기" 를 고른 경우. 이 그림을 들고 멀티피어 화면을 연다.
+    @State private var sharingPost: Post?
     /// 헤더 높이. 그리드를 헤더 아래에 붙이는 데 쓴다.
     @State private var headerHeight: CGFloat = 0
     @State private var confettiTrigger = 0
@@ -102,6 +104,8 @@ struct GalleryPage: View {
                     segmentedBar: $segmentedBar,
                     selectedPost: $selectedPost,
                     profileCandidatePost: $profileCandidatePost,
+                    onShare: { sharingPost = $0 },
+                    onRequestDelete: requestDelete,
                     onEmptyAreaTap: emptyAreaTapAction
                 )
                 .padding(.horizontal)
@@ -156,6 +160,10 @@ struct GalleryPage: View {
             // 보낼 그림 없이 열면 받기 전용으로 동작한다.
             .fullScreenCover(isPresented: $showSharingScreen) {
                 NearbySharingScreen { showSharingScreen = false }
+            }
+            // 카드를 꾹 눌러 고른 한 장을 들고 여는 경우.
+            .fullScreenCover(item: $sharingPost) { post in
+                NearbySharingScreen(post: post) { sharingPost = nil }
             }
         }
     }
@@ -308,6 +316,15 @@ struct GalleryPage: View {
         .buttonStyle(.plain)
     }
 
+    /// 카드를 꾹 눌러 고른 한 장을 지운다.
+    ///
+    /// 삭제 확인 팝업은 고른 목록을 보고 움직이므로, 그 한 장만 담아 두고 띄운다.
+    /// 여러 장 삭제와 같은 팝업·같은 경로를 쓴다.
+    private func requestDelete(_ post: Post) {
+        selectedPostIDs = [post.persistentModelID]
+        withAnimation(.spring()) { showDeleteConfirm = true }
+    }
+
     private func closeSelectMenu() {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             showSelectMenu = false
@@ -344,9 +361,14 @@ struct GalleryPage: View {
                         Button {
                             withAnimation(.spring()) { showDeleteConfirm = true }
                         } label: {
+                            // 어두운 그라디언트 위에 심볼만 두면 꺼진 것처럼 보인다.
+                            // 흰 원을 받쳐서 누를 수 있는 버튼임이 드러나게 한다.
                             Image(systemName: "trash")
                                 .font(.title3)
-                                .foregroundStyle(selectedPostIDs.isEmpty ? .gray : .red)
+                                .foregroundStyle(selectedPostIDs.isEmpty ? Color.gray : .red)
+                                .frame(width: 44, height: 44)
+                                .background(.white, in: Circle())
+                                .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
                         }
                         .disabled(selectedPostIDs.isEmpty)
                         .accessibilityLabel("고른 그림 삭제")

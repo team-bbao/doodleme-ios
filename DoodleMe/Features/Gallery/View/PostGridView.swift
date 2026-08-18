@@ -25,6 +25,10 @@ struct PostGridView: View {
     @Binding var selectedPost: Post?
     @Binding var profileCandidatePost: Post?
 
+    /// 카드를 꾹 눌러 고른 동작. 화면 전환과 팝업은 `GalleryPage` 가 맡는다.
+    var onShare: ((Post) -> Void)?
+    var onRequestDelete: ((Post) -> Void)?
+
     /// 카드가 아닌 빈 곳을 눌렀을 때. 프로필 고르기에서 빠져나오는 데 쓴다.
     ///
     /// 그리드는 `ScrollView` 라 화면 아래쪽 대부분을 차지한다.
@@ -38,6 +42,13 @@ struct PostGridView: View {
             : (segmentedBar == 1 ? postsByMe : postsByOthers)
     }
 
+    /// 비어 있을 때 보여줄 문구. 어느 탭인지에 따라 할 일이 다르다.
+    private var emptyMessage: String {
+        if mode == .choosingProfile { return "고를 수 있는 그림이 없어요" }
+        // 0 = 너가 그린(받은 것), 1 = 내가 그린
+        return segmentedBar == 1 ? "친구의 얼굴을 그려보세요" : "친구가 그린 그림을 받아보세요"
+    }
+
     private let columns = [
         GridItem(.flexible(), spacing: 30),
         GridItem(.flexible(), spacing: 30)
@@ -45,7 +56,7 @@ struct PostGridView: View {
 
     var body: some View {
         if currentPosts.isEmpty {
-            Text(mode == .choosingProfile ? "고를 수 있는 그림이 없어요" : "친구의 얼굴을 그려보세요")
+            Text(emptyMessage)
                 .foregroundStyle(.colorGray)
                 .padding(.top, 70)
                 .fontWeight(.bold)
@@ -102,6 +113,34 @@ struct PostGridView: View {
             .animation(.easeInOut(duration: 0.15), value: selected)
             .onTapGesture { handleTap(on: post) }
             .accessibilityAddTraits(selected ? [.isSelected] : [])
+            .contextMenu { cardMenu(for: post) }
+    }
+
+    /// 카드를 꾹 눌렀을 때 뜨는 메뉴.
+    ///
+    /// 고르는 중에는 비워 둔다. 이미 고르는 동작을 하고 있는데
+    /// 한 장짜리 메뉴가 끼어들면 무엇에 적용되는지 헷갈린다.
+    @ViewBuilder
+    private func cardMenu(for post: Post) -> some View {
+        if mode == .browsing {
+            Button {
+                withAnimation(.spring()) { profileCandidatePost = post }
+            } label: {
+                Label("프로필 사진 설정", systemImage: "person.crop.circle")
+            }
+
+            Button {
+                onShare?(post)
+            } label: {
+                Label("그림 공유하기", systemImage: "airplay.audio")
+            }
+
+            Button(role: .destructive) {
+                onRequestDelete?(post)
+            } label: {
+                Label("삭제", systemImage: "trash")
+            }
+        }
     }
 
     private func isSelected(_ post: Post) -> Bool {

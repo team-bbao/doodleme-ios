@@ -73,7 +73,11 @@ struct PostDetailView: View {
                     .opacity(isFlipped ? 0 : 1)
 
                 // 뒷면: 정보
-                Image(.memoBack)
+                //
+                // memoBack 에셋에는 좌하단이 어두워지는 그라디언트가 들어 있어
+                // 뒤집는 순간 앞면에 없던 음영이 생긴다. 앞면과 같은 에셋을 쓴다.
+                // 이미 좌우를 뒤집어 두었으므로 접힌 모서리 위치는 그대로다.
+                Image(.memoFront)
                     .resizable()
                     .scaleEffect(x: -1, y: 1)
                     .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
