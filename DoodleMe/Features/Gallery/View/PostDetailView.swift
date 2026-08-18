@@ -78,16 +78,8 @@ struct PostDetailView: View {
                 //
                 // 반경은 그리던 캔버스와 같은 값이라 그림이 잘린 모양과 정확히 맞물린다.
                 // 색도 에셋에서 뽑은 값이라 두 상태를 오갈 때 본체 색이 흔들리지 않는다.
-                Group {
-                    if showFold {
-                        Image(.memoFront)
-                            .resizable()
-                    } else {
-                        RoundedRectangle(cornerRadius: DoodleMetrics.canvasCornerRadius)
-                            .fill(Color.doodlePaper)
-                    }
-                }
-                .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
+                paperFace
+                    .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
                 .shadow(color: .black.opacity(0.25), radius: 10)
                 .overlay {
                     DoodleImageView(drawingData: post.drawingData)
@@ -102,18 +94,10 @@ struct PostDetailView: View {
                 //
                 // memoBack 에셋에는 좌하단이 어두워지는 그라디언트가 들어 있어
                 // 뒤집는 순간 앞면에 없던 음영이 생긴다. 그래서 앞면용 에셋을 쓴다.
-                Group {
-                    if showFold {
-                        // 좌우를 뒤집어 두어 접힌 모서리가 오른쪽 아래에 온다.
-                        Image(.memoFront)
-                            .resizable()
-                            .scaleEffect(x: -1, y: 1)
-                    } else {
-                        RoundedRectangle(cornerRadius: DoodleMetrics.canvasCornerRadius)
-                            .fill(Color.doodlePaper)
-                    }
-                }
-                .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
+                // 좌우를 뒤집어 두어 접힌 모서리가 오른쪽 아래에 온다.
+                paperFace
+                    .scaleEffect(x: -1, y: 1)
+                    .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
                 .shadow(color: .black.opacity(0.25), radius: 10)
                 .overlay { backFaceContent }
                 .opacity(isFlipped ? 1 : 0)
@@ -144,6 +128,38 @@ struct PostDetailView: View {
         } message: {
             Text(saveMessage)
         }
+    }
+
+    /// 접혔다 펴지는 종이 한 장.
+    ///
+    /// 예전에는 접힌 종이 이미지와 민무늬 사각형을 서로 페이드로 갈아끼웠다.
+    /// 그러면 겹치는 순간 카드의 불투명도가 1 에 못 미쳐,
+    /// 뒤에 깔린 그림자가 비쳐 카드 전체가 잠깐 어두워졌다.
+    ///
+    /// 그래서 종이는 늘 한 장만 불투명하게 깔고, 접힘은 그 위에 얹는다.
+    /// 접힌 삼각형은 색만 덮으므로 불투명도에 영향이 없고,
+    /// 잘려나가는 모서리만 마스크로 덜어낸다.
+    private var paperFace: some View {
+        RoundedRectangle(cornerRadius: DoodleMetrics.canvasCornerRadius)
+            .fill(Color.doodlePaper)
+            .overlay {
+                Image(.memoFoldFlap)
+                    .resizable()
+                    .opacity(showFold ? 1 : 0)
+            }
+            .mask { foldCutout }
+    }
+
+    /// 접혔을 때 잘려나가는 모서리를 덜어내는 마스크.
+    private var foldCutout: some View {
+        RoundedRectangle(cornerRadius: DoodleMetrics.canvasCornerRadius)
+            .overlay {
+                Image(.memoFoldRegion)
+                    .resizable()
+                    .opacity(showFold ? 1 : 0)
+                    .blendMode(.destinationOut)
+            }
+            .compositingGroup()
     }
 
     /// 앞면의 그림을 가릴 마스크.
