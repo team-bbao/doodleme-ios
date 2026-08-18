@@ -29,6 +29,8 @@ struct GalleryPage: View {
     @State private var showDeleteConfirm = false
     @State private var showSelectMenu = false
     @State private var showSharingScreen = false
+    /// 헤더 높이. 그리드를 헤더 아래에 붙이는 데 쓴다.
+    @State private var headerHeight: CGFloat = 0
     @State private var confettiTrigger = 0
 
     private var isChoosingProfile: Bool { mode == .choosingProfile }
@@ -70,8 +72,18 @@ struct GalleryPage: View {
                         .ignoresSafeArea()
                 }
 
+                // 헤더는 어두운 레이어 **아래**에 둔다.
+                // 위에 두고 opacity/colorMultiply 로 낮추면 흰 원과 세그먼트가 밝게 남는다.
+                // 특히 글래스 효과는 시스템이 따로 그려서 색 보정이 먹지 않는다.
+                // 같은 합성을 거치게 해야 배경과 똑같이 어두워진다.
+                header
+                    .padding(.top, 140)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+                    .padding(.horizontal)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .allowsHitTesting(!isSelecting)
+
                 // 고르는 중에는 그림 말고 다 어둡게 덮는다.
-                // 그리드는 이 레이어보다 위에 그려지므로 카드만 밝게 남는다.
                 if isSelecting {
                     Color.black.opacity(0.4)
                         .ignoresSafeArea()
@@ -83,25 +95,18 @@ struct GalleryPage: View {
                         .transition(.opacity)
                 }
 
-                VStack {
-                    header
-                        .padding(.top, 140)
-                        // 헤더는 어두운 레이어 위에 있으므로 직접 흐리게 만든다.
-                        .opacity(isSelecting ? 0.4 : 1)
-                        .allowsHitTesting(!isSelecting)
-
-                    PostGridView(
-                        mode: mode,
-                        selectedPostIDs: $selectedPostIDs,
-                        segmentedBar: $segmentedBar,
-                        selectedPost: $selectedPost,
-                        profileCandidatePost: $profileCandidatePost,
-                        onEmptyAreaTap: emptyAreaTapAction
-                    )
-                    .frame(maxHeight: .infinity)
-                }
-                .frame(maxHeight: .infinity, alignment: .top)
+                // 그리드만 어두운 레이어 위에 남아 밝게 보인다.
+                PostGridView(
+                    mode: mode,
+                    selectedPostIDs: $selectedPostIDs,
+                    segmentedBar: $segmentedBar,
+                    selectedPost: $selectedPost,
+                    profileCandidatePost: $profileCandidatePost,
+                    onEmptyAreaTap: emptyAreaTapAction
+                )
                 .padding(.horizontal)
+                .padding(.top, headerHeight)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
                 // 카드 확대 상세 뷰
                 if let selectedPost {
