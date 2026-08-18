@@ -175,12 +175,13 @@ struct GalleryPage: View {
             .clipShape(Circle())
             .shadow(color: .black.opacity(0.1), radius: 3, x: 2, y: 2)
             .overlay(alignment: .bottomTrailing) {
+                // Figma: #424242 원 + 흰 연필, 그림자 y3 blur3 black 20%
                 Image(systemName: "pencil")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.gray)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white)
                     .frame(width: Self.profileBadgeDiameter, height: Self.profileBadgeDiameter)
-                    .background(Circle().fill(.white.opacity(0.6)))
-                    .shadow(color: .black.opacity(0.1), radius: 2, x: 1, y: 1)
+                    .background(Circle().fill(Color.doodlePrimary))
+                    .shadow(color: .black.opacity(0.2), radius: 2, y: 3)
                     .offset(x: -4)
             }
             .overlay { ConfettiBurst(trigger: confettiTrigger) }
