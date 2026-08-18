@@ -27,7 +27,7 @@ App Store Connect 등록과 심사 제출에 필요한 정보를 모아둔 문�
 | 버전 (MARKETING_VERSION) | `1.0` |
 | 빌드 (CURRENT_PROJECT_VERSION) | `1` |
 | 최소 iOS | **26.0** |
-| 지원 기기 (TARGETED_DEVICE_FAMILY) | `1,2` = iPhone + iPad |
+| 지원 기기 (TARGETED_DEVICE_FAMILY) | `1` = iPhone 전용 (iPad 레이아웃 미대응이라 좁혔다) |
 | 화면 방향 | 세로(Portrait) 전용 |
 | Mac Catalyst / visionOS | 미지원 |
 | 개발 팀 | Tae Gyeong Lee 단독 계정 (`9L3NWH626Q`) — GGDR 은 GitHub 조직이고 Apple 팀이 아니다 |
