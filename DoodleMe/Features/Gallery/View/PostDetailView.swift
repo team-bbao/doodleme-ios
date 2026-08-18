@@ -94,20 +94,27 @@ struct PostDetailView: View {
 
                 // 뒷면: 정보
                 //
-                // 여기서만 종이 에셋을 쓴다. 뒷면은 글씨가 가운데에 모여 있어
+                // 앞면과 같은 주기로 접혔다 펴진다. 뒷면은 글씨가 가운데에 모여 있어
                 // 접힌 모서리와 겹치지 않는다.
                 //
                 // memoBack 에셋에는 좌하단이 어두워지는 그라디언트가 들어 있어
                 // 뒤집는 순간 앞면에 없던 음영이 생긴다. 그래서 앞면용 에셋을 쓴다.
-                // 이미 좌우를 뒤집어 두었으므로 접힌 모서리 위치는 그대로다.
-                Image(.memoFront)
-                    .resizable()
-                    .scaleEffect(x: -1, y: 1)
-                    .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
-                    .shadow(color: .black.opacity(0.25), radius: 10)
-                    .overlay { backFaceContent }
-                    .opacity(isFlipped ? 1 : 0)
-                    .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
+                Group {
+                    if showFold {
+                        // 좌우를 뒤집어 두어 접힌 모서리가 오른쪽 아래에 온다.
+                        Image(.memoFront)
+                            .resizable()
+                            .scaleEffect(x: -1, y: 1)
+                    } else {
+                        RoundedRectangle(cornerRadius: DoodleMetrics.canvasCornerRadius)
+                            .fill(Color.doodlePaper)
+                    }
+                }
+                .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
+                .shadow(color: .black.opacity(0.25), radius: 10)
+                .overlay { backFaceContent }
+                .opacity(isFlipped ? 1 : 0)
+                .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
             }
             .padding(.bottom, 80)
             .rotation3DEffect(.degrees(isFlipped ? 180 : 0), axis: (x: 0, y: 1, z: 0))

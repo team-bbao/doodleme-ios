@@ -85,13 +85,12 @@ struct PostGridView: View {
     private func card(for post: Post) -> some View {
         let selected = isSelected(post)
 
-        return Image(.memoFront)
-            .resizable()
-            .scaledToFill()
-            .frame(height: 170)
-            .clipped()
+        return paperLayer(.memoFront)
             .overlay {
+                // 접힌 삼각형과 잘려나간 모서리에는 그림이 얹히지 않게 한다.
+                // 마스크는 종이와 똑같은 배치를 거쳐야 접힌 자리가 정확히 맞는다.
                 DoodleImageView(drawingData: post.drawingData)
+                    .mask { paperLayer(.memoFrontMask) }
             }
             .clipShape(RoundedRectangle(cornerRadius: 12))
             // 고른 카드는 어둡게 덮어서 한눈에 구분되게 한다.
@@ -141,6 +140,16 @@ struct PostGridView: View {
                 Label("삭제", systemImage: "trash")
             }
         }
+    }
+
+    /// 종이와 그 마스크가 같은 배치를 쓰도록 한곳에 모아 둔다.
+    /// 둘이 어긋나면 접힌 자리에 그림이 반쯤 걸친다.
+    private func paperLayer(_ resource: ImageResource) -> some View {
+        Image(resource)
+            .resizable()
+            .scaledToFill()
+            .frame(height: 170)
+            .clipped()
     }
 
     private func isSelected(_ post: Post) -> Bool {
