@@ -28,31 +28,37 @@ struct NearbySharingScreen: View {
     private static let primary = Color.doodlePrimary
     private static let muted = Color.doodleMuted
     private static let detail = Color.doodleDetail
-    private static let background = Color(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF5 / 255)
+    private static let background = Color(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF7 / 255)
     /// 전송 진행을 나타내는 테두리. 앱 강조색은 어두워서 눈에 띄지 않아 스펙대로 파란색을 쓴다.
     static let progressRing = Color.blue
 
     var body: some View {
-        ZStack {
+        // Figma `iPhone 17 - 3` 세로 배치:
+        // 닫기 y72 / 이름 y100 / 그림 y133(337x367) / 상태 y515. 사이 간격은 모두 15.
+        ZStack(alignment: .topTrailing) {
             Self.background
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                header
+            VStack(spacing: 15) {
+                nameRow
 
                 DoodleStrokeAnimation(drawing: post.drawing)
-                    .frame(height: 367)
-                    .padding(.horizontal, 33)
+                    .frame(width: 337, height: 367)
 
                 status
-                    .padding(.top, 24)
 
-                Spacer(minLength: 24)
+                Spacer(minLength: 0)
 
                 if let session, !session.peers.isEmpty {
                     peerCard(session: session)
                 }
             }
+            // 안전영역 아래 41 지점이 Figma 의 y100 이다.
+            .padding(.top, 41)
+
+            closeButton
+                .padding(.top, 13)
+                .padding(.trailing, 20)
         }
         .task {
             // 상대에게 보일 이름은 프로필 이름을 그대로 쓴다.
@@ -72,29 +78,26 @@ struct NearbySharingScreen: View {
 
     // MARK: - 상단
 
-    private var header: some View {
-        ZStack {
-            HStack(spacing: 6) {
-                Text("내 이름:")
-                Text(session?.displayName ?? userName)
-            }
-            .font(.footnote)
-            .foregroundStyle(Self.detail)
-
-            HStack {
-                Spacer()
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(Self.primary)
-                        .frame(width: 55, height: 55)
-                        .background(.white, in: Circle())
-                }
-                .accessibilityLabel("닫기")
-            }
+    private var nameRow: some View {
+        HStack(spacing: 6) {
+            Text("내 이름:")
+                .font(.system(size: 15, weight: .medium))
+            Text(session?.displayName ?? userName)
+                .font(.system(size: 15, weight: .semibold))
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 12)
+        .foregroundStyle(Self.primary)
+    }
+
+    private var closeButton: some View {
+        Button(action: onClose) {
+            Image(systemName: "xmark")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(Self.primary)
+                .frame(width: 55, height: 55)
+                .background(.white, in: Circle())
+                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+        }
+        .accessibilityLabel("닫기")
     }
 
     // MARK: - 상태 문구
@@ -105,15 +108,16 @@ struct NearbySharingScreen: View {
 
         VStack(spacing: 15) {
             Text(count == 0 ? "주변 사용자를 찾는중" : "\(count)명 발견")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(Self.primary)
+                .font(.system(size: 25, weight: .semibold))
 
             if count == 0 {
                 Text("상대도 서칭중인지 확인하세요")
-                    .font(.footnote)
-                    .foregroundStyle(Self.detail)
+                    .font(.system(size: 15, weight: .medium))
             }
         }
+        .foregroundStyle(Self.primary)
+        .multilineTextAlignment(.center)
+        .frame(width: 220)
     }
 
     // MARK: - 상대 목록
