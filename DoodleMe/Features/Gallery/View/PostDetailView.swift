@@ -65,8 +65,12 @@ struct PostDetailView: View {
 
             ZStack {
                 // 앞면: 그림
-                Image(.memoFront)
-                    .resizable()
+                //
+                // 종이 에셋을 쓰면 접힌 모서리 위로 획이 지나가 지저분하다.
+                // 앞면은 접힘 없는 둥근 사각형으로 두고, 접힌 모서리는 뒤집었을 때만 보여준다.
+                // 반경은 그리던 캔버스와 같은 값이라 그림이 잘린 모양과 정확히 맞물린다.
+                RoundedRectangle(cornerRadius: DoodleMetrics.canvasCornerRadius)
+                    .fill(.white)
                     .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
                     .shadow(color: .black.opacity(0.25), radius: 10)
                     .overlay { DoodleImageView(drawingData: post.drawingData) }
@@ -74,8 +78,11 @@ struct PostDetailView: View {
 
                 // 뒷면: 정보
                 //
+                // 여기서만 종이 에셋을 쓴다. 뒷면은 글씨가 가운데에 모여 있어
+                // 접힌 모서리와 겹치지 않는다.
+                //
                 // memoBack 에셋에는 좌하단이 어두워지는 그라디언트가 들어 있어
-                // 뒤집는 순간 앞면에 없던 음영이 생긴다. 앞면과 같은 에셋을 쓴다.
+                // 뒤집는 순간 앞면에 없던 음영이 생긴다. 그래서 앞면용 에셋을 쓴다.
                 // 이미 좌우를 뒤집어 두었으므로 접힌 모서리 위치는 그대로다.
                 Image(.memoFront)
                     .resizable()
