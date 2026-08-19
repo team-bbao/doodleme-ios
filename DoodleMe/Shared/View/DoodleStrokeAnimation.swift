@@ -24,6 +24,9 @@ struct DoodleStrokeAnimation: View {
     /// 다 그린 뒤 그대로 머무는 시간.
     private let holdDuration: TimeInterval
 
+    /// 되살아나는 중인지. 꺼두면 다 그려진 상태로 멈춘다.
+    private let isAnimating: Bool
+
     @State private var startDate = Date()
 
     /// 획마다 등간격으로 뽑아둔 점들을 그대로 받는다.
@@ -32,8 +35,10 @@ struct DoodleStrokeAnimation: View {
         strokes: [[CGPoint]],
         lineWidth: CGFloat = 2,
         drawDuration: TimeInterval = 2.6,
-        holdDuration: TimeInterval = 0.7
+        holdDuration: TimeInterval = 0.7,
+        isAnimating: Bool = true
     ) {
+        self.isAnimating = isAnimating
         self.strokes = strokes
         self.totalPointCount = strokes.reduce(0) { $0 + $1.count }
         self.contentBounds = Self.bounds(of: strokes)
@@ -46,7 +51,8 @@ struct DoodleStrokeAnimation: View {
         drawing: PKDrawing,
         lineWidth: CGFloat = 2,
         drawDuration: TimeInterval = 2.6,
-        holdDuration: TimeInterval = 0.7
+        holdDuration: TimeInterval = 0.7,
+        isAnimating: Bool = true
     ) {
         // 획 안의 점 간격을 고르게 맞춰야 그리는 속도가 일정해진다.
         // 원본 점은 손이 빠른 구간에서 듬성듬성해서 그대로 쓰면 속도가 들쭉날쭉하다.
@@ -58,14 +64,25 @@ struct DoodleStrokeAnimation: View {
             },
             lineWidth: lineWidth,
             drawDuration: drawDuration,
-            holdDuration: holdDuration
+            holdDuration: holdDuration,
+            isAnimating: isAnimating
         )
     }
 
     var body: some View {
-        TimelineView(.animation) { context in
-            Canvas { graphics, size in
-                draw(in: graphics, size: size, progress: progress(at: context.date))
+        Group {
+            if isAnimating {
+                TimelineView(.animation) { context in
+                    Canvas { graphics, size in
+                        draw(in: graphics, size: size, progress: progress(at: context.date))
+                    }
+                }
+            } else {
+                // 멈출 때는 TimelineView 자체를 걷어낸다.
+                // 진행도만 1 로 고정하면 화면은 멈춘 듯 보여도 매 프레임 다시 그린다.
+                Canvas { graphics, size in
+                    draw(in: graphics, size: size, progress: 1)
+                }
             }
         }
         .accessibilityHidden(true)

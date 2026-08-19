@@ -46,10 +46,13 @@ struct NearbySharingScreen: View {
                 nameRow
 
                 Group {
+                    // 못 찾고 끝났으면 그리기도 멈춘다. 계속 움직이면 아직 찾는 중처럼 보인다.
+                    let animating = session?.searchTimedOut != true
+
                     if let animatedDrawing {
-                        DoodleStrokeAnimation(drawing: animatedDrawing)
+                        DoodleStrokeAnimation(drawing: animatedDrawing, isAnimating: animating)
                     } else {
-                        DoodleStrokeAnimation(strokes: DefaultDoodle.strokes)
+                        DoodleStrokeAnimation(strokes: DefaultDoodle.strokes, isAnimating: animating)
                     }
                 }
                 // 자리를 꽉 채우면 그림이 답답하고 가장자리 획이 잘려 보인다.
