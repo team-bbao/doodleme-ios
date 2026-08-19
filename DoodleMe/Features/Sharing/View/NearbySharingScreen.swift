@@ -8,7 +8,6 @@ import MultipeerConnectivity
 import PencilKit
 import SwiftData
 import SwiftUI
-import UIKit
 
 /// 가까운 친구에게 그림을 보내는 전체 화면.
 ///
@@ -23,76 +22,82 @@ struct NearbySharingScreen: View {
 
     @Environment(\.modelContext) private var modelContext
     @AppStorage("userName") private var userName = ""
+    /// 받은 그림이 쌓이는 섹션을 갤러리가 열도록 적어 둔다.
+    @AppStorage(GallerySection.storageKey) private var gallerySection = GallerySection.receivedFromOthers.rawValue
 
     @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
 
     @State private var session: MultipeerSession?
     @State private var savedMessage = ""
     @State private var showSavedAlert = false
+    /// 가운데에서 되살릴 획. 원본이 바뀔 때만 다시 푼다.
+    @State private var animatedStrokes: [[CGPoint]] = DefaultDoodle.strokes
 
     // Figma 색상 스펙 (공용 값은 Color+Doodle 참고)
     private static let primary = Color.doodlePrimary
     private static let muted = Color.doodleMuted
-    private static let detail = Color.doodleDetail
     /// 전송 진행을 나타내는 테두리. 앱 강조색은 어두워서 눈에 띄지 않아 스펙대로 파란색을 쓴다.
     static let progressRing = Color.blue
 
+    /// 버튼 높이. 앱 전체가 같은 값을 쓴다.
+    private static let buttonHeight = DrawingToolPicker.buttonSide
+
     var body: some View {
         // Figma `iPhone 17 - 3` 세로 배치:
-        // 닫기 y72 / 이름 y100 / 그림 y133(337x367) / 상태 y515. 사이 간격은 모두 15.
-        ZStack {
-            PaperBackground()
+        // 이름 y100 / 그림 y133(337x367) / 상태 y515. 사이 간격은 모두 15.
+        //
+        // 닫기는 시스템 툴바가 맡는다. 모달을 닫는 자리는 사용자가 이미 아는 곳에 있어야 한다.
+        NavigationStack {
+            ZStack {
+                PaperBackground()
 
-            VStack(spacing: 15) {
-                nameRow
+                VStack(spacing: 15) {
+                    nameRow
 
-                Group {
                     // 못 찾고 끝났으면 그리기도 멈춘다. 계속 움직이면 아직 찾는 중처럼 보인다.
-                    let animating = session?.searchTimedOut != true
+                    DoodleStrokeAnimation(
+                        strokes: animatedStrokes,
+                        isAnimating: session?.searchTimedOut != true
+                    )
+                    // 자리를 꽉 채우면 그림이 답답하고 가장자리 획이 잘려 보인다.
+                    // 보낼 그림이든 기본 낙서든 같은 여백을 둔다.
+                    .padding(30)
+                    .frame(width: 337, height: 367)
 
-                    if let animatedDrawing {
-                        DoodleStrokeAnimation(drawing: animatedDrawing, isAnimating: animating)
-                    } else {
-                        DoodleStrokeAnimation(strokes: DefaultDoodle.strokes, isAnimating: animating)
+                    status
+
+                    Spacer(minLength: 0)
+
+                    if session?.searchTimedOut == true || session?.localNetworkBlocked == true {
+                        retryButton
+                            // 안전영역 안쪽 기준. Figma 의 화면 아래 75 에서 홈 인디케이터 몫을 뺀 값이다.
+                            .padding(.bottom, 24)
+                    } else if let session, !session.peers.isEmpty {
+                        peerCard(session: session)
                     }
                 }
-                // 자리를 꽉 채우면 그림이 답답하고 가장자리 획이 잘려 보인다.
-                // 보낼 그림이든 기본 낙서든 같은 여백을 둔다.
-                .padding(30)
-                .frame(width: 337, height: 367)
+                // 화면 폭을 다 쓰게 해야 안쪽 요소가 가운데로 온다.
+                .frame(maxWidth: .infinity)
+                // 툴바가 이미 위쪽을 차지하므로 Figma 의 41 에서 그만큼 뺀다.
+                .padding(.top, 0)
 
-                status
-
-                Spacer(minLength: 0)
-
-                if session?.searchTimedOut == true || session?.localNetworkBlocked == true {
-                    VStack(spacing: 14) {
-                        retryButton
-                        settingsButton
-                    }
-                    // 안전영역 안쪽 기준. Figma 의 화면 아래 75 에서 홈 인디케이터 몫을 뺀 값이다.
-                    .padding(.bottom, 24)
-                } else if let session, !session.peers.isEmpty {
-                    peerCard(session: session)
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("닫기", action: onClose)
                 }
             }
-            // 화면 폭을 다 쓰게 해야 안쪽 요소가 가운데로 온다.
-            .frame(maxWidth: .infinity)
-            // 안전영역 아래 41 지점이 Figma 의 y100 이다.
-            .padding(.top, 41)
-
-            // ZStack 정렬을 topTrailing 으로 주면 본문까지 딸려 가므로
-            // 닫기 버튼 자신만 모서리로 보낸다.
-            closeButton
-                .padding(.top, 13)
-                .padding(.trailing, 20)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            // 종이 질감이 툴바 뒤까지 이어져야 화면이 한 장으로 보인다.
+            .toolbarBackground(.hidden, for: .navigationBar)
         }
         .task {
             // 상대에게 보일 이름은 프로필 이름을 그대로 쓴다.
             let newSession = MultipeerSession(displayName: userName)
             session = newSession
             newSession.start()
+        }
+        .task(id: animatedSourceData) {
+            animatedStrokes = Self.strokes(from: animatedSourceData)
         }
         .onDisappear { session?.stop() }
         // 받은 횟수만 지켜본다. 그림 값을 비교하면 같은 그림이 두 번 왔을 때 놓친다.
@@ -106,16 +111,32 @@ struct NearbySharingScreen: View {
         }
     }
 
-    /// 가운데에서 되살릴 그림.
+    /// 가운데에서 되살릴 그림의 원본 바이너리.
     ///
     /// 보낼 그림 → 내 프로필 그림 순으로 찾는다.
     /// 받기 전용으로 열면 보낼 그림이 없으므로 내 프로필이 그려진다.
-    /// 프로필도 정해두지 않았으면 `nil` 을 돌려주고 `DefaultDoodle` 이 대신 그려진다.
-    private var animatedDrawing: PKDrawing? {
-        for candidate in [post?.drawing, profilePosts.first?.drawing] {
-            if let candidate, !candidate.strokes.isEmpty { return candidate }
+    /// 둘 다 없으면 `nil` 을 돌려주고 `DefaultDoodle` 이 대신 그려진다.
+    ///
+    /// 여기서는 바이너리만 고른다. 푸는 건 `.task` 가 한 번만 한다.
+    private var animatedSourceData: Data? {
+        for candidate in [post?.drawingData, profilePosts.first?.drawingData] {
+            if let candidate, !candidate.isEmpty { return candidate }
         }
         return nil
+    }
+
+    /// 그림을 점열로 푸는 일은 비싸다.
+    ///
+    /// 예전에는 `body` 안에서 `PKDrawing` 을 디코드하고 모든 획을 다시 풀었다.
+    /// `body` 는 상대를 하나 찾을 때마다, 전송 상태가 바뀔 때마다 다시 도는데
+    /// 그때마다 같은 계산을 처음부터 되풀이했다.
+    /// 이제 원본이 바뀔 때만 한 번 풀어 여기에 담아 둔다.
+    private static func strokes(from data: Data?) -> [[CGPoint]] {
+        guard let data else { return DefaultDoodle.strokes }
+
+        let drawing = PKDrawing(doodleData: data)
+        guard !drawing.strokes.isEmpty else { return DefaultDoodle.strokes }
+        return drawing.pointStrokes
     }
 
     // MARK: - 상단
@@ -130,18 +151,6 @@ struct NearbySharingScreen: View {
         .foregroundStyle(Self.primary)
     }
 
-    private var closeButton: some View {
-        Button(action: onClose) {
-            Image(systemName: "xmark")
-                .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(Self.primary)
-                .frame(width: 55, height: 55)
-                .background(.white, in: Circle())
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
-        }
-        .accessibilityLabel("닫기")
-    }
-
     // MARK: - 상태 문구
 
     @ViewBuilder
@@ -151,40 +160,52 @@ struct NearbySharingScreen: View {
         let timedOut = session?.searchTimedOut ?? false
         let blocked = session?.localNetworkBlocked ?? false
 
-        VStack(spacing: 15) {
+        // Figma `iPhone 17 - 9` 의 `Frame 20`: 제목과 안내 사이 22, 가운데 정렬.
+        VStack(spacing: 22) {
             Text(statusTitle(count: count, timedOut: timedOut || blocked))
                 .font(.system(size: 25, weight: .semibold))
-                .multilineTextAlignment(.center)
+                .foregroundStyle(Self.primary)
+                // 디자인에서 제목은 한 줄이다(`whitespace-nowrap`, 폭 292).
+                // 폭을 좁게 잡으면 제멋대로 접히므로 줄바꿈 자체를 막는다.
+                .fixedSize(horizontal: true, vertical: false)
 
             if count == 0 {
-                // Figma `iPhone 17 - 9` 의 안내. 폭 200 에서 두 줄로 나뉜다.
+                // Figma: SF Pro Medium 15 / 행높이 20 / `#6A6A6A`.
+                // 15pt 기본 행높이가 약 18 이라 2 를 더하면 20 에 맞는다.
                 Text(statusDetail(timedOut: timedOut, blocked: blocked))
                     .font(.system(size: 15, weight: .medium))
-                    .frame(width: timedOut || blocked ? 210 : 220)
+                    .lineSpacing(2)
+                    .foregroundStyle(Color.doodleSubtext)
             }
 
             // 조용히 실패하면 무엇이 잘못됐는지 알 길이 없다.
+            // 디자인에 없는 요소라 안내와 같은 간격에 얹어 둔다.
             if let lastError = session?.lastError {
                 Text(lastError)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.red)
             }
         }
-        .foregroundStyle(Self.primary)
         .multilineTextAlignment(.center)
-        .frame(width: 220)
+        // 안내는 두 줄로 접히되 낱말 가운데서 갈리지 않을 만큼만 연다.
+        .frame(maxWidth: 320)
+        // Figma 는 그림 아래 39 를 띄운다. 바깥 VStack 이 이미 15 를 주므로 나머지만 더한다.
+        .padding(.top, 24)
     }
 
-    /// Figma `iPhone 17 - 9` 의 다시 찾기 버튼.
-    /// 210x70 흰 캡슐이 화면 아래에서 75 만큼 떠 있다.
+    /// 다시 찾기 버튼.
+    ///
+    /// 예전에는 시스템 파란색(`doodleAction`)으로 칠해 이 화면에서만 튀는 색이 하나 있었다.
+    /// 앱의 다른 글자·버튼과 같은 먹색을 쓰면 종이 위에 얹힌 것처럼 보인다.
+    /// 높이도 앱의 다른 버튼과 같은 `buttonHeight` 로 맞춘다.
     private var retryButton: some View {
         Button {
             session?.searchAgain()
         } label: {
             Text("다시 찾기")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(Color.doodleAction)
-                .frame(width: 210, height: 70)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Self.primary)
+                .frame(width: 180, height: Self.buttonHeight)
                 .background(.white, in: Capsule())
                 .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
         }
@@ -192,16 +213,7 @@ struct NearbySharingScreen: View {
         .transition(.opacity)
     }
 
-    /// 권한은 앱에서 되돌릴 수 없다. 설정 앱으로 데려다주는 것이 최선이다.
-    private var settingsButton: some View {
-        Button("설정 열기") {
-            guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-            UIApplication.shared.open(url)
-        }
-        .font(.system(size: 15, weight: .medium))
-        .foregroundStyle(Color.doodleAction)
-    }
-
+    /// 제목은 언제나 한 줄이다. Figma `iPhone 17 - 9` 기준.
     private func statusTitle(count: Int, timedOut: Bool) -> String {
         if count > 0 { return "\(count)명 발견" }
         return timedOut ? "주변 사용자를 찾지 못했어요" : "주변 사용자를 찾는중"
@@ -211,12 +223,25 @@ struct NearbySharingScreen: View {
     ///
     /// 권한이 막혔는지 그냥 아무도 없는지는 사용자가 알 길이 없다.
     /// 막힌 게 확인되면 그것부터 말해 주고, 아니면 흔한 원인을 짚어 준다.
+    ///
+    /// 줄바꿈을 글자 수에 맡기지 않고 직접 넣는다.
+    /// 맡겨두면 "로컬 / 네트워크" 처럼 한 낱말이 두 줄로 갈려 읽다가 걸린다.
+    ///
+    /// Figma 의 안내("기기가 가까이 있는지 확인한 후 / 다시 시도해 주세요.")는 두 줄이다.
+    /// 로컬 네트워크 권한 안내는 디자인이 그려지기 전에 덧붙인 문구라 원문에는 없지만,
+    /// 두 줄이라는 리듬은 그대로 지킨다.
     private func statusDetail(timedOut: Bool, blocked: Bool) -> String {
         if blocked {
-            return "로컬 네트워크 권한이 꺼져 있어요. 설정에서 켜야 주변 기기를 찾을 수 있어요."
+            return """
+                로컬 네트워크 권한이 꺼져 있어요.
+                설정에서 켜야 주변 기기를 찾을 수 있어요.
+                """
         }
         if timedOut {
-            return "기기가 가까이 있는지, 로컬 네트워크 권한이 켜져 있는지 확인해 주세요."
+            return """
+                기기가 가까이 있는지,
+                로컬 네트워크 권한을 확인해 주세요.
+                """
         }
         return "상대도 서칭중인지 확인하세요"
     }
@@ -279,7 +304,7 @@ struct NearbySharingScreen: View {
                     Text(buttonTitle(for: state))
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Color.doodleOnPrimary)
-                        .frame(width: 83, height: 39)
+                        .frame(width: 83, height: Self.buttonHeight)
                         .background(
                             canSend(in: state) ? Self.primary : Self.muted,
                             in: RoundedRectangle(cornerRadius: 30)
@@ -355,6 +380,10 @@ struct NearbySharingScreen: View {
         // 저장을 미루면 화면을 닫는 사이에 사라질 수 있다. 받은 즉시 디스크에 남긴다.
         try? modelContext.save()
         session.clearReceived()
+
+        // 받은 그림은 "너가 그린" 에 쌓인다. 화면을 닫자마자 보이도록 미리 옮겨 둔다.
+        gallerySection = GallerySection.receivedFromOthers.rawValue
+
         savedMessage = "\(received.senderName ?? Post.unknownSenderName) 님의 그림을 저장했어요."
         showSavedAlert = true
     }

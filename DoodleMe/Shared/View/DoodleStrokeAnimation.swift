@@ -47,28 +47,6 @@ struct DoodleStrokeAnimation: View {
         self.holdDuration = holdDuration
     }
 
-    init(
-        drawing: PKDrawing,
-        lineWidth: CGFloat = 2,
-        drawDuration: TimeInterval = 2.6,
-        holdDuration: TimeInterval = 0.7,
-        isAnimating: Bool = true
-    ) {
-        // 획 안의 점 간격을 고르게 맞춰야 그리는 속도가 일정해진다.
-        // 원본 점은 손이 빠른 구간에서 듬성듬성해서 그대로 쓰면 속도가 들쭉날쭉하다.
-        self.init(
-            strokes: drawing.strokes.map { stroke in
-                stroke.path
-                    .interpolatedPoints(by: .distance(2))
-                    .map { $0.location.applying(stroke.transform) }
-            },
-            lineWidth: lineWidth,
-            drawDuration: drawDuration,
-            holdDuration: holdDuration,
-            isAnimating: isAnimating
-        )
-    }
-
     var body: some View {
         Group {
             if isAnimating {

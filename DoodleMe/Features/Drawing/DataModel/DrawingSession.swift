@@ -61,28 +61,20 @@ final class DrawingSession {
     private(set) var canUndo = false
     private(set) var canRedo = false
 
-    /// 되돌리기용 이전 상태들.
+    /// 되돌리기 기록. 그림 전체를 통째로 담아 둔다.
     ///
-    /// PencilKit 의 되돌리기를 쓰지 않는다.
-    /// 획이 끝날 때마다 굵기를 다시 매기며 `PKCanvasView.drawing` 을 통째로 갈아끼우는데,
-    /// 그러면 PencilKit 이 등록해 둔 되돌리기가 헛돈다.
-    /// 버튼은 비활성으로 바뀌는데 획은 그대로 남았다.
-    ///
-    /// 그림 자체를 스냅숏으로 쌓아 두면 무엇을 갈아끼우든 정확히 되돌아간다.
+    /// PencilKit 의 `UndoManager` 를 쓰지 않는다.
+    /// 손가락 굵기를 다시 매기려고 매 획마다 캔버스의 그림을 통째로 갈아끼우는데,
+    /// 그 대입이 PencilKit 의 되돌리기 스택과 엉켜 `undo()` 가 아무 일도 하지 않았다.
+    /// 우리가 이미 그림 전체를 들고 있으니 직접 쌓는 편이 단순하고 확실하다.
     @ObservationIgnored private var undoStack: [PKDrawing] = []
     @ObservationIgnored private var redoStack: [PKDrawing] = []
-    /// 되돌리기/다시하기로 그림을 갈아끼우는 중인지.
-    /// 그 변경까지 기록하면 스택이 무한히 불어난다.
-    @ObservationIgnored private var isApplyingHistory = false
 
-    /// 쌓아 둘 최대 개수. 30초 낙서라 이만큼이면 넉넉하다.
-    private static let historyLimit = 60
+    /// 되짚을 수 있는 최대 횟수. 30초 안에 이보다 많이 그을 일은 없다.
+    private static let historyLimit = 50
 
     /// 저장할 바이너리.
     var drawingData: Data { drawing.dataRepresentation() }
-
-    /// 획이 하나라도 있는지.
-    var hasDrawing: Bool { !drawing.strokes.isEmpty }
 
     // MARK: - 단계 · 남은 시간
 
@@ -95,49 +87,40 @@ final class DrawingSession {
     // MARK: - 캔버스 연동
 
     /// 사용자가 캔버스에 그리거나 지웠을 때 캔버스 쪽에서 호출한다.
-    func canvasDidChange(drawing new: PKDrawing) {
-        // 되돌리기로 갈아끼운 결과가 되돌아온 것이면 기록하지 않는다.
-        if isApplyingHistory {
-            isApplyingHistory = false
-            drawing = new
-            return
-        }
-
-        // 캔버스가 새로 만들어질 때도 이 통보가 온다.
-        // 내용이 그대로면 기록할 것이 없다.
-        // 그냥 쌓으면 초기화 직후에도 되돌리기 버튼이 켜진 채로 남는다.
-        guard new.dataRepresentation() != drawing.dataRepresentation() else { return }
-
-        undoStack.append(drawing)
+    ///
+    /// 우리가 캔버스를 갈아끼워서 생긴 변경은 여기로 오지 않는다.
+    /// 캔버스 쪽에서 걸러내므로, 여기 오는 건 모두 사용자가 한 편집이다.
+    func canvasDidChange(drawing: PKDrawing) {
+        undoStack.append(self.drawing)
         if undoStack.count > Self.historyLimit { undoStack.removeFirst() }
+        // 새로 그은 순간 앞으로 갈 길은 사라진다.
         redoStack.removeAll()
 
-        drawing = new
+        self.drawing = drawing
         refreshUndoState()
     }
 
     func undo() {
         guard let previous = undoStack.popLast() else { return }
         redoStack.append(drawing)
-        applyHistory(previous)
+        apply(previous)
     }
 
     func redo() {
         guard let next = redoStack.popLast() else { return }
         undoStack.append(drawing)
-        applyHistory(next)
+        apply(next)
     }
 
-    /// 스택에서 꺼낸 그림을 캔버스에 반영한다.
-    /// revision 을 올려야 `updateUIView` 가 캔버스를 덮어쓴다.
-    private func applyHistory(_ target: PKDrawing) {
-        isApplyingHistory = true
-        drawing = target
+    /// 기록에서 꺼낸 그림을 화면에 되돌려 놓는다.
+    private func apply(_ restored: PKDrawing) {
+        drawing = restored
+        // 캔버스는 이 값이 바뀐 걸 보고 자기 그림을 덮어쓴다.
         drawingRevision += 1
         refreshUndoState()
     }
 
-    func refreshUndoState() {
+    private func refreshUndoState() {
         canUndo = !undoStack.isEmpty
         canRedo = !redoStack.isEmpty
     }
@@ -155,16 +138,11 @@ final class DrawingSession {
     }
 
     /// 그림과 시간을 모두 비운다.
-    ///
-    /// 예전에는 시간만 되돌리고 그림은 남기는 갈래가 따로 있었다.
-    /// 그러면 "Tap to start" 로 돌아가도 종이에 이전 그림이 남아 있어,
-    /// 다시 시작했을 때 남의 그림 위에 덧그리는 꼴이 됐다.
     func reset() {
         drawing = PKDrawing()
         drawingRevision += 1
         undoStack.removeAll()
         redoStack.removeAll()
-        isApplyingHistory = false
         canUndo = false
         canRedo = false
         tool = .pen
@@ -189,8 +167,9 @@ final class DrawingSession {
             } catch {
                 return // 취소됨
             }
-            // 초기화로 단계가 바뀌었는데도 계속 쓰면,
+            // 초기화로 단계가 바뀐 뒤에도 계속 쓰면,
             // 방금 되돌려 놓은 남은 시간을 예전 값으로 덮어버린다.
+            // 취소가 전달되기까지의 짧은 틈을 막는다.
             guard phase == .drawing else { return }
             remaining = max(0, startedFrom - (clock.now - startedAt).seconds)
         }

@@ -15,18 +15,17 @@ struct PostGridView: View {
            sort: \Post.createdAt, order: .reverse) private var postsByMe: [Post]
     @Query(filter: #Predicate<Post> { !$0.isMine },
            sort: \Post.createdAt, order: .reverse) private var postsByOthers: [Post]
-    /// 프로필로 고를 수 있는 후보(이미 프로필인 그림은 제외).
-    @Query(filter: #Predicate<Post> { !$0.isProfile },
-           sort: \Post.createdAt, order: .reverse) private var profileCandidates: [Post]
 
     let mode: GalleryMode
     @Binding var segmentedBar: Int
     @Binding var selectedPost: Post?
     @Binding var profileCandidatePost: Post?
 
-    /// 카드를 꾹 눌러 고른 동작. 화면 전환과 팝업은 `GalleryPage` 가 맡는다.
+    /// 지우려고 확인을 기다리는 그림. 확인창은 화면 가운데에 `GalleryPage` 가 띄운다.
+    @Binding var postPendingDelete: Post?
+
+    /// 카드를 꾹 눌러 고른 동작. 화면 전환은 `GalleryPage` 가 맡는다.
     var onShare: ((Post) -> Void)?
-    var onRequestDelete: ((Post) -> Void)?
 
     /// 카드가 아닌 빈 곳을 눌렀을 때. 프로필 고르기에서 빠져나오는 데 쓴다.
     ///
@@ -34,18 +33,25 @@ struct PostGridView: View {
     /// 뒤에 깔린 레이어가 탭을 받을 수 없으므로 여기서 직접 받아 넘겨준다.
     var onEmptyAreaTap: (() -> Void)?
 
-    /// 프로필을 고를 때는 세그먼트와 무관하게 후보 전체를 보여준다.
+    /// 지금 보여줄 그림들.
+    ///
+    /// 프로필을 고를 때도 세그먼트를 그대로 따른다.
+    /// 프로필감은 받은 것 중에도, 내가 그린 것 중에도 있어서 한쪽만 보여주면 고를 수가 없다.
+    /// 이미 프로필인 한 장만 빼는데, 한 장뿐이라 정렬이 흐트러지지 않는다.
     private var currentPosts: [Post] {
-        mode == .choosingProfile
-            ? profileCandidates
-            : (segmentedBar == 1 ? postsByMe : postsByOthers)
+        // 0 = 너가 그린(받은 것), 1 = 내가 그린
+        let posts = segmentedBar == 1 ? postsByMe : postsByOthers
+        return mode == .choosingProfile ? posts.filter { !$0.isProfile } : posts
     }
 
-    /// 비어 있을 때 보여줄 문구. 어느 탭인지에 따라 할 일이 다르다.
+    /// 비어 있을 때 보여줄 문구. 무엇을 하는 중인지, 어느 탭인지에 따라 할 일이 다르다.
     private var emptyMessage: String {
-        if mode == .choosingProfile { return "고를 수 있는 그림이 없어요" }
-        // 0 = 너가 그린(받은 것), 1 = 내가 그린
-        return segmentedBar == 1 ? "친구의 얼굴을 그려보세요" : "친구가 그린 그림을 받아보세요"
+        switch (mode, segmentedBar == 1) {
+        case (.choosingProfile, true): "고를 수 있는 내 그림이 없어요"
+        case (.choosingProfile, false): "고를 수 있는 받은 그림이 없어요"
+        case (.browsing, true): "친구의 얼굴을 그려보세요"
+        case (.browsing, false): "친구가 그린 그림을 받아보세요"
+        }
     }
 
     private let columns = [
@@ -127,7 +133,7 @@ struct PostGridView: View {
             }
 
             Button(role: .destructive) {
-                onRequestDelete?(post)
+                postPendingDelete = post
             } label: {
                 Label("삭제", systemImage: "trash")
             }
@@ -170,7 +176,8 @@ struct PostGridView: View {
         mode: .browsing,
         segmentedBar: .constant(0),
         selectedPost: .constant(nil),
-        profileCandidatePost: .constant(nil)
+        profileCandidatePost: .constant(nil),
+        postPendingDelete: .constant(nil)
     )
     .modelContainer(LocalDataStore.makePreviewContainer())
 }
