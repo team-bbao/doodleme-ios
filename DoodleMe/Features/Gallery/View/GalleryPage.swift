@@ -295,9 +295,6 @@ struct GalleryPage: View {
     /// 누르면 곧장 그림을 고르러 간다.
     /// 프로필이 있든 없든 여기서 할 일은 "어느 그림으로 할지 정하기" 하나뿐이라,
     /// 사이에 무엇을 할지 묻는 창을 두지 않는다.
-    ///
-    /// 지우기는 꾹 누르기에 둔다. 자주 하는 일이 아니고,
-    /// 한 번 누를 때마다 물어보게 하면 바꾸러 온 사람이 매번 한 번씩 더 눌러야 한다.
     private var profileEditBadge: some View {
         Button {
             withAnimation(.spring()) { mode = .choosingProfile }
@@ -319,16 +316,6 @@ struct GalleryPage: View {
             y: Self.profileBadgeTapMargin
         )
         .accessibilityLabel("프로필 사진 변경")
-        .contextMenu {
-            // 지울 프로필이 있을 때만 띄운다. 없으면 지울 것도 없다.
-            if profilePost != nil {
-                Button(role: .destructive) {
-                    modelContext.setProfilePost(nil)
-                } label: {
-                    Label("프로필 사진 삭제", systemImage: "trash")
-                }
-            }
-        }
     }
 
     /// 보이는 뱃지와 누를 수 있는 자리의 반지름 차이.
