@@ -14,12 +14,16 @@ struct PostDetailView: View {
     /// 확대를 닫고 그리드로 돌아간다.
     var onClose: () -> Void
 
-    /// 내가 그린 카드의 아바타로 쓸 내 프로필 그림.
-    @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
-
     @State private var isFlipped = false
     /// 앞면에 접힌 모서리를 보여줄 차례인지.
     @State private var showFold = false
+
+    /// 확대된 카드 크기. Figma `iPhone 17 - 17` 의 `메모지 1`(141:698).
+    /// 그리기 캔버스(350x390)와 별개다 — 캔버스를 건드리면 그리기 탭이 흔들린다.
+    private static let cardSize = CGSize(width: 362, height: 396)
+    /// 알약 툴바 안쪽 좌우 여백과 버튼 사이 간격. Figma: 칩이 x=5 에서 시작해 60 폭.
+    private static let toolbarInset: CGFloat = 5
+    private static let toolbarButtonSpacing: CGFloat = 6
 
     /// 다 접혔을 때 접힌 정사각형 한 변의 길이.
     /// memoFront 에셋의 접힌 자리를 캔버스 크기로 환산한 값이다.
@@ -52,7 +56,7 @@ struct PostDetailView: View {
     /// 눌러야 할 곳이 보이지 않으면 처음 온 사람은 빠져나갈 방법을 찾지 못한다.
     private var backButton: some View {
         Button(action: onClose) {
-            Image(systemName: "xmark")
+            Image(systemName: "chevron.backward")
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(Color.doodlePrimary)
                 .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
@@ -61,18 +65,18 @@ struct PostDetailView: View {
         }
         .padding(.leading, 18)
         .padding(.top, 72)
-        .accessibilityLabel("닫기")
+        .accessibilityLabel("뒤로")
     }
 
     private var card: some View {
         VStack(spacing: 24) {
 
-            // Figma `Frame 9` 왼쪽 디자인: 136x55 알약 안에 64x48 버튼 둘
-            HStack(spacing: 0) {
+            // Figma `iPhone 17 - 17`(평소) · `iPhone 17 - 14`(눌림) 의 `Group 4`.
+            // 흰색 80% 알약 136x48 안에 60 폭 버튼 둘.
+            HStack(spacing: Self.toolbarButtonSpacing) {
                 Button {
                     showSharingScreen = true
                 } label: {
-                    // Figma `iPhone 17 - 14` 의 왼쪽 버튼 글리프.
                     // AirDrop 으로 건네는 동작이라 내보내기 화살표보다 이쪽이 뜻이 맞는다.
                     Image(systemName: "airplay.audio")
                         .font(.title2)
@@ -89,8 +93,9 @@ struct PostDetailView: View {
                 .buttonStyle(CardToolbarButtonStyle())
                 .accessibilityLabel("사진에 저장")
             }
-            .frame(width: 136, height: DoodleMetrics.buttonSide)
-            .glassEffect(.regular, in: .capsule)
+            .padding(.horizontal, Self.toolbarInset)
+            .frame(width: 136, height: 48)
+            .background(.white.opacity(0.8), in: Capsule())
             .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
             .padding(.bottom, 10)
 
@@ -103,7 +108,7 @@ struct PostDetailView: View {
                 // 반경은 그리던 캔버스와 같은 값이라 그림이 잘린 모양과 정확히 맞물린다.
                 // 색도 에셋에서 뽑은 값이라 두 상태를 오갈 때 본체 색이 흔들리지 않는다.
                 paperFace
-                    .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
+                    .frame(width: Self.cardSize.width, height: Self.cardSize.height)
                 .shadow(color: .black.opacity(0.25), radius: 10)
                 .overlay {
                     DoodleImageView(drawingData: post.drawingData)
@@ -121,7 +126,7 @@ struct PostDetailView: View {
                 // 좌우를 뒤집어 두어 접힌 모서리가 오른쪽 아래에 온다.
                 paperFace
                     .scaleEffect(x: -1, y: 1)
-                    .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
+                    .frame(width: Self.cardSize.width, height: Self.cardSize.height)
                 .shadow(color: .black.opacity(0.25), radius: 10)
                 .overlay { backFaceContent }
                 .opacity(isFlipped ? 1 : 0)
@@ -199,7 +204,7 @@ struct PostDetailView: View {
 
             VStack(spacing: 0) {
             if !counterpartName.isEmpty {
-                HStack(spacing: 10) {
+                HStack(spacing: 13) {
                     avatar
 
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -231,19 +236,24 @@ struct PostDetailView: View {
     }
 }
 
-/// Figma `Frame 9` 왼쪽 디자인의 버튼. 누르면 회색 10% 배경이 깔린다.
+/// 카드 위에 뜬 알약 툴바의 버튼.
+///
+/// 평소에는 바탕이 없고(`iPhone 17 - 17`), 누르는 동안에만 회색 알약이 깔린다(`iPhone 17 - 14`).
+/// 눌린 표시는 60x42 지만 누를 수 있는 자리는 알약 높이(48)를 다 쓴다.
+/// 표시가 작다고 손가락이 닿는 자리까지 좁힐 이유는 없다.
 private struct CardToolbarButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(Color.doodlePrimary)
-            // 아이콘 둘이 나란히 든 알약이라, 높이는 44 로 맞추고 폭만 알약 절반으로 나눈다.
-            .frame(width: 68, height: DoodleMetrics.buttonSide)
+            .frame(width: 60, height: 48)
             .background {
                 if configuration.isPressed {
-                    Capsule().fill(Color.doodlePressed)
+                    Capsule()
+                        .fill(Color.doodleCardToolbarPressed)
+                        .frame(height: 42)
                 }
             }
-            .contentShape(Capsule())
+            .contentShape(Rectangle())
     }
 }
 
@@ -254,33 +264,29 @@ extension PostDetailView {
         post.isMine ? post.recipientName : post.displaySenderName
     }
 
-    /// 이름 뒤에 붙일 말. 내가 그린 것에는 아무것도 붙이지 않는다.
+    /// 이름 뒤에 붙일 말. 그림이 오간 방향을 알려준다.
+    ///
+    /// 내가 그린 것은 상대에게 건네는 그림이라 "님에게",
+    /// 받은 것은 상대가 건네준 그림이라 "님으로부터".
     private var counterpartSuffix: String {
-        post.isMine ? "" : "님이 보냄"
-    }
-
-    /// 상대 자리에 넣을 그림. 내가 그린 카드에는 내 프로필을 쓴다.
-    private var counterpartDrawingData: Data? {
-        let data = post.isMine ? profilePosts.first?.drawingData : post.senderProfileDrawingData
-        guard let data, !data.isEmpty else { return nil }
-        return data
+        post.isMine ? "님에게" : "님으로부터"
     }
 
     /// Figma: 흰 원 55 + #E1E1E1 테두리, 안에 그림 30.
+    ///
+    /// 얼굴은 `Frame 34` 의 다섯 낙서 중 하나를 쓴다.
+    /// 매번 새로 뽑으면 화면이 다시 그려질 때마다 얼굴이 바뀌므로,
+    /// 이름을 해시해 고른다. 흩어져 보이면서도 같은 사람에게는 늘 같은 얼굴이 붙는다.
     private var avatar: some View {
         ZStack {
             Circle()
                 .fill(.white)
                 .overlay { Circle().stroke(Color.doodleHairline, lineWidth: 1) }
 
-            Group {
-                if let counterpartDrawingData {
-                    DoodleImageView(drawingData: counterpartDrawingData)
-                } else {
-                    DefaultDoodleImage(lineWidth: 1)
-                }
-            }
-            .frame(width: 30, height: 30)
+            Image(PeerAvatarPalette.image(for: counterpartName))
+                .resizable()
+                .scaledToFit()
+                .frame(width: 30, height: 30)
         }
         .frame(width: 55, height: 55)
     }

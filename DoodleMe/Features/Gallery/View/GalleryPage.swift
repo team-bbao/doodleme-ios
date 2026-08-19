@@ -61,6 +61,10 @@ struct GalleryPage: View {
     private static let contentInset: CGFloat = 20
     /// 프로필 원이 시작하는 높이.
     private static let headerTopInset: CGFloat = 140
+    /// 화면 제목이 놓이는 높이. Figma 의 y=70.
+    private static let titleTopInset: CGFloat = 70
+    /// 프로필 확인창이 놓이는 높이. Figma `iPhone 17 - 16` 의 `Alert` y=390.
+    private static let confirmPopupTop: CGFloat = 390
 
     /// 프로필 고르기에는 취소 버튼이 없다. 카드가 아닌 빈 곳을 누르면 빠져나온다.
     private var emptyAreaTapAction: (() -> Void)? {
@@ -97,6 +101,20 @@ struct GalleryPage: View {
                         .transition(.opacity)
                 }
 
+                // Figma 의 라지 타이틀. (20, 70) 에 34pt Bold.
+                //
+                // 시스템 `navigationTitle` 을 쓰지 않는다.
+                // 이 화면은 ZStack 이 안전영역을 무시하며 자리를 직접 잡고 있어,
+                // 네비게이션 바가 끼어들면 프로필 원부터 아래가 통째로 밀린다.
+                Text("갤러리")
+                    .font(.system(size: 34, weight: .bold))
+                    .kerning(0.4)
+                    .foregroundStyle(Color.doodleTitle)
+                    .padding(.leading, Self.contentInset)
+                    .padding(.top, Self.titleTopInset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .allowsHitTesting(false)
+
                 // 프로필 원과 이름. 고르는 중에도 밝게 남지만 누를 수는 없다.
                 // 지금 고르는 대상은 카드이고, 프로필은 그 결과가 놓일 자리일 뿐이다.
                 profileBlock
@@ -112,25 +130,10 @@ struct GalleryPage: View {
                 // 프로필로 쓸 그림은 받은 것 중에도, 내가 그린 것 중에도 있어서
                 // 고르는 동안에도 두 섹션을 오갈 수 있어야 한다.
                 VStack(spacing: 0) {
-                    // 시스템 세그먼트를 쓴다. 접근성·Dynamic Type·키보드 이동이 딸려 온다.
-                    Picker("보기", selection: $segmentedBar) {
-                        ForEach(GallerySection.allCases, id: \.self) { section in
-                            Text(section.title).tag(section.rawValue)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    // 세그먼트 트랙은 반투명이라 뒤에 깔린 것이 그대로 배어 나온다.
-                    //
-                    // 프로필을 고르는 동안에는 뒤에 어두운 막이 있어 트랙까지 한 톤 어두워졌다.
-                    // 고를 수 있는 것은 밝아야 하는데, 정작 눌러야 하는 세그먼트가 죽어 보였다.
-                    // 불투명 바탕을 한 겹 깔아 막이 배어 나오지 않게 한다.
-                    .background {
-                        if isPickingProfile {
-                            Capsule().fill(Color.doodleSegmentBase)
-                        }
-                    }
-                    .padding(.bottom, 20)
+                    // Figma `iPhone 17 - 12` 의 막대.
+                    // 트랙이 불투명한 흰색이라, 뒤에 어두운 막이 깔려도 배어 나오지 않는다.
+                    GallerySegmentedControl(selection: $segmentedBar)
+                        .padding(.bottom, 20)
 
                     PostGridView(
                         mode: mode,
@@ -145,6 +148,24 @@ struct GalleryPage: View {
                 .padding(.horizontal, Self.contentInset)
                 .padding(.top, headerHeight)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+                // 프로필로 앉힐지 묻는 확인창. Figma `iPhone 17 - 16`.
+                //
+                // 화면 위에서 390 — 세그먼트 바로 아래다.
+                // 한가운데로 보내면 방금 고른 카드를 덮어, 무엇을 고른 건지 보이지 않는다.
+                if profileCandidatePost != nil {
+                    DoodleConfirmPopup(
+                        message: "프로필 사진으로 설정하시겠습니까?",
+                        cancelTitle: "취소",
+                        confirmTitle: "설정"
+                    ) {
+                        withAnimation(.spring(response: 0.3)) { profileCandidatePost = nil }
+                    } onConfirm: {
+                        confirmProfile()
+                    }
+                    .padding(.top, Self.confirmPopupTop)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                }
 
                 // 카드 확대 상세 뷰
                 if let selectedPost {
@@ -187,14 +208,6 @@ struct GalleryPage: View {
             // `alert` 는 언제나 가운데에 꼬리 없이 떠서 세 확인창이 같은 얼굴을 갖는다.
             //
             // 파괴적 동작이 빨갛게, 취소가 제자리에 오는 배치는 시스템이 알아서 잡아준다.
-            .alert(
-                "프로필 사진으로 설정하시겠습니까?",
-                isPresented: isProfileCandidatePresented
-            ) {
-                // HIG: 예/아니오 대신 무슨 일이 일어나는지 말해주는 동사를 쓴다.
-                Button("설정") { confirmProfile() }
-                Button("취소", role: .cancel) { profileCandidatePost = nil }
-            }
             .alert("프로필 사진", isPresented: $showProfileEditPopup) {
                 Button("다른 그림으로 변경") {
                     withAnimation(.spring()) { mode = .choosingProfile }
@@ -290,13 +303,6 @@ struct GalleryPage: View {
 
     // `confirmationDialog` 는 `Bool` 로만 여닫는데, 우리가 든 건 "무엇에 대한 확인인가" 라는 값이다.
     // 값이 있으면 떠 있고 닫히면 비우도록 이어 준다.
-
-    private var isProfileCandidatePresented: Binding<Bool> {
-        Binding(
-            get: { profileCandidatePost != nil },
-            set: { if !$0 { profileCandidatePost = nil } }
-        )
-    }
 
     private var isDeletePresented: Binding<Bool> {
         Binding(

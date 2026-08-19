@@ -26,9 +26,19 @@ extension Color {
 
     /// 무언가를 고르는 동안 뒤를 덮는 농도. Figma `iPhone 17 - 15` 의 `rgba(0,0,0,0.16)`
     static let doodleChoosingScrim = Color.black.opacity(0.16)
-    /// 세그먼트 트랙 아래에 깔아 어두운 막이 배어 나오지 않게 하는 불투명 바탕.
-    /// Figma `iPhone 17 - 15` 의 트랙은 흰색에 가깝다.
-    static let doodleSegmentBase = Color(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF2 / 255)
+    /// 세그먼트에서 선택된 칸을 덮는 캡슐. Figma `iPhone 17 - 12` `#F1F1F1`
+    static let doodleSegmentChip = Color(red: 0xF1 / 255, green: 0xF1 / 255, blue: 0xF1 / 255)
+    /// 선택된 세그먼트 라벨. Figma `#212121`
+    static let doodleSegmentLabel = Color(red: 0x21 / 255, green: 0x21 / 255, blue: 0x21 / 255)
+    /// 확인창에서 물러나는 쪽 버튼 바탕.
+    /// Figma 가 시스템 토큰 `fills/secondary` 를 그대로 쓰므로 우리도 같은 것을 쓴다.
+    static let doodleControlFill = Color(uiColor: .secondarySystemFill)
+    /// 확인창 테두리. Figma `iPhone 17 - 16` `#DBDBDB`
+    static let doodlePopupBorder = Color(red: 0xDB / 255, green: 0xDB / 255, blue: 0xDB / 255)
+    /// 카드 툴바에서 눌린 버튼 바탕. Figma `iPhone 17 - 14` `#E4E4E5`
+    static let doodleCardToolbarPressed = Color(red: 0xE4 / 255, green: 0xE4 / 255, blue: 0xE5 / 255)
+    /// 화면 제목. Figma 라지 타이틀 `#1A1A1A`
+    static let doodleTitle = Color(red: 0x1A / 255, green: 0x1A / 255, blue: 0x1A / 255)
 
     /// 보조 문구("님에게" 등). Figma `#6F6F6F`
     static let doodleSecondary = Color(red: 0x6F / 255, green: 0x6F / 255, blue: 0x6F / 255)
