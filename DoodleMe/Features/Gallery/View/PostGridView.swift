@@ -43,17 +43,20 @@ struct PostGridView: View {
     ///
     /// 프로필을 고를 때도 세그먼트를 그대로 따른다.
     /// 프로필감은 받은 것 중에도, 내가 그린 것 중에도 있어서 한쪽만 보여주면 고를 수가 없다.
-    /// 이미 프로필인 한 장만 빼는데, 한 장뿐이라 정렬이 흐트러지지 않는다.
+    ///
+    /// 무엇을 하는 중이든 있는 그림을 다 보여준다.
+    /// 예전에는 고르는 동안 이미 프로필인 한 장을 빼 뒀는데,
+    /// 연필을 누른 사람에게는 그림 한 장이 사라진 것으로 보였다.
+    /// 이미 프로필인 것을 다시 골라 봐야 그대로일 뿐이라, 숨겨서 얻는 것도 없다.
     private var currentPosts: [Post] {
         // 0 = 너가 그린(받은 것), 1 = 내가 그린
         let posts = segmentedBar == 1 ? postsByMe : postsByOthers
-        let visible = mode == .choosingProfile ? posts.filter { !$0.isProfile } : posts
 
         // 질의는 늘 최신순으로 받아 둔다. 오래된 순은 그 줄을 뒤집기만 하면 된다.
         //
         // 정렬 키(`createdAt`)가 같으니 뒤집어도 순서가 흐트러지지 않고,
         // 방향이 다른 질의를 한 벌 더 들 이유도 없다.
-        return sortOrder == .oldestFirst ? Array(visible.reversed()) : visible
+        return sortOrder == .oldestFirst ? Array(posts.reversed()) : posts
     }
 
     /// 비어 있을 때 보여줄 문구. 무엇을 하는 중인지, 어느 탭인지에 따라 할 일이 다르다.
