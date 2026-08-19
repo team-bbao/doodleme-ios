@@ -243,7 +243,7 @@ struct DrawingPage: View {
 
                 Spacer(minLength: 0)
             }
-            .padding(.top, 38.5)
+            .padding(.top, 33.5)
             .padding(.horizontal, 30)
             .frame(maxWidth: .infinity)
             // 위 여백이 그대로 먹도록 위쪽에 붙인다.
