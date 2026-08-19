@@ -21,6 +21,10 @@ struct NearbySharingScreen: View {
     var post: Post?
     var onClose: () -> Void
 
+    /// 그림을 받아 저장한 직후. 받은 그림을 들고 부른다.
+    /// 갤러리가 이걸 받아 그 메모지가 있는 자리를 보여준다.
+    var onReceived: ((Post) -> Void)?
+
     @Environment(\.modelContext) private var modelContext
     @AppStorage("userName") private var userName = ""
     /// 받은 그림이 쌓이는 섹션을 갤러리가 열도록 적어 둔다.
@@ -29,8 +33,6 @@ struct NearbySharingScreen: View {
     @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
 
     @State private var session: MultipeerSession?
-    @State private var savedMessage = ""
-    @State private var showSavedAlert = false
     /// 가운데에서 되살릴 획. 원본이 바뀔 때만 다시 푼다.
     @State private var animatedStrokes: [[CGPoint]] = DefaultDoodle.strokes
 
@@ -104,13 +106,6 @@ struct NearbySharingScreen: View {
         .onDisappear { session?.stop() }
         // 받은 횟수만 지켜본다. 그림 값을 비교하면 같은 그림이 두 번 왔을 때 놓친다.
         .onChange(of: session?.receivedCount) { _, _ in saveReceivedIfNeeded() }
-
-        // isPresented 에 .constant 를 주면 SwiftUI 가 닫힘을 되돌려 쓸 수 없어 표시가 불안정하다.
-        .alert("받았어요", isPresented: $showSavedAlert) {
-            Button("확인") { }
-        } message: {
-            Text(savedMessage)
-        }
     }
 
     /// 가운데에서 되살릴 그림의 원본 바이너리.
@@ -414,18 +409,28 @@ struct NearbySharingScreen: View {
         )
     }
 
+    /// 그림이 도착하면 저장하고 이 화면을 접는다.
+    ///
+    /// 예전에는 "받았어요" 알림만 띄우고 이 화면에 그대로 머물렀다.
+    /// 받으러 온 사람의 볼일은 거기서 끝나는데 나가는 건 직접 해야 했고,
+    /// 나가서도 받은 그림이 어디에 쌓였는지 스스로 찾아야 했다.
+    ///
+    /// 이제 갤러리로 돌려보내며 「너가 그린」을 펴고 그 메모지 자리까지 보여준다.
+    /// 받았다는 말은 따로 하지 않는다 — 그림이 눈앞에 있는 것이 그 말이다.
     private func saveReceivedIfNeeded() {
         guard let session, let received = session.received else { return }
-        modelContext.insert(received.makePost())
+
+        let saved = received.makePost()
+        modelContext.insert(saved)
         // 저장을 미루면 화면을 닫는 사이에 사라질 수 있다. 받은 즉시 디스크에 남긴다.
         try? modelContext.save()
         session.clearReceived()
 
-        // 받은 그림은 "너가 그린" 에 쌓인다. 화면을 닫자마자 보이도록 미리 옮겨 둔다.
+        // 받은 그림은 "너가 그린" 에 쌓인다.
         gallerySection = GallerySection.receivedFromOthers.rawValue
 
-        savedMessage = "\(received.senderName ?? Post.unknownSenderName) 님의 그림을 저장했어요."
-        showSavedAlert = true
+        onReceived?(saved)
+        onClose()
     }
 }
 

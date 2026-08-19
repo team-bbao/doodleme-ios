@@ -33,6 +33,8 @@ struct GalleryPage: View {
     @State private var sharingPost: Post?
     /// 헤더 높이. 그리드를 헤더 아래에 붙이는 데 쓴다.
     @State private var headerHeight: CGFloat = 0
+    /// 방금 받아서 보여줘야 할 그림. 그리드가 그 자리로 스크롤하고 비운다.
+    @State private var postToShow: Post.ID?
     @State private var confettiTrigger = 0
 
     private var isChoosingProfile: Bool { mode == .choosingProfile }
@@ -175,6 +177,7 @@ struct GalleryPage: View {
                         profileCandidatePost: $profileCandidatePost,
                         postPendingDelete: $postPendingDelete,
                         onShare: { sharingPost = $0 },
+                        postToShow: $postToShow,
                         onEmptyAreaTap: emptyAreaTapAction
                     )
                 }
@@ -227,12 +230,22 @@ struct GalleryPage: View {
             .toolbarVisibility(isOverlayShowing ? .hidden : .visible, for: .tabBar)
             .ignoresSafeArea()
             // 보낼 그림 없이 열면 받기 전용으로 동작한다.
+            //
+            // 그림이 도착하면 공유 화면이 스스로 접히고 여기로 돌아온다.
+            // 받은 그림을 들고 오므로 그 자리를 그리드에 일러 준다.
             .fullScreenCover(isPresented: $showSharingScreen) {
-                NearbySharingScreen { showSharingScreen = false }
+                NearbySharingScreen(
+                    onClose: { showSharingScreen = false },
+                    onReceived: { postToShow = $0.id }
+                )
             }
             // 카드를 꾹 눌러 고른 한 장을 들고 여는 경우.
             .fullScreenCover(item: $sharingPost) { post in
-                NearbySharingScreen(post: post) { sharingPost = nil }
+                NearbySharingScreen(
+                    post: post,
+                    onClose: { sharingPost = nil },
+                    onReceived: { postToShow = $0.id }
+                )
             }
             // 되돌릴 수 없는 일만 물어본다. 이 화면에 남은 물음은 이것 하나다.
             //

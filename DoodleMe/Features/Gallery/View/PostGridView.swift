@@ -30,6 +30,12 @@ struct PostGridView: View {
     /// 카드를 꾹 눌러 고른 동작. 화면 전환은 `GalleryPage` 가 맡는다.
     var onShare: ((Post) -> Void)?
 
+    /// 보여줘야 할 그림. 값이 들어오면 그 자리로 스크롤하고 도로 비운다.
+    ///
+    /// 방금 받은 그림이 화면 밖에 있을 수 있다.
+    /// 최신순이면 맨 앞이라 그냥 보이지만, 오래된 순이면 맨 뒤에 붙는다.
+    @Binding var postToShow: Post.ID?
+
     /// 카드가 아닌 빈 곳을 눌렀을 때. 프로필 고르기에서 빠져나오는 데 쓴다.
     ///
     /// 그리드는 `ScrollView` 라 화면 아래쪽 대부분을 차지한다.
@@ -99,14 +105,23 @@ struct PostGridView: View {
                 .onTapGesture { onEmptyAreaTap?() }
         } else {
             ScrollView {
-                LazyVGrid(columns: Self.columns, spacing: Self.rowSpacing) {
-                    ForEach(currentPosts) { post in
-                        card(for: post)
+                ScrollViewReader { grid in
+                    LazyVGrid(columns: Self.columns, spacing: Self.rowSpacing) {
+                        ForEach(currentPosts) { post in
+                            card(for: post)
+                        }
+                    }
+                    // 마지막 줄 아래에도 누를 수 있는 여백을 남긴다.
+                    .padding(.bottom, 40)
+                    .frame(maxWidth: .infinity, minHeight: 0, alignment: .top)
+                    // 공유 화면이 덮고 있는 동안 미리 옮겨 둔다.
+                    // 화면이 걷히면 그림이 이미 그 자리에 있어, 스크롤이 흐르는 것을 볼 일이 없다.
+                    .onChange(of: postToShow) { _, target in
+                        guard let target else { return }
+                        grid.scrollTo(target, anchor: .center)
+                        postToShow = nil
                     }
                 }
-                // 마지막 줄 아래에도 누를 수 있는 여백을 남긴다.
-                .padding(.bottom, 40)
-                .frame(maxWidth: .infinity, minHeight: 0, alignment: .top)
             }
             // 카드보다 바깥쪽 제스처라, 카드 탭은 카드가 먼저 가져간다.
             .contentShape(Rectangle())
@@ -234,7 +249,8 @@ struct PostGridView: View {
         sortOrder: .newestFirst,
         selectedPost: .constant(nil),
         profileCandidatePost: .constant(nil),
-        postPendingDelete: .constant(nil)
+        postPendingDelete: .constant(nil),
+        postToShow: .constant(nil)
     )
     .modelContainer(LocalDataStore.makePreviewContainer())
 }
