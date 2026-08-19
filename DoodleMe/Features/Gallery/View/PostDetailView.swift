@@ -162,22 +162,6 @@ struct PostDetailView: View {
         }
     }
 
-    /// 메모지 본체. 접힌 모서리 쪽으로 갈수록 그늘이 진다.
-    ///
-    /// 그리드 카드는 `memoBack` 에셋을 그대로 깔면 되지만, 확대 카드는 모서리가 접혔다 펴지므로
-    /// 그림이 아니라 도형으로 그려야 한다. 에셋의 그라디언트를 대각선으로 재서 옮겼다.
-    /// 본체의 3분의 2 는 평평하고, 모서리에 가까워지는 마지막 구간에서만 떨어진다.
-    private static let paperFill = LinearGradient(
-        stops: [
-            .init(color: .doodlePaperHighlight, location: 0),
-            .init(color: .doodlePaper, location: 0.25),
-            .init(color: .doodlePaper, location: 0.65),
-            .init(color: .doodlePaperShade, location: 1)
-        ],
-        startPoint: .topTrailing,
-        endPoint: .bottomLeading
-    )
-
     /// 지금 접힌 정도. 0 이면 펴진 상태.
     private var foldDepth: CGFloat { showFold ? Self.foldSize : 0 }
 
@@ -191,8 +175,10 @@ struct PostDetailView: View {
     /// 잘려나가는 삼각형과 접혀 올라온 삼각형이 늘 짝을 이룬다.
     private var paperFace: some View {
         ZStack {
+            // 모서리가 접혔다 펴지므로 그림이 아니라 도형으로 그린다.
+            // 색은 그리드 카드와 같은 그라디언트를 본다.
             FoldedPaperShape(depth: foldDepth, cornerRadius: DoodleMetrics.canvasCornerRadius)
-                .fill(Self.paperFill)
+                .fill(LinearGradient.doodlePaperFace)
 
             FoldFlapShape(depth: foldDepth)
                 .fill(Color.doodleFoldFlap)
