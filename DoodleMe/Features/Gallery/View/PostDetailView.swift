@@ -285,12 +285,24 @@ extension PostDetailView {
         }
 
         do {
-            try await PHPhotoLibrary.shared().performChanges {
-                PHAssetCreationRequest.forAsset().addResource(with: .photo, data: data, options: nil)
-            }
+            try await Self.addToPhotoLibrary(data)
             present("그림이 사진 앱에 저장됐어요.")
         } catch {
             present("저장에 실패했어요: \(error.localizedDescription)")
+        }
+    }
+
+    /// 사진 보관함에 실제로 써넣는다.
+    ///
+    /// 반드시 `nonisolated` 여야 한다.
+    /// 이 파일은 기본 격리가 MainActor 라, 그냥 두면 `performChanges` 에 넘기는 클로저까지
+    /// MainActor 로 추론된다. 그런데 Photos 는 그 클로저를 자기 큐에서 부르기 때문에
+    /// Swift 6 런타임이 "약속한 액터가 아니다" 라며 트랩을 걸어 앱이 죽는다.
+    ///
+    /// 격리를 벗겨 두면 어느 큐에서 불려도 문제가 없다.
+    private nonisolated static func addToPhotoLibrary(_ data: Data) async throws {
+        try await PHPhotoLibrary.shared().performChanges {
+            PHAssetCreationRequest.forAsset().addResource(with: .photo, data: data, options: nil)
         }
     }
 
