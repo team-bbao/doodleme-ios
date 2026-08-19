@@ -18,6 +18,9 @@ struct PostGridView: View {
 
     let mode: GalleryMode
     @Binding var segmentedBar: Int
+
+    /// 카드를 늘어놓는 순서. 두 섹션에 똑같이 걸린다.
+    let sortOrder: GallerySortOrder
     @Binding var selectedPost: Post?
     @Binding var profileCandidatePost: Post?
 
@@ -41,7 +44,13 @@ struct PostGridView: View {
     private var currentPosts: [Post] {
         // 0 = 너가 그린(받은 것), 1 = 내가 그린
         let posts = segmentedBar == 1 ? postsByMe : postsByOthers
-        return mode == .choosingProfile ? posts.filter { !$0.isProfile } : posts
+        let visible = mode == .choosingProfile ? posts.filter { !$0.isProfile } : posts
+
+        // 질의는 늘 최신순으로 받아 둔다. 오래된 순은 그 줄을 뒤집기만 하면 된다.
+        //
+        // 정렬 키(`createdAt`)가 같으니 뒤집어도 순서가 흐트러지지 않고,
+        // 방향이 다른 질의를 한 벌 더 들 이유도 없다.
+        return sortOrder == .oldestFirst ? Array(visible.reversed()) : visible
     }
 
     /// 비어 있을 때 보여줄 문구. 무엇을 하는 중인지, 어느 탭인지에 따라 할 일이 다르다.
@@ -187,6 +196,7 @@ struct PostGridView: View {
     PostGridView(
         mode: .browsing,
         segmentedBar: .constant(0),
+        sortOrder: .newestFirst,
         selectedPost: .constant(nil),
         profileCandidatePost: .constant(nil),
         postPendingDelete: .constant(nil)
