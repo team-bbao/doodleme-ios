@@ -8,6 +8,7 @@ import MultipeerConnectivity
 import PencilKit
 import SwiftData
 import SwiftUI
+import UIKit
 
 /// 가까운 친구에게 그림을 보내는 전체 화면.
 ///
@@ -64,8 +65,13 @@ struct NearbySharingScreen: View {
 
                 Spacer(minLength: 0)
 
-                if session?.searchTimedOut == true {
-                    retryButton
+                if session?.searchTimedOut == true || session?.localNetworkBlocked == true {
+                    VStack(spacing: 14) {
+                        retryButton
+                        settingsButton
+                    }
+                    // 안전영역 안쪽 기준. Figma 의 화면 아래 75 에서 홈 인디케이터 몫을 뺀 값이다.
+                    .padding(.bottom, 24)
                 } else if let session, !session.peers.isEmpty {
                     peerCard(session: session)
                 }
@@ -143,19 +149,18 @@ struct NearbySharingScreen: View {
         let count = session?.peers.count ?? 0
 
         let timedOut = session?.searchTimedOut ?? false
+        let blocked = session?.localNetworkBlocked ?? false
 
         VStack(spacing: 15) {
-            Text(statusTitle(count: count, timedOut: timedOut))
+            Text(statusTitle(count: count, timedOut: timedOut || blocked))
                 .font(.system(size: 25, weight: .semibold))
                 .multilineTextAlignment(.center)
 
             if count == 0 {
                 // Figma `iPhone 17 - 9` 의 안내. 폭 200 에서 두 줄로 나뉜다.
-                Text(timedOut
-                     ? "기기가 가까이 있는지 확인한 후 다시 시도해 주세요."
-                     : "상대도 서칭중인지 확인하세요")
+                Text(statusDetail(timedOut: timedOut, blocked: blocked))
                     .font(.system(size: 15, weight: .medium))
-                    .frame(width: timedOut ? 200 : 220)
+                    .frame(width: timedOut || blocked ? 210 : 220)
             }
 
             // 조용히 실패하면 무엇이 잘못됐는지 알 길이 없다.
@@ -184,14 +189,36 @@ struct NearbySharingScreen: View {
                 .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
         }
         .buttonStyle(.plain)
-        // 안전영역 안쪽 기준. Figma 의 화면 아래 75 에서 홈 인디케이터 몫을 뺀 값이다.
-        .padding(.bottom, 41)
         .transition(.opacity)
+    }
+
+    /// 권한은 앱에서 되돌릴 수 없다. 설정 앱으로 데려다주는 것이 최선이다.
+    private var settingsButton: some View {
+        Button("설정 열기") {
+            guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+            UIApplication.shared.open(url)
+        }
+        .font(.system(size: 15, weight: .medium))
+        .foregroundStyle(Color.doodleAction)
     }
 
     private func statusTitle(count: Int, timedOut: Bool) -> String {
         if count > 0 { return "\(count)명 발견" }
         return timedOut ? "주변 사용자를 찾지 못했어요" : "주변 사용자를 찾는중"
+    }
+
+    /// 못 찾은 이유를 짚어 준다.
+    ///
+    /// 권한이 막혔는지 그냥 아무도 없는지는 사용자가 알 길이 없다.
+    /// 막힌 게 확인되면 그것부터 말해 주고, 아니면 흔한 원인을 짚어 준다.
+    private func statusDetail(timedOut: Bool, blocked: Bool) -> String {
+        if blocked {
+            return "로컬 네트워크 권한이 꺼져 있어요. 설정에서 켜야 주변 기기를 찾을 수 있어요."
+        }
+        if timedOut {
+            return "기기가 가까이 있는지, 로컬 네트워크 권한이 켜져 있는지 확인해 주세요."
+        }
+        return "상대도 서칭중인지 확인하세요"
     }
 
     // MARK: - 상대 목록

@@ -12,6 +12,4 @@ enum GalleryMode: Equatable {
     case browsing
     /// 한 장을 골라 프로필로 설정한다.
     case choosingProfile
-    /// 여러 장을 골라 삭제한다.
-    case deleting
 }

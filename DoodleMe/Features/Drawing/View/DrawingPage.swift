@@ -21,6 +21,16 @@ struct DrawingPage: View {
     @FocusState private var focusedField: DrawingFocusField?
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
+
+    /// 카운트다운이 지금 돌아야 하는지.
+    ///
+    /// 앱이 내려가 있는 동안에도 시계는 계속 간다.
+    /// 그대로 두면 돌아왔을 때 남은 시간이 한 번에 뭉텅 줄어 있다.
+    /// 화면이 앞에 있을 때만 재도록 한다.
+    private var countdownRuns: Bool {
+        session.phase == .drawing && scenePhase == .active
+    }
 
     private var canSave: Bool { !recipientName.isEmpty && !inputText.isEmpty }
 
@@ -48,9 +58,11 @@ struct DrawingPage: View {
             .onTapGesture { focusedField = nil }
             .toolbarVisibility(session.phase == .notStarted ? .visible : .hidden, for: .tabBar)
             .toolbar { toolbarContent }
-            // 카운트다운은 그리기 단계에서만 돈다. 단계가 바뀌면 Task가 취소되어 자동으로 멈춘다.
-            .task(id: session.phase) {
-                guard session.phase == .drawing else { return }
+            // 그리기 단계이고 화면이 앞에 있을 때만 돈다.
+            // 조건이 어긋나면 Task 가 취소되어 남은 시간이 그 자리에 멈춘다.
+            // 다시 돌아오면 멈춘 지점부터 이어서 잰다.
+            .task(id: countdownRuns) {
+                guard countdownRuns else { return }
                 await session.runCountdown()
             }
         }
@@ -152,13 +164,6 @@ struct DrawingPage: View {
                 .fontWeight(.semibold)
                 .submitLabel(.done)
                 .focused($focusedField, equals: .name)
-                // 입력한 이름만큼만 차지하게 해야 "님에게" 가 바로 옆에 붙는다.
-                .fixedSize(horizontal: true, vertical: false)
-
-                // 카드 뒷면과 같은 말투로 맞춘다.
-                Text("님에게")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Color.doodleSecondary)
 
                 Spacer(minLength: 0)
             }

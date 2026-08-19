@@ -10,8 +10,6 @@ import SwiftUI
 
 struct GalleryPage: View {
 
-    // 정렬자를 주지 않으면 SwiftData 는 순서를 보장하지 않는다. 항상 최신순.
-    @Query(sort: \Post.createdAt, order: .reverse) private var allPosts: [Post]
     @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
 
     private var profilePost: Post? { profilePosts.first }
@@ -22,11 +20,11 @@ struct GalleryPage: View {
     @AppStorage("userName") private var inputName = ""
 
     @State private var mode: GalleryMode = .browsing
-    @State private var selectedPostIDs: Set<PersistentIdentifier> = []
+    /// 지우려고 확인 팝업을 띄운 그림. 한 번에 한 장만 지운다.
+    @State private var postPendingDelete: Post?
     @State private var selectedPost: Post?
     @State private var profileCandidatePost: Post?
     @State private var showProfileEditPopup = false
-    @State private var showDeleteConfirm = false
     @State private var showSharingScreen = false
     /// 카드를 꾹 눌러 "그림 공유하기" 를 고른 경우. 이 그림을 들고 멀티피어 화면을 연다.
     @State private var sharingPost: Post?
@@ -35,8 +33,6 @@ struct GalleryPage: View {
     @State private var confettiTrigger = 0
 
     private var isChoosingProfile: Bool { mode == .choosingProfile }
-    /// 프로필 고르기든 삭제든, 고르는 중에는 그림 말고 다 어둡게 덮는다.
-    private var isSelecting: Bool { mode != .browsing }
 
     // Figma `iPhone 17 - 1` 기준 치수
     /// 프로필 원 지름
@@ -55,7 +51,7 @@ struct GalleryPage: View {
     /// 프로필을 고를 때도 그림에만 집중하도록 함께 숨긴다.
     private var isOverlayShowing: Bool {
         selectedPost != nil
-            || showDeleteConfirm
+            || postPendingDelete != nil
             || showProfileEditPopup
             || profileCandidatePost != nil
             || isChoosingProfile
@@ -75,24 +71,21 @@ struct GalleryPage: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
                     .padding(.horizontal)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .allowsHitTesting(!isSelecting)
+                    .allowsHitTesting(!isChoosingProfile)
 
-                // 고르는 중에는 그림 말고 다 어둡게 덮는다.
-                if isSelecting {
+                // 프로필을 고르는 동안에는 그림 말고 다 어둡게 덮는다.
+                // 취소 버튼이 없으므로 어두운 곳을 눌러 빠져나온다.
+                if isChoosingProfile {
                     Color.black.opacity(0.4)
                         .ignoresSafeArea()
                         .contentShape(Rectangle())
-                        // 프로필 고르기에는 취소 버튼이 없어 여기를 눌러 빠져나온다.
-                        // 삭제는 상단에 취소가 있으므로 탭을 받지 않는다.
-                        .onTapGesture { if isChoosingProfile { exitSelection() } }
-                        .allowsHitTesting(isChoosingProfile)
+                        .onTapGesture { exitSelection() }
                         .transition(.opacity)
                 }
 
                 // 그리드만 어두운 레이어 위에 남아 밝게 보인다.
                 PostGridView(
                     mode: mode,
-                    selectedPostIDs: $selectedPostIDs,
                     segmentedBar: $segmentedBar,
                     selectedPost: $selectedPost,
                     profileCandidatePost: $profileCandidatePost,
@@ -131,18 +124,14 @@ struct GalleryPage: View {
                     profileEditPopup
                 }
 
-                if mode == .deleting {
-                    selectionBar
-                }
-
-                if showDeleteConfirm {
-                    deleteConfirmPopup
+                if let pending = postPendingDelete {
+                    deleteConfirmPopup(post: pending)
                 }
             }
             .toolbar { toolbarContent }
             .toolbarVisibility(isOverlayShowing ? .hidden : .visible, for: .navigationBar)
             // 삭제 중에는 탭바 자리를 선택 바가 대신 쓴다.
-            .toolbarVisibility(isOverlayShowing || mode == .deleting ? .hidden : .visible, for: .tabBar)
+            .toolbarVisibility(isOverlayShowing ? .hidden : .visible, for: .tabBar)
             .ignoresSafeArea()
             // 보낼 그림 없이 열면 받기 전용으로 동작한다.
             .fullScreenCover(isPresented: $showSharingScreen) {
@@ -210,14 +199,6 @@ struct GalleryPage: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        // 프로필 고르기는 카드를 누르면 바로 확인 팝업이 뜨고,
-        // 어두운 곳을 누르면 빠져나올 수 있어서 툴바 버튼이 필요 없다.
-        if mode == .deleting {
-            ToolbarItem(placement: .topBarLeading) {
-                Button("취소") { exitSelection() }
-            }
-        }
-
         ToolbarItem(placement: .topBarTrailing) {
             switch mode {
             case .browsing:
@@ -230,8 +211,8 @@ struct GalleryPage: View {
                 }
                 .accessibilityLabel("그림 공유받기")
 
-            // 프로필 고르기는 팝업이, 삭제는 하단 선택 바가 대신한다.
-            case .choosingProfile, .deleting:
+            // 프로필 고르기는 카드를 누르면 바로 확인 팝업이 떠서 툴바 버튼이 필요 없다.
+            case .choosingProfile:
                 EmptyView()
             }
         }
@@ -243,59 +224,7 @@ struct GalleryPage: View {
     /// 삭제 확인 팝업은 고른 목록을 보고 움직이므로, 그 한 장만 담아 두고 띄운다.
     /// 여러 장 삭제와 같은 팝업·같은 경로를 쓴다.
     private func requestDelete(_ post: Post) {
-        selectedPostIDs = [post.persistentModelID]
-        withAnimation(.spring()) { showDeleteConfirm = true }
-    }
-
-    // MARK: - 삭제 선택 바
-
-    /// 사진 앱 선택 모드처럼, 탭바 자리에 고른 개수와 삭제 버튼을 띄운다.
-    private var selectionBar: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            ZStack(alignment: .bottom) {
-                // 아래로 갈수록 짙어지는 회색.
-                // 카드가 바 뒤로 스크롤돼도 글씨가 묻히지 않게 받쳐준다.
-                LinearGradient(
-                    colors: [.gray.opacity(0), .gray.opacity(0.65)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 180)
-                .allowsHitTesting(false)
-
-                ZStack {
-                    Text(selectedPostIDs.isEmpty
-                         ? "지울 그림을 골라주세요"
-                         : "\(selectedPostIDs.count)장의 그림이 선택됨")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.black)
-
-                    HStack {
-                        Spacer()
-                        Button {
-                            withAnimation(.spring()) { showDeleteConfirm = true }
-                        } label: {
-                            // 어두운 그라디언트 위에 심볼만 두면 꺼진 것처럼 보인다.
-                            // 흰 원을 받쳐서 누를 수 있는 버튼임이 드러나게 한다.
-                            Image(systemName: "trash")
-                                .font(.title3)
-                                .foregroundStyle(selectedPostIDs.isEmpty ? Color.gray : .red)
-                                .frame(width: 44, height: 44)
-                                .background(.white, in: Circle())
-                                .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
-                        }
-                        .disabled(selectedPostIDs.isEmpty)
-                        .accessibilityLabel("고른 그림 삭제")
-                    }
-                }
-                .padding(.horizontal, 28)
-                .padding(.bottom, 32)
-            }
-        }
-        .ignoresSafeArea(edges: .bottom)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        withAnimation(.spring()) { postPendingDelete = post }
     }
 
     // MARK: - 팝업
@@ -377,12 +306,12 @@ struct GalleryPage: View {
         }
     }
 
-    private var deleteConfirmPopup: some View {
+    private func deleteConfirmPopup(post: Post) -> some View {
         DoodlePopup(cardPadding: 24, horizontalInset: 40) {
             cancelDelete()
         } content: {
             VStack(spacing: 20) {
-                Text("\(selectedPostIDs.count)장을 삭제하시겠습니까?")
+                Text("이 그림을 삭제하시겠습니까?")
                     .font(.headline)
                     .multilineTextAlignment(.center)
 
@@ -397,7 +326,7 @@ struct GalleryPage: View {
                     .background(.gray.opacity(0.15), in: RoundedRectangle(cornerRadius: 30))
 
                     Button("삭제", role: .destructive) {
-                        deleteSelected()
+                        delete(post)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -410,34 +339,20 @@ struct GalleryPage: View {
 
     // MARK: - 동작
 
-    /// 삭제를 그만둔다.
-    ///
-    /// 고른 목록까지 비워야 한다. 남겨 두면 다음에 팝업을 열 때
-    /// 고르지도 않은 그림이 이미 골라진 채로 뜬다.
     private func cancelDelete() {
-        withAnimation(.spring()) {
-            showDeleteConfirm = false
-            selectedPostIDs.removeAll()
-        }
+        withAnimation(.spring()) { postPendingDelete = nil }
     }
 
     private func exitSelection() {
         withAnimation(.spring()) {
             mode = .browsing
-            selectedPostIDs.removeAll()
             profileCandidatePost = nil
         }
     }
 
-    private func deleteSelected() {
-        for post in allPosts where selectedPostIDs.contains(post.persistentModelID) {
-            modelContext.delete(post)
-        }
-        withAnimation(.spring()) {
-            showDeleteConfirm = false
-            selectedPostIDs.removeAll()
-            mode = .browsing
-        }
+    private func delete(_ post: Post) {
+        modelContext.delete(post)
+        withAnimation(.spring()) { postPendingDelete = nil }
     }
 }
 

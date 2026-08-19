@@ -49,6 +49,11 @@ final class MultipeerSession {
     private(set) var lastError: String?
     /// 주변을 다 훑었는데 아무도 없었는지.
     private(set) var searchTimedOut = false
+    /// 로컬 네트워크 권한이 막혀 찾기 자체가 시작되지 못했는지.
+    ///
+    /// iOS 에는 이 권한의 상태를 직접 묻는 공개 API 가 없다.
+    /// 대신 찾기를 시작하지 못했다는 통보가 오면 그것으로 본다.
+    private(set) var localNetworkBlocked = false
 
     /// 상대에게 보이는 내 이름.
     let displayName: String
@@ -121,6 +126,7 @@ final class MultipeerSession {
         guard advertiser == nil, browser == nil else { return }
 
         searchTimedOut = false
+        localNetworkBlocked = false
 
         let advertiser = MCNearbyServiceAdvertiser(
             peer: peerID,
@@ -225,6 +231,7 @@ final class MultipeerSession {
         searchTask?.cancel()
         searchTask = nil
         searchTimedOut = false
+        localNetworkBlocked = false
         visiblePeers.insert(peer)
         guard !peers.contains(peer) else { return }
         peers.append(peer)
@@ -278,6 +285,17 @@ final class MultipeerSession {
         lastError = message
     }
 
+    /// 찾기나 알리기를 시작조차 못 했다.
+    ///
+    /// 권한이 막혔을 때 오는 통보다. 기다릴 이유가 없으니 바로 결과를 보여준다.
+    fileprivate func handleStartFailure(_ message: String) {
+        lastError = message
+        localNetworkBlocked = true
+        searchTask?.cancel()
+        searchTask = nil
+        stopSearching()
+    }
+
     /// MultipeerConnectivity 델리게이트를 받아 메인 액터로 넘겨주는 어댑터.
     ///
     /// `MultipeerSession` 자체를 델리게이트로 삼으면 `@MainActor` 격리와 충돌하므로 분리했다.
@@ -325,7 +343,7 @@ final class MultipeerSession {
 
         nonisolated func advertiser(_ advertiser: MCNearbyServiceAdvertiser,
                                     didNotStartAdvertisingPeer error: Error) {
-            Task { @MainActor [owner] in owner?.handleFailure("주변에 알리기 실패: \(error.localizedDescription)") }
+            Task { @MainActor [owner] in owner?.handleStartFailure("주변에 알리기 실패: \(error.localizedDescription)") }
         }
 
         // MARK: MCNearbyServiceBrowserDelegate
@@ -340,7 +358,7 @@ final class MultipeerSession {
         }
 
         nonisolated func browser(_ browser: MCNearbyServiceBrowser, didNotStartBrowsingForPeers error: Error) {
-            Task { @MainActor [owner] in owner?.handleFailure("주변 찾기 실패: \(error.localizedDescription)") }
+            Task { @MainActor [owner] in owner?.handleStartFailure("주변 찾기 실패: \(error.localizedDescription)") }
         }
     }
 }

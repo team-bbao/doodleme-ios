@@ -20,7 +20,6 @@ struct PostGridView: View {
            sort: \Post.createdAt, order: .reverse) private var profileCandidates: [Post]
 
     let mode: GalleryMode
-    @Binding var selectedPostIDs: Set<PersistentIdentifier>
     @Binding var segmentedBar: Int
     @Binding var selectedPost: Post?
     @Binding var profileCandidatePost: Post?
@@ -101,16 +100,6 @@ struct PostGridView: View {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(.black.opacity(selected ? 0.4 : 0))
             }
-            // 여러 장을 골라야 하는 삭제에서만 선택 표시를 띄운다.
-            // 프로필은 누르는 즉시 확인 팝업이 떠서 체크 상태를 볼 일이 없다.
-            .overlay(alignment: .topTrailing) {
-                if mode == .deleting {
-                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                        // 어두워진 카드 위에서도 보이도록 흰색을 쓴다.
-                        .foregroundStyle(selected ? Color.white : .gray)
-                        .padding(8)
-                }
-            }
             .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
             .animation(.easeInOut(duration: 0.15), value: selected)
             .onTapGesture { handleTap(on: post) }
@@ -161,8 +150,6 @@ struct PostGridView: View {
             false
         case .choosingProfile:
             profileCandidatePost?.persistentModelID == post.persistentModelID
-        case .deleting:
-            selectedPostIDs.contains(post.persistentModelID)
         }
     }
 
@@ -174,14 +161,6 @@ struct PostGridView: View {
         case .choosingProfile:
             // 한 장만 고른다. 확인 팝업은 GalleryPage 가 띄운다.
             withAnimation(.spring()) { profileCandidatePost = post }
-
-        case .deleting:
-            // 여러 장을 골랐다 뺐다 할 수 있다.
-            if selectedPostIDs.contains(post.persistentModelID) {
-                selectedPostIDs.remove(post.persistentModelID)
-            } else {
-                selectedPostIDs.insert(post.persistentModelID)
-            }
         }
     }
 }
@@ -189,7 +168,6 @@ struct PostGridView: View {
 #Preview {
     PostGridView(
         mode: .browsing,
-        selectedPostIDs: .constant([]),
         segmentedBar: .constant(0),
         selectedPost: .constant(nil),
         profileCandidatePost: .constant(nil)

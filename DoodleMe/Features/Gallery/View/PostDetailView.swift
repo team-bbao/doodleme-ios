@@ -186,9 +186,11 @@ struct PostDetailView: View {
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(Color.doodlePrimary)
 
-                        Text(counterpartSuffix)
-                            .font(.system(size: 16))
-                            .foregroundStyle(Color.doodleSecondary)
+                        if !counterpartSuffix.isEmpty {
+                            Text(counterpartSuffix)
+                                .font(.system(size: 16))
+                                .foregroundStyle(Color.doodleSecondary)
+                        }
                     }
 
                     Spacer(minLength: 0)
@@ -230,8 +232,9 @@ extension PostDetailView {
         post.isMine ? post.recipientName : post.displaySenderName
     }
 
+    /// 이름 뒤에 붙일 말. 내가 그린 것에는 아무것도 붙이지 않는다.
     private var counterpartSuffix: String {
-        post.isMine ? "님에게" : "님이 보냄"
+        post.isMine ? "" : "님이 보냄"
     }
 
     /// 상대 자리에 넣을 그림. 내가 그린 카드에는 내 프로필을 쓴다.
