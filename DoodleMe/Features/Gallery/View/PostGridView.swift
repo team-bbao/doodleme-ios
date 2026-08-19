@@ -127,6 +127,9 @@ struct PostGridView: View {
                 LinearGradient.doodlePaperFace
                     .mask { paperLayer(.memoFrontMask) }
             }
+            // 접힌 삼각형을 그림자로 한 겹 들어 올린다.
+            // 그늘이 지는 자리와 겹쳐 있어, 그냥 두면 접힌 자리인지 그늘인지 구분이 안 된다.
+            .overlay { foldFlapShadow }
             .overlay {
                 // 접힌 삼각형과 잘려나간 모서리에는 그림이 얹히지 않게 한다.
                 // 마스크는 종이와 똑같은 배치를 거쳐야 접힌 자리가 정확히 맞는다.
@@ -172,6 +175,24 @@ struct PostGridView: View {
                 Label("삭제", systemImage: "trash")
             }
         }
+    }
+
+    /// 접혀 올라온 삼각형만 떼어내 그림자를 준 층.
+    ///
+    /// 삼각형은 종이 에셋에 그려져 있어 따로 그림자를 줄 수가 없다.
+    /// 종이에서 본체를 지우면(`destinationOut`) 삼각형만 남으므로, 그것을 다시 얹는다.
+    ///
+    /// 그림자가 종이 밖으로 번지지 않게 종이 모양으로 잘라 둔다.
+    /// 잘려나간 모서리는 뒤가 비치는 자리라, 거기까지 번지면 바탕에 얼룩이 진다.
+    private var foldFlapShadow: some View {
+        ZStack {
+            paperLayer(.memoFront)
+            paperLayer(.memoFrontMask)
+                .blendMode(.destinationOut)
+        }
+        .compositingGroup()
+        .shadow(color: .black.opacity(0.25), radius: 5, y: 2)
+        .mask { paperLayer(.memoFront) }
     }
 
     /// 종이와 그 마스크가 같은 배치를 쓰도록 한곳에 모아 둔다.
