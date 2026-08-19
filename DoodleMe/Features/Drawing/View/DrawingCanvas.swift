@@ -50,8 +50,6 @@ private struct CanvasRepresentable: UIViewRepresentable {
         canvas.contentInsetAdjustmentBehavior = .never
         canvas.tool = session.tool.pkTool
         canvas.drawing = session.drawing
-
-        session.attach(undoManager: canvas.undoManager)
         return canvas
     }
 
@@ -63,7 +61,6 @@ private struct CanvasRepresentable: UIViewRepresentable {
         if context.coordinator.appliedRevision != session.drawingRevision {
             context.coordinator.appliedRevision = session.drawingRevision
             canvas.drawing = session.drawing
-            canvas.undoManager?.removeAllActions()
             // 세어둔 획 수도 함께 되돌린다.
             // 이걸 빠뜨리면 초기화 뒤에 그린 획이 "이미 처리한 만큼"에 미치지 못해
             // 굵기가 다시 매겨지지 않는다. 필압이 조용히 죽는다.
@@ -112,9 +109,11 @@ private struct CanvasRepresentable: UIViewRepresentable {
 
 /// 전용 `UndoManager` 를 갖는 캔버스.
 ///
-/// 기본 `UIView.undoManager` 는 응답자 체인을 타고 올라가 윈도우의 것을 쓴다.
-/// 그러면 그림 되돌리기가 텍스트 필드 편집 되돌리기와 같은 스택을 공유해 서로 간섭한다.
-/// 캔버스만의 스택을 두어 그림 undo/redo 를 독립시킨다.
+/// 되돌리기는 `DrawingSession` 이 그림 스냅숏으로 직접 관리한다.
+/// 여기서 전용 UndoManager 를 두는 이유는 따로 있다.
+/// 기본 `UIView.undoManager` 는 응답자 체인을 타고 올라가 윈도우의 것을 쓰는데,
+/// 그러면 PencilKit 이 등록하는 되돌리기가 텍스트 필드 편집 되돌리기와 같은 스택에 섞인다.
+/// 빈 스택을 하나 물려 두어 그 간섭을 끊는다.
 final class DoodleCanvasView: PKCanvasView {
     private let canvasUndoManager = UndoManager()
 

@@ -61,9 +61,22 @@ final class DrawingSession {
     private(set) var canUndo = false
     private(set) var canRedo = false
 
-    /// 캔버스가 들고 있는 전용 UndoManager. 캔버스가 만들어질 때 주입된다.
-    /// 상태가 아니라 참조라서 관찰 대상에서 뺀다.
-    @ObservationIgnored private weak var undoManager: UndoManager?
+    /// 되돌리기용 이전 상태들.
+    ///
+    /// PencilKit 의 되돌리기를 쓰지 않는다.
+    /// 획이 끝날 때마다 굵기를 다시 매기며 `PKCanvasView.drawing` 을 통째로 갈아끼우는데,
+    /// 그러면 PencilKit 이 등록해 둔 되돌리기가 헛돈다.
+    /// 버튼은 비활성으로 바뀌는데 획은 그대로 남았다.
+    ///
+    /// 그림 자체를 스냅숏으로 쌓아 두면 무엇을 갈아끼우든 정확히 되돌아간다.
+    @ObservationIgnored private var undoStack: [PKDrawing] = []
+    @ObservationIgnored private var redoStack: [PKDrawing] = []
+    /// 되돌리기/다시하기로 그림을 갈아끼우는 중인지.
+    /// 그 변경까지 기록하면 스택이 무한히 불어난다.
+    @ObservationIgnored private var isApplyingHistory = false
+
+    /// 쌓아 둘 최대 개수. 30초 낙서라 이만큼이면 넉넉하다.
+    private static let historyLimit = 60
 
     /// 저장할 바이너리.
     var drawingData: Data { drawing.dataRepresentation() }
@@ -81,31 +94,52 @@ final class DrawingSession {
 
     // MARK: - 캔버스 연동
 
-    /// 캔버스가 만들어질 때 자신의 UndoManager 를 넘겨준다.
-    func attach(undoManager: UndoManager?) {
-        self.undoManager = undoManager
-        refreshUndoState()
-    }
-
     /// 사용자가 캔버스에 그리거나 지웠을 때 캔버스 쪽에서 호출한다.
-    func canvasDidChange(drawing: PKDrawing) {
-        self.drawing = drawing
+    func canvasDidChange(drawing new: PKDrawing) {
+        // 되돌리기로 갈아끼운 결과가 되돌아온 것이면 기록하지 않는다.
+        if isApplyingHistory {
+            isApplyingHistory = false
+            drawing = new
+            return
+        }
+
+        // 캔버스가 새로 만들어질 때도 이 통보가 온다.
+        // 내용이 그대로면 기록할 것이 없다.
+        // 그냥 쌓으면 초기화 직후에도 되돌리기 버튼이 켜진 채로 남는다.
+        guard new.dataRepresentation() != drawing.dataRepresentation() else { return }
+
+        undoStack.append(drawing)
+        if undoStack.count > Self.historyLimit { undoStack.removeFirst() }
+        redoStack.removeAll()
+
+        drawing = new
         refreshUndoState()
     }
 
     func undo() {
-        undoManager?.undo()
-        refreshUndoState()
+        guard let previous = undoStack.popLast() else { return }
+        redoStack.append(drawing)
+        applyHistory(previous)
     }
 
     func redo() {
-        undoManager?.redo()
+        guard let next = redoStack.popLast() else { return }
+        undoStack.append(drawing)
+        applyHistory(next)
+    }
+
+    /// 스택에서 꺼낸 그림을 캔버스에 반영한다.
+    /// revision 을 올려야 `updateUIView` 가 캔버스를 덮어쓴다.
+    private func applyHistory(_ target: PKDrawing) {
+        isApplyingHistory = true
+        drawing = target
+        drawingRevision += 1
         refreshUndoState()
     }
 
     func refreshUndoState() {
-        canUndo = undoManager?.canUndo ?? false
-        canRedo = undoManager?.canRedo ?? false
+        canUndo = !undoStack.isEmpty
+        canRedo = !redoStack.isEmpty
     }
 
     // MARK: - 단계 전환
@@ -120,16 +154,17 @@ final class DrawingSession {
         phase = .memo
     }
 
-    /// 카운트다운만 처음으로 되돌린다. 그린 그림은 남는다.
-    func restartTimer() {
-        remaining = Self.duration
-        phase = .notStarted
-    }
-
     /// 그림과 시간을 모두 비운다.
+    ///
+    /// 예전에는 시간만 되돌리고 그림은 남기는 갈래가 따로 있었다.
+    /// 그러면 "Tap to start" 로 돌아가도 종이에 이전 그림이 남아 있어,
+    /// 다시 시작했을 때 남의 그림 위에 덧그리는 꼴이 됐다.
     func reset() {
         drawing = PKDrawing()
         drawingRevision += 1
+        undoStack.removeAll()
+        redoStack.removeAll()
+        isApplyingHistory = false
         canUndo = false
         canRedo = false
         tool = .pen
@@ -154,6 +189,9 @@ final class DrawingSession {
             } catch {
                 return // 취소됨
             }
+            // 초기화로 단계가 바뀌었는데도 계속 쓰면,
+            // 방금 되돌려 놓은 남은 시간을 예전 값으로 덮어버린다.
+            guard phase == .drawing else { return }
             remaining = max(0, startedFrom - (clock.now - startedAt).seconds)
         }
 

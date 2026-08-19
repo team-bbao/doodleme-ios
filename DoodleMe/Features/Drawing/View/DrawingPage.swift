@@ -211,7 +211,7 @@ struct DrawingPage: View {
         if session.phase != .memo {
             ToolbarItem(placement: .topBarLeading) {
                 Button("초기화") {
-                    session.restartTimer()
+                    session.reset()
                     peelPhase = 0
                 }
                 .disabled(session.phase != .drawing)
