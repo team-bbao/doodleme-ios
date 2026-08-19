@@ -149,8 +149,9 @@ struct DrawingPage: View {
                 // 예전에는 Slider 였는데, 썸을 숨겨도 트랙 드래그로 시간을 되감을 수 있었다.
                 // ProgressView 는 표시 전용이라 그런 조작이 불가능하다.
                 ProgressView(value: session.remaining, total: DrawingSession.duration)
-                    .progressViewStyle(ThickBarProgressStyle(height: 10))
+                    .progressViewStyle(ThickBarProgressStyle(height: 15))
                     .padding(.horizontal, 20)
+                    .padding(.top, 20)
                     .padding(.bottom, 40)
                     .accessibilityLabel("남은 시간")
                     .accessibilityValue("\(Int(session.remaining))초")
