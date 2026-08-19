@@ -22,6 +22,8 @@ struct DrawingPage: View {
     /// 포스트잇이 벗겨지는 연출 단계. 화면 연출 전용이라 세션 모델에 두지 않는다.
     @State private var peelPhase: Int = 0
     @FocusState private var focusedField: DrawingFocusField?
+    /// 키보드가 가리기 시작하는 높이. 키보드가 없으면 화면 맨 아래와 같다.
+    @State private var keyboardTop: CGFloat = 0
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
@@ -46,7 +48,21 @@ struct DrawingPage: View {
 
     /// 캔버스를 화면 정중앙에서 얼마나 올릴지.
     /// 아래쪽 도구 막대와 탭바가 앉을 자리를 남기려고 위로 당겨 둔다.
-    private static let canvasCenterOffset: CGFloat = -40
+    private static let canvasCenterOffset: CGFloat = -10
+
+    /// 카드와 키보드 사이에 남길 틈.
+    private static let keyboardGap: CGFloat = 12
+
+    /// 키보드에 가리지 않도록 카드를 위로 밀 거리.
+    ///
+    /// 화면 기준으로 못박아 둔 카드라 SwiftUI 의 자동 회피가 닿지 않는다.
+    /// 자동 회피에 맡기면 남는 자리 한가운데로 다시 앉느라 필요 이상으로 올라가
+    /// 이번에는 위쪽 툴바에 가렸다. 그래서 모자란 만큼만 직접 민다.
+    private func keyboardLift(screenHeight: CGFloat) -> CGFloat {
+        guard keyboardTop > 0, screenHeight > 0 else { return 0 }
+        let cardBottom = screenHeight / 2 + Self.canvasCenterOffset + DoodleMetrics.canvasSize.height / 2
+        return max(0, cardBottom - (keyboardTop - Self.keyboardGap))
+    }
 
     var body: some View {
         NavigationStack {
@@ -70,15 +86,26 @@ struct DrawingPage: View {
                 }
                 .safeAreaPadding(.all)
 
+                // 키보드가 어디까지 올라왔는지 재는 자.
+                // 안전영역을 따르는 빈 뷰라 키보드가 뜨면 아래 끝이 그만큼 올라온다.
+                Color.clear
+                    .allowsHitTesting(false)
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.frame(in: .global).maxY
+                    } action: { keyboardTop = $0 }
+
                 // 캔버스도 화면 한가운데에 못박는다.
                 // 단계마다 툴바와 탭바가 생겼다 사라지면서 안전영역이 달라지는데,
                 // 그때마다 캔버스가 따라 움직여 초기화를 누르면 자리가 어긋났다.
-                memoCard
-                    .offset(x: shakeAmount, y: Self.canvasCenterOffset)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .ignoresSafeArea()
+                GeometryReader { proxy in
+                    memoCard
+                        .offset(x: shakeAmount, y: Self.canvasCenterOffset - keyboardLift(screenHeight: proxy.size.height))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .ignoresSafeArea()
+                .animation(.easeOut(duration: 0.25), value: keyboardTop)
             }
-            .ignoresSafeArea(edges: .bottom)
+            .ignoresSafeArea(.container, edges: .bottom)
             .onTapGesture { focusedField = nil }
             .toolbarVisibility(session.phase == .notStarted ? .visible : .hidden, for: .tabBar)
             .toolbar { toolbarContent }
