@@ -13,10 +13,14 @@ import SwiftUI
 /// 시스템 alert 는 자리도 재질도 정할 수 없다.
 struct DoodleConfirmPopup: View {
 
+    /// 본문 위에 굵게 얹히는 한 줄. 없으면 본문만 뜬다.
+    var title: String?
     let message: String
-    var cancelTitle: String
+    /// 물러나는 쪽 버튼. 없으면 진행 버튼 하나가 폭을 다 쓴다.
+    /// 묻는 창이 아니라 알리기만 하는 창이 그 꼴이다.
+    var cancelTitle: String?
     var confirmTitle: String
-    var onCancel: () -> Void
+    var onCancel: (() -> Void)?
     var onConfirm: () -> Void
 
     // Figma `Alert`(95:1179) 치수
@@ -27,20 +31,33 @@ struct DoodleConfirmPopup: View {
     private static let buttonHeight: CGFloat = 48
     /// 본문과 버튼 사이.
     private static let contentSpacing: CGFloat = 40
+    /// 제목과 본문 사이.
+    private static let titleSpacing: CGFloat = 6
 
     var body: some View {
         VStack(spacing: Self.contentSpacing) {
-            Text(message)
-                // Figma: SF Pro Regular 17 / 자간 -0.43 / 행높이 22
-                .font(.system(size: 17))
-                .kerning(-0.43)
-                .lineSpacing(2)
-                .foregroundStyle(.black)
-                .multilineTextAlignment(.center)
+            VStack(spacing: Self.titleSpacing) {
+                if let title {
+                    Text(title)
+                        .font(.system(size: 17, weight: .semibold))
+                        .kerning(-0.43)
+                        .foregroundStyle(.black)
+                }
+
+                Text(message)
+                    // Figma: SF Pro Regular 17 / 자간 -0.43 / 행높이 22
+                    .font(.system(size: 17))
+                    .kerning(-0.43)
+                    .lineSpacing(2)
+                    .foregroundStyle(.black)
+            }
+            .multilineTextAlignment(.center)
 
             HStack(spacing: 8) {
                 // 물러나는 쪽이 왼쪽, 진행하는 쪽이 오른쪽.
-                choice(cancelTitle, fill: Color.doodleControlFill, label: .black, action: onCancel)
+                if let cancelTitle, let onCancel {
+                    choice(cancelTitle, fill: Color.doodleControlFill, label: .black, action: onCancel)
+                }
                 choice(confirmTitle, fill: Color.doodlePrimary, label: .white, action: onConfirm)
             }
         }
@@ -81,10 +98,20 @@ struct DoodleConfirmPopup: View {
 #Preview {
     ZStack {
         Color.doodleBackground.ignoresSafeArea()
-        DoodleConfirmPopup(
-            message: "프로필 사진으로 설정하시겠습니까?",
-            cancelTitle: "아니오",
-            confirmTitle: "예"
-        ) { } onConfirm: { }
+        VStack(spacing: 24) {
+            DoodleConfirmPopup(
+                message: "프로필 사진으로 설정하시겠습니까?",
+                cancelTitle: "아니오",
+                confirmTitle: "예",
+                onCancel: { },
+                onConfirm: { }
+            )
+            DoodleConfirmPopup(
+                title: "사진 저장",
+                message: "그림이 사진 앱에 저장됐어요.",
+                confirmTitle: "확인",
+                onConfirm: { }
+            )
+        }
     }
 }

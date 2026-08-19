@@ -47,6 +47,25 @@ struct PostDetailView: View {
 
             backButton
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            // 저장 결과를 알리는 창. 프로필 확인창과 같은 유리 카드를 쓴다.
+            //
+            // 시스템 `alert` 로 띄우면 이 화면에서만 생김새가 달라진다.
+            // 묻는 것이 없으니 버튼은 하나뿐이고, 그때는 카드가 폭을 다 쓴다.
+            if showSaveAlert {
+                Color.doodleChoosingScrim
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+
+                DoodleConfirmPopup(
+                    title: "사진 저장",
+                    message: saveMessage,
+                    confirmTitle: "확인",
+                    onConfirm: {
+                        withAnimation(.spring(response: 0.3)) { showSaveAlert = false }
+                    }
+                )
+            }
         }
         .fullScreenCover(isPresented: $showSharingScreen) {
             NearbySharingScreen(post: post) { showSharingScreen = false }
@@ -154,11 +173,6 @@ struct PostDetailView: View {
                 }
                 withAnimation(.easeInOut(duration: Self.foldFade)) { showFold.toggle() }
             }
-        }
-        .alert("사진 저장", isPresented: $showSaveAlert) {
-            Button("확인") { }
-        } message: {
-            Text(saveMessage)
         }
     }
 
@@ -376,7 +390,7 @@ extension PostDetailView {
 
     private func present(_ message: String) {
         saveMessage = message
-        showSaveAlert = true
+        withAnimation(.spring(response: 0.3)) { showSaveAlert = true }
     }
 }
 

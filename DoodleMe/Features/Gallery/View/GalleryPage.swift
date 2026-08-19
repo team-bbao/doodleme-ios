@@ -190,12 +190,14 @@ struct GalleryPage: View {
                     DoodleConfirmPopup(
                         message: "프로필 사진으로 설정하시겠습니까?",
                         cancelTitle: "아니오",
-                        confirmTitle: "예"
-                    ) {
-                        withAnimation(.spring(response: 0.3)) { profileCandidatePost = nil }
-                    } onConfirm: {
-                        confirmProfile()
-                    }
+                        confirmTitle: "예",
+                        onCancel: {
+                            withAnimation(.spring(response: 0.3)) { profileCandidatePost = nil }
+                        },
+                        onConfirm: {
+                            confirmProfile()
+                        }
+                    )
                     .padding(.top, Self.confirmPopupTop)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
