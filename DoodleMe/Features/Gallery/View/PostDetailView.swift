@@ -12,9 +12,6 @@ import SwiftUI
 struct PostDetailView: View {
     let post: Post
 
-    /// 내 그림을 공유할 때 보낼 이름. `GalleryPage`의 프로필 이름과 같은 저장소를 본다.
-    @AppStorage("userName") private var userName = ""
-
     /// 내가 그린 카드의 아바타로 쓸 내 프로필 그림.
     @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
 
@@ -32,11 +29,6 @@ struct PostDetailView: View {
     @State private var showSharingScreen = false
     @State private var showSaveAlert = false
     @State private var saveMessage = ""
-
-    /// 내가 그린 글이면 내 이름을, 받은 글이면 보낸 사람 이름을 쓴다.
-    private var shareSenderName: String {
-        post.isMine ? userName : post.senderName
-    }
 
     var body: some View {
         card
@@ -68,7 +60,7 @@ struct PostDetailView: View {
                 .buttonStyle(CardToolbarButtonStyle())
                 .accessibilityLabel("사진에 저장")
             }
-            .frame(width: 136, height: 55)
+            .frame(width: 136, height: DrawingToolPicker.buttonSide)
             .glassEffect(.regular, in: .capsule)
             .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
             .padding(.bottom, 10)
@@ -215,7 +207,8 @@ private struct CardToolbarButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(Color.doodlePrimary)
-            .frame(width: 64, height: 48)
+            // 아이콘 둘이 나란히 든 알약이라, 높이는 44 로 맞추고 폭만 알약 절반으로 나눈다.
+            .frame(width: 68, height: DrawingToolPicker.buttonSide)
             .background {
                 if configuration.isPressed {
                     Capsule().fill(Color.doodlePressed)
@@ -295,9 +288,12 @@ extension PostDetailView {
     }
 
     /// 저장용 이미지. 화면에 보이는 카드가 아니라 흰 배경 위의 그림만 담는다.
+    ///
+    /// 높이에 너비를 넣어 두어 저장된 사진이 정사각형이 되고, 그림이 그만큼 작게 담겼다.
+    /// 캔버스 비율을 그대로 써야 그린 대로 저장된다.
     private var drawingSnapshot: some View {
         DoodleImageView(drawingData: post.drawingData)
-            .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.width)
+            .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
             .background(.white)
     }
 
