@@ -19,6 +19,8 @@ struct GalleryPage: View {
     /// 지금 보고 있는 섹션. 그리기·공유 화면이 저장을 마치고 여기에 적어 둘 수 있어야 해서
     /// `@State` 가 아니라 저장소를 통해 오간다.
     @AppStorage(GallerySection.storageKey) private var segmentedBar = GallerySection.receivedFromOthers.rawValue
+    /// 카드를 늘어놓는 순서. 두 섹션이 함께 쓴다.
+    @AppStorage(GallerySortOrder.storageKey) private var sortOrder = GallerySortOrder.newestFirst.rawValue
     @AppStorage("userName") private var inputName = ""
 
     @State private var mode: GalleryMode = .browsing
@@ -35,6 +37,12 @@ struct GalleryPage: View {
     @State private var confettiTrigger = 0
 
     private var isChoosingProfile: Bool { mode == .choosingProfile }
+
+    /// 저장소에 남은 숫자를 뜻이 있는 값으로 풀어 준다.
+    /// 모르는 값이 들어 있으면 처음 열었을 때의 순서로 돌아간다.
+    private var currentSortOrder: GallerySortOrder {
+        GallerySortOrder(rawValue: sortOrder) ?? .newestFirst
+    }
 
     /// 프로필로 쓸 그림을 고르는 흐름 안에 있는지.
     ///
@@ -61,8 +69,11 @@ struct GalleryPage: View {
     private static let contentInset: CGFloat = 20
     /// 프로필 원이 시작하는 높이.
     private static let headerTopInset: CGFloat = 140
-    /// 화면 제목이 놓이는 높이. Figma 의 y=70.
+    /// 화면 제목이 놓이는 높이. Figma 의 y=70. 오른쪽 위 버튼들도 같은 줄에 선다.
     private static let titleTopInset: CGFloat = 70
+    /// 오른쪽 위 버튼 둘 사이.
+    /// Figma 는 정렬(`Frame 40`, 276~320)과 공유받기(`Frame 25`, 338~382)를 18 띄운다.
+    private static let topButtonSpacing: CGFloat = 18
     /// 프로필 확인창이 놓이는 높이. Figma `iPhone 17 - 16` 의 `Alert` y=390.
     private static let confirmPopupTop: CGFloat = 390
 
@@ -115,14 +126,17 @@ struct GalleryPage: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .allowsHitTesting(false)
 
-                // 공유받기 버튼. 제목과 같은 높이(y=70)의 오른쪽 끝에 뜬다.
+                // 정렬·공유받기. 제목과 같은 높이(y=70)의 오른쪽 끝에 나란히 뜬다.
                 //
                 // 화면을 덮는 것이 떠 있으면 제목과 함께 물러난다.
                 if !isOverlayShowing {
-                    receiveButton
-                        .padding(.top, Self.titleTopInset)
-                        .padding(.trailing, Self.contentInset)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    HStack(spacing: Self.topButtonSpacing) {
+                        sortMenu
+                        receiveButton
+                    }
+                    .padding(.top, Self.titleTopInset)
+                    .padding(.trailing, Self.contentInset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
 
                 // 프로필 원과 이름. 고르는 중에도 밝게 남지만 누를 수는 없다.
@@ -148,6 +162,7 @@ struct GalleryPage: View {
                     PostGridView(
                         mode: mode,
                         segmentedBar: $segmentedBar,
+                        sortOrder: currentSortOrder,
                         selectedPost: $selectedPost,
                         profileCandidatePost: $profileCandidatePost,
                         postPendingDelete: $postPendingDelete,
@@ -283,20 +298,54 @@ struct GalleryPage: View {
         }
     }
 
-    // MARK: - 공유받기
+    // MARK: - 오른쪽 위 버튼
 
-    /// 그림을 받으러 가는 버튼. Figma `iPhone 17 - 12/13` 의 `Frame 25`(92:612):
-    /// (338, 70) 에 44x44, 흰색 80% 원.
+    /// 카드를 늘어놓는 순서를 고르는 메뉴.
+    /// Figma `iPhone 17 - 13` 의 `Frame 40`(142:703) · `Frame 41`(142:706).
     ///
-    /// 프로필 설정과 삭제는 카드를 꾹 눌러서 하므로 메뉴가 필요 없어졌다.
-    /// 남은 건 공유받기 하나뿐이라 바로 여는 버튼으로 둔다.
+    /// 메뉴는 손으로 그리지 않고 시스템 `Menu` 에 맡긴다.
+    /// 리퀴드 글래스도, 고른 줄을 짚어 주는 회색 바탕도, 체크 표시도 시스템이 붙여 준다.
+    /// Figma 의 `Frame 41`(198x90 · 흰색 80% · 45 짜리 두 줄 · 선택줄 `#DEDEDE` 80%)이
+    /// 그리고 있는 것이 바로 그 시스템 메뉴다. 베껴 그리면 겉만 닮고 동작이 어긋난다.
+    private var sortMenu: some View {
+        Menu {
+            ForEach(GallerySortOrder.allCases, id: \.rawValue) { order in
+                Button {
+                    sortOrder = order.rawValue
+                } label: {
+                    // 지금 보고 있는 순서에만 체크가 붙는다. Figma `Frame 41` 의 􀆅.
+                    if order.rawValue == sortOrder {
+                        Label(order.title, systemImage: "checkmark")
+                    } else {
+                        Text(order.title)
+                    }
+                }
+            }
+        } label: {
+            // Figma 글리프 상자가 26x24. 공유받기와 같은 20 으로 둔다.
+            Image(systemName: "list.bullet")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(Color.doodlePrimary)
+                .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
+                // Figma: 흰색 80% · 그림자 0 4 15 검정 5%. SwiftUI 반경은 blur 의 절반.
+                .background(.white.opacity(0.8), in: Circle())
+                .shadow(color: .black.opacity(0.05), radius: 7.5, y: 4)
+        }
+        .accessibilityLabel("정렬 방법")
+    }
+
+    /// 그림을 받으러 가는 버튼. Figma `iPhone 17 - 13` 의 `Frame 25`(92:612):
+    /// (338, 70) 에 44x44, `#424242` 90% 원에 `#F2F2F2` 아이콘.
+    ///
+    /// 디자인이 흰 원에서 먹색 원으로 뒤집었다.
+    /// 옆에 흰 원(정렬)이 하나 더 서면서, 둘 다 흰색이면 무엇이 주된 동작인지 알 수 없어졌다.
+    ///
+    /// 프로필 설정과 삭제는 카드를 꾹 눌러서 하므로 이 버튼에 메뉴를 달지 않는다.
+    /// 누르면 곧장 공유 화면이 열린다.
     ///
     /// 툴바에 두지 않는다. iOS 26 툴바는 항목마다 유리 배경을 깔아 주는데,
-    /// 디자인이 정한 것은 흰 원이라 두 겹이 겹쳤다.
+    /// 디자인이 정한 것은 색이 찬 원이라 두 겹이 겹쳤다.
     /// 제목이 그랬듯 ZStack 이 직접 자리를 잡으면 Figma 좌표가 그대로 맞는다.
-    ///
-    /// 뒤로·닫기(`Frame 6`)와 같은 44 원이지만 바탕이 다르다.
-    /// 저쪽은 그림 위에 얹혀 불투명해야 하고, 이쪽은 화면 바탕 위라 살짝 비친다.
     private var receiveButton: some View {
         Button {
             showSharingScreen = true
@@ -304,10 +353,10 @@ struct GalleryPage: View {
             // Figma 글리프 상자가 24. `Frame 6` 이 21 짜리를 18 로 쓰므로 같은 비율로 20.
             Image(systemName: "airplay.audio")
                 .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(Color.doodlePrimary)
+                .foregroundStyle(Color.doodleOnDarkButton)
                 .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
-                // Figma: 흰색 80% · 그림자 0 4 15 검정 5%. SwiftUI 반경은 blur 의 절반.
-                .background(.white.opacity(0.8), in: Circle())
+                // Figma: `#424242` 90% · 그림자 0 4 15 검정 5%. SwiftUI 반경은 blur 의 절반.
+                .background(Color.doodlePrimary.opacity(0.9), in: Circle())
                 .shadow(color: .black.opacity(0.05), radius: 7.5, y: 4)
         }
         .buttonStyle(.plain)
