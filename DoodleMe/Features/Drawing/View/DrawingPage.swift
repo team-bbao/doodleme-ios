@@ -12,6 +12,9 @@ struct DrawingPage: View {
 
     @State private var session = DrawingSession()
 
+    /// 저장을 마치면 갤러리가 열어야 할 섹션. 갤러리와 저장소를 통해 주고받는다.
+    @AppStorage(GallerySection.storageKey) private var gallerySection = GallerySection.receivedFromOthers.rawValue
+
     @State private var inputText = ""
     @State private var recipientName = ""
     @State private var shakeAmount: CGFloat = 0
@@ -73,7 +76,9 @@ struct DrawingPage: View {
     @ViewBuilder
     private var countdown: some View {
         if session.phase != .memo {
-            VStack(spacing: 4) {
+            // 숫자와 게이지가 붙어 있으면 한 덩어리로 뭉쳐 보인다.
+            // 사이를 벌려야 남은 초를 읽는 눈과 줄어드는 막대를 보는 눈이 서로 방해하지 않는다.
+            VStack(spacing: 16) {
                 Text("\(Int(session.remaining))")
                     .font(.system(size: 25, weight: .semibold))
                     .contentTransition(.numericText(countsDown: true))
@@ -208,13 +213,16 @@ struct DrawingPage: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        if session.phase != .memo {
+        // 아직 포스트잇을 떼지도 않았으면 되돌릴 것이 없다.
+        // 예전에는 흐린 채로 자리를 지켰는데, 누를 수 없는 버튼은 없는 것만 못하다.
+        if session.phase == .drawing {
             ToolbarItem(placement: .topBarLeading) {
                 Button("초기화") {
-                    session.restartTimer()
+                    // 시간만 되돌리면 그려둔 획이 그대로 남아 다음 판에 얹힌다.
+                    // 처음부터 다시 그리자는 뜻이므로 그림도 함께 비운다.
+                    session.reset()
                     peelPhase = 0
                 }
-                .disabled(session.phase != .drawing)
             }
         }
 
@@ -273,6 +281,10 @@ struct DrawingPage: View {
         newPost.recipientName = recipientName
         modelContext.insert(newPost)
         resetAll()
+
+        // 방금 저장한 그림이 놓인 자리를 열어 준다.
+        // 갤러리로 보내 놓고 다른 섹션을 보여주면 그림이 사라진 것처럼 보인다.
+        gallerySection = GallerySection.drawnByMe.rawValue
         selectedTabIndex = 0
     }
 
@@ -297,8 +309,8 @@ struct DrawingPage: View {
 /// 두께를 정할 수 있는 막대 게이지.
 ///
 /// 기본 `ProgressView` 는 두께를 못 정한다.
-/// 예전에는 `scaleEffect` 로 늘렸는데, 늘릴수록 양 끝의 둥근 모양까지 눌려 찌그러진다.
-/// 직접 그리면 어떤 두께에서도 끝이 반듯하게 둥글다.
+/// `scaleEffect` 로 늘리면 양 끝의 둥근 모양까지 눌려 찌그러지므로 직접 그린다.
+/// 그러면 어떤 두께에서도 끝이 반듯하게 둥글다.
 ///
 /// `ProgressView` 를 그대로 두고 스타일만 바꾸므로 접근성 값은 계속 읽힌다.
 private struct ThickBarProgressStyle: ProgressViewStyle {

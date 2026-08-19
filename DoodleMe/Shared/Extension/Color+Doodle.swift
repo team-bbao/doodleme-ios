@@ -14,19 +14,13 @@ extension Color {
     /// 세부정보. Figma `#828282`
     static let doodleDetail = Color(red: 0x82 / 255, green: 0x82 / 255, blue: 0x82 / 255)
 
-    /// 세그먼트 트랙 바탕. Figma `#F0F0F0`
-    static let doodleSegmentTrack = Color(red: 0xF0 / 255, green: 0xF0 / 255, blue: 0xF0 / 255)
-    /// 선택된 세그먼트 라벨. Figma `#212121`
-    static let doodleSegmentSelected = Color(red: 0x21 / 255, green: 0x21 / 255, blue: 0x21 / 255)
-    /// 선택되지 않은 세그먼트 라벨. Figma `#6A6A6A`
-    static let doodleSegmentUnselected = Color(red: 0x6A / 255, green: 0x6A / 255, blue: 0x6A / 255)
+    /// 제목 아래 붙는 보조 설명. Figma `#6A6A6A` (`iPhone 17 - 9` 의 안내 문구)
+    static let doodleSubtext = Color(red: 0x6A / 255, green: 0x6A / 255, blue: 0x6A / 255)
 
     /// 보조 문구("님에게" 등). Figma `#6F6F6F`
     static let doodleSecondary = Color(red: 0x6F / 255, green: 0x6F / 255, blue: 0x6F / 255)
     /// 아바타 원 테두리. Figma `#E1E1E1`
     static let doodleHairline = Color(red: 0xE1 / 255, green: 0xE1 / 255, blue: 0xE1 / 255)
-    /// 눌러서 다시 시도하는 글자 색. Figma `iPhone 17 - 9` 의 "다시 찾기" 에서 뽑았다.
-    static let doodleAction = Color(red: 0x2E / 255, green: 0x73 / 255, blue: 0xF4 / 255)
     /// 접혀 올라온 뒷면 색. 본체보다 한 톤 어둡다. 역시 에셋에서 뽑았다.
     static let doodleFoldFlap = Color(red: 0xEF / 255, green: 0xEF / 255, blue: 0xEF / 255)
     /// 메모지 본체 색. memoFront 에셋에서 직접 뽑은 값이라 카드 앞뒤가 정확히 같아진다.

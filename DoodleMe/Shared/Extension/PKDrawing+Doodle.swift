@@ -13,6 +13,18 @@ nonisolated extension PKDrawing {
         self = (try? PKDrawing(data: doodleData)) ?? PKDrawing()
     }
 
+    /// 획을 등간격(2pt) 점열로 푼다. 되살아나는 애니메이션이 이 형태를 받는다.
+    ///
+    /// 원본 점은 손이 빠른 구간에서 듬성듬성해서, 그대로 쓰면 그리는 속도가 들쭉날쭉하다.
+    /// 간격을 고르게 맞춰야 일정한 속도로 되살아난다.
+    var pointStrokes: [[CGPoint]] {
+        strokes.map { stroke in
+            stroke.path
+                .interpolatedPoints(by: .distance(2))
+                .map { $0.location.applying(stroke.transform) }
+        }
+    }
+
     /// 기준 캔버스(`DoodleMetrics.canvasSize`) 전체를 이미지로 굽는다.
     ///
     /// 그림이 실제로 차지하는 영역(`bounds`)이 아니라 캔버스 전체를 렌더링해야
