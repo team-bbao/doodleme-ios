@@ -314,10 +314,7 @@ extension PostDetailView {
     /// 예전에는 `UIImageWriteToSavedPhotosAlbum` 의 결과 콜백을 모두 `nil` 로 버려서,
     /// 권한이 거부돼도 "저장 완료" 알럿이 떴다. 이제 권한과 저장 결과를 실제로 확인한다.
     private func saveDrawingToGallery() async {
-        let renderer = ImageRenderer(content: drawingSnapshot)
-        renderer.scale = 3
-
-        guard let image = renderer.uiImage, let data = image.pngData() else {
+        guard let data = snapshotData() else {
             present("이미지를 만들지 못했어요.")
             return
         }
@@ -329,23 +326,52 @@ extension PostDetailView {
         }
 
         do {
-            try await PHPhotoLibrary.shared().performChanges {
-                PHAssetCreationRequest.forAsset().addResource(with: .photo, data: data, options: nil)
-            }
+            try await Self.write(data)
             present("그림이 사진 앱에 저장됐어요.")
         } catch {
             present("저장에 실패했어요: \(error.localizedDescription)")
         }
     }
 
-    /// 저장용 이미지. 화면에 보이는 카드가 아니라 흰 배경 위의 그림만 담는다.
+    /// 사진 앱에 실제로 쓰는 부분.
     ///
-    /// 높이에 너비를 넣어 두어 저장된 사진이 정사각형이 되고, 그림이 그만큼 작게 담겼다.
+    /// 화면 밖으로 꺼내 격리를 끊어야 한다.
+    /// `View` 안에 두면 메인 액터에 묶이고 넘기는 클로저도 함께 묶이는데,
+    /// `performChanges` 는 PhotoKit 이 **자기 큐**에서 그 클로저를 부른다.
+    /// 그러면 Swift 6 이 "여기는 메인이 아니다" 하고 앱을 끊는다 —
+    /// 저장 버튼을 누를 때마다 `EXC_BREAKPOINT` 로 튕기던 것이 이것이었다.
+    nonisolated private static func write(_ data: Data) async throws {
+        try await PHPhotoLibrary.shared().performChanges {
+            PHAssetCreationRequest.forAsset().addResource(with: .photo, data: data, options: nil)
+        }
+    }
+
+    /// 사진 앱에 남길 이미지. 흰 바탕(`#FFFFFF`)에 획만 담는다.
+    ///
+    /// 화면의 메모지에는 그늘과 접힌 모서리가 있지만 사진에는 넣지 않는다.
+    /// 사진첩에 남는 건 그림이지 종이가 아니다.
+    ///
+    /// SwiftUI `ImageRenderer` 로 `DoodleImageView` 를 굽지 않는다.
+    /// 그 뷰는 `.task` 로 그림을 늦게 채우는데, 화면에 붙지 않은 뷰에서는 그 `task` 가 돌지 않는다.
+    /// 그대로 구우면 획 없는 흰 종이만 저장된다.
+    /// 캐시가 이미 구워 둔 그림이 있으니 흰 바탕에 얹기만 하면 된다.
+    ///
     /// 캔버스 비율을 그대로 써야 그린 대로 저장된다.
-    private var drawingSnapshot: some View {
-        DoodleImageView(drawingData: post.drawingData)
-            .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
-            .background(.white)
+    private func snapshotData() -> Data? {
+        let drawing = DoodleImageCache.image(for: post.drawingData)
+        let canvas = CGRect(origin: .zero, size: DoodleMetrics.canvasSize)
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 3
+        // 사진에 투명한 자리를 남기지 않는다. 흰 바탕이 전부 채운다.
+        format.opaque = true
+
+        let image = UIGraphicsImageRenderer(size: canvas.size, format: format).image { context in
+            UIColor.white.setFill()
+            context.fill(canvas)
+            drawing.draw(in: canvas)
+        }
+        return image.pngData()
     }
 
     private func present(_ message: String) {
