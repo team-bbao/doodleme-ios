@@ -341,12 +341,18 @@ struct DrawingPage: View {
         let newPost = Post(drawingData: session.drawingData, text: inputText, isMine: true)
         newPost.recipientName = recipientName
         modelContext.insert(newPost)
-        resetAll()
 
         // 방금 저장한 그림이 놓인 자리를 열어 준다.
         // 갤러리로 보내 놓고 다른 섹션을 보여주면 그림이 사라진 것처럼 보인다.
         gallerySection = GallerySection.drawnByMe.rawValue
-        selectedTabIndex = 0
+
+        // 그리기 화면을 비우는 건 갤러리로 건너간 뒤에 한다.
+        // 먼저 비우면 넘어가는 동안 빈 그리기 화면이 한 번 스쳐 지나간다.
+        withAnimation {
+            selectedTabIndex = 0
+        } completion: {
+            resetAll()
+        }
     }
 
     private func resetAll() {

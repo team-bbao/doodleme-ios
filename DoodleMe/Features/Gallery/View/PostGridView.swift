@@ -74,19 +74,33 @@ struct PostGridView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { onEmptyAreaTap?() }
         } else {
-            ScrollView {
-                LazyVGrid(columns: columns, spacing: 20) {
-                    ForEach(currentPosts) { post in
-                        card(for: post)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 20) {
+                        ForEach(currentPosts) { post in
+                            card(for: post)
+                        }
                     }
+                    // 마지막 줄 아래에도 누를 수 있는 여백을 남긴다.
+                    .padding(.bottom, 40)
+                    .frame(maxWidth: .infinity, minHeight: 0, alignment: .top)
                 }
-                // 마지막 줄 아래에도 누를 수 있는 여백을 남긴다.
-                .padding(.bottom, 40)
-                .frame(maxWidth: .infinity, minHeight: 0, alignment: .top)
+                // 카드보다 바깥쪽 제스처라, 카드 탭은 카드가 먼저 가져간다.
+                .contentShape(Rectangle())
+                .onTapGesture { onEmptyAreaTap?() }
+                // 새로 들어온 그림은 최신순이라 맨 앞에 놓인다.
+                // 목록이 아래로 내려가 있으면 그 자리가 화면 밖이라 방금 저장한 게
+                // 어디 갔는지 알 수 없다. 맨 앞으로 데려다 놓는다.
+                .onChange(of: currentPosts.first?.id) { _, newest in
+                    guard let newest else { return }
+                    withAnimation { proxy.scrollTo(newest, anchor: .top) }
+                }
+                // 섹션을 옮길 때도 그 섹션의 맨 앞에서 시작한다.
+                .onChange(of: segmentedBar) { _, _ in
+                    guard let newest = currentPosts.first?.id else { return }
+                    proxy.scrollTo(newest, anchor: .top)
+                }
             }
-            // 카드보다 바깥쪽 제스처라, 카드 탭은 카드가 먼저 가져간다.
-            .contentShape(Rectangle())
-            .onTapGesture { onEmptyAreaTap?() }
         }
     }
 
