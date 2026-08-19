@@ -115,6 +115,16 @@ struct GalleryPage: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .allowsHitTesting(false)
 
+                // 공유받기 버튼. 제목과 같은 높이(y=70)의 오른쪽 끝에 뜬다.
+                //
+                // 화면을 덮는 것이 떠 있으면 제목과 함께 물러난다.
+                if !isOverlayShowing {
+                    receiveButton
+                        .padding(.top, Self.titleTopInset)
+                        .padding(.trailing, Self.contentInset)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                }
+
                 // 프로필 원과 이름. 고르는 중에도 밝게 남지만 누를 수는 없다.
                 // 지금 고르는 대상은 카드이고, 프로필은 그 결과가 놓일 자리일 뿐이다.
                 profileBlock
@@ -188,8 +198,6 @@ struct GalleryPage: View {
                     }
                 }
             }
-            .toolbar { toolbarContent }
-            .toolbarVisibility(isOverlayShowing ? .hidden : .visible, for: .navigationBar)
             // 삭제 중에는 탭바 자리를 선택 바가 대신 쓴다.
             .toolbarVisibility(isOverlayShowing ? .hidden : .visible, for: .tabBar)
             .ignoresSafeArea()
@@ -275,29 +283,36 @@ struct GalleryPage: View {
         }
     }
 
-    // MARK: - 툴바
+    // MARK: - 공유받기
 
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            switch mode {
-            case .browsing:
-                // 프로필 설정과 삭제는 카드를 꾹 눌러서 하므로 메뉴가 필요 없어졌다.
-                // 남은 건 공유받기 하나뿐이라 바로 여는 버튼으로 둔다.
-                Button {
-                    showSharingScreen = true
-                } label: {
-                    Image(systemName: "airplay.audio")
-                }
-                .accessibilityLabel("그림 공유받기")
-
-            // 프로필 고르기는 카드를 누르면 바로 확인 팝업이 떠서 툴바 버튼이 필요 없다.
-            case .choosingProfile:
-                EmptyView()
-            }
+    /// 그림을 받으러 가는 버튼. Figma `iPhone 17 - 12/13` 의 `Frame 25`(92:612):
+    /// (338, 70) 에 44x44, 흰색 80% 원.
+    ///
+    /// 프로필 설정과 삭제는 카드를 꾹 눌러서 하므로 메뉴가 필요 없어졌다.
+    /// 남은 건 공유받기 하나뿐이라 바로 여는 버튼으로 둔다.
+    ///
+    /// 툴바에 두지 않는다. iOS 26 툴바는 항목마다 유리 배경을 깔아 주는데,
+    /// 디자인이 정한 것은 흰 원이라 두 겹이 겹쳤다.
+    /// 제목이 그랬듯 ZStack 이 직접 자리를 잡으면 Figma 좌표가 그대로 맞는다.
+    ///
+    /// 뒤로·닫기(`Frame 6`)와 같은 44 원이지만 바탕이 다르다.
+    /// 저쪽은 그림 위에 얹혀 불투명해야 하고, 이쪽은 화면 바탕 위라 살짝 비친다.
+    private var receiveButton: some View {
+        Button {
+            showSharingScreen = true
+        } label: {
+            // Figma 글리프 상자가 24. `Frame 6` 이 21 짜리를 18 로 쓰므로 같은 비율로 20.
+            Image(systemName: "airplay.audio")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(Color.doodlePrimary)
+                .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
+                // Figma: 흰색 80% · 그림자 0 4 15 검정 5%. SwiftUI 반경은 blur 의 절반.
+                .background(.white.opacity(0.8), in: Circle())
+                .shadow(color: .black.opacity(0.05), radius: 7.5, y: 4)
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("그림 공유받기")
     }
-
 
     // MARK: - 동작
 
