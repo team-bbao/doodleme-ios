@@ -9,9 +9,6 @@ import SwiftData
 import SwiftUI
 
 struct GalleryPage: View {
-    /// 탭바를 보여줄지. 그림을 펼쳐 보는 동안에는 자리를 비켜준다.
-    @Binding var showsTabBar: Bool
-
 
     @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
 
@@ -140,10 +137,8 @@ struct GalleryPage: View {
             }
             .toolbar { toolbarContent }
             .toolbarVisibility(isOverlayShowing ? .hidden : .visible, for: .navigationBar)
-            // 기본 탭바는 접고 직접 그린 탭바를 쓴다.
-            .toolbarVisibility(.hidden, for: .tabBar)
-            // 그림을 펼쳐 보는 동안에는 탭바가 자리를 비켜준다.
-            .onChange(of: isOverlayShowing, initial: true) { showsTabBar = !isOverlayShowing }
+            // 삭제 중에는 탭바 자리를 선택 바가 대신 쓴다.
+            .toolbarVisibility(isOverlayShowing ? .hidden : .visible, for: .tabBar)
             .ignoresSafeArea()
             // 보낼 그림 없이 열면 받기 전용으로 동작한다.
             .fullScreenCover(isPresented: $showSharingScreen) {
@@ -300,6 +295,6 @@ struct GalleryPage: View {
 }
 
 #Preview {
-    GalleryPage(showsTabBar: .constant(true))
+    GalleryPage()
         .modelContainer(LocalDataStore.makePreviewContainer())
 }
