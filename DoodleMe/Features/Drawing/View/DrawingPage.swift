@@ -150,7 +150,9 @@ struct DrawingPage: View {
                 // ProgressView 는 표시 전용이라 그런 조작이 불가능하다.
                 ProgressView(value: session.remaining, total: DrawingSession.duration)
                     .progressViewStyle(ThickBarProgressStyle(height: 15))
-                    .padding(.horizontal, 20)
+                    // 게이지 양 끝을 아래 캔버스의 좌우 끝과 맞춘다.
+                    // 여백을 따로 주면 캔버스 크기가 바뀔 때마다 어긋나므로 같은 값을 쓴다.
+                    .frame(width: DoodleMetrics.canvasSize.width)
                     .padding(.top, 20)
                     .padding(.bottom, 40)
                     .accessibilityLabel("남은 시간")
