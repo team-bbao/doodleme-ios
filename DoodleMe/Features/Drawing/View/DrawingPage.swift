@@ -9,6 +9,8 @@ import SwiftUI
 struct DrawingPage: View {
 
     @Binding var selectedTabIndex: Int
+    /// 탭바를 보여줄지. 그리는 동안에는 자리를 비켜준다.
+    @Binding var showsTabBar: Bool
 
     @State private var session = DrawingSession()
 
@@ -111,7 +113,10 @@ struct DrawingPage: View {
             }
             .ignoresSafeArea(.container, edges: .bottom)
             .onTapGesture { focusedField = nil }
-            .toolbarVisibility(session.phase == .notStarted ? .visible : .hidden, for: .tabBar)
+            // 기본 탭바는 접고 직접 그린 탭바를 쓴다.
+            .toolbarVisibility(.hidden, for: .tabBar)
+            // 직접 그린 탭바에게 지금 비켜달라고 알린다.
+            .onChange(of: session.phase, initial: true) { showsTabBar = session.phase == .notStarted }
             .toolbar { toolbarContent }
             // 그리기 단계이고 화면이 앞에 있을 때만 돈다.
             // 조건이 어긋나면 Task 가 취소되어 남은 시간이 그 자리에 멈춘다.
@@ -387,6 +392,6 @@ private struct ThickBarProgressStyle: ProgressViewStyle {
 }
 
 #Preview {
-    DrawingPage(selectedTabIndex: .constant(0))
+    DrawingPage(selectedTabIndex: .constant(0), showsTabBar: .constant(true))
         .modelContainer(LocalDataStore.makePreviewContainer())
 }
