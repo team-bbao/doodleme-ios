@@ -13,9 +13,10 @@ import SwiftUI
 /// 시스템 alert 는 자리도 재질도 정할 수 없다.
 struct DoodleConfirmPopup: View {
 
-    /// 본문 위에 굵게 얹히는 한 줄. 없으면 본문만 뜬다.
-    var title: String?
-    let message: String
+    /// 창이 하려는 말. 시스템 alert 의 제목 자리에 해당한다.
+    let title: String
+    /// 제목을 거드는 한 줄. 없으면 제목만 뜬다.
+    var message: String?
     /// 물러나는 쪽 버튼. 없으면 진행 버튼 하나가 폭을 다 쓴다.
     /// 묻는 창이 아니라 알리기만 하는 창이 그 꼴이다.
     var cancelTitle: String?
@@ -33,23 +34,30 @@ struct DoodleConfirmPopup: View {
     private static let contentSpacing: CGFloat = 40
     /// 제목과 본문 사이.
     private static let titleSpacing: CGFloat = 6
+    /// 글자 크기는 시스템 alert 과 맞춘다.
+    ///
+    /// 같은 화면에서 이 창과 시스템 alert(그림 삭제)이 번갈아 뜨는데,
+    /// 크기가 다르면 같은 무게의 물음인데도 한쪽이 더 급해 보인다.
+    /// 재 보니 시스템은 제목 17 / 본문 13 이었다.
+    private static let titleFontSize: CGFloat = 17
+    private static let messageFontSize: CGFloat = 13
 
     var body: some View {
         VStack(spacing: Self.contentSpacing) {
             VStack(spacing: Self.titleSpacing) {
-                if let title {
-                    Text(title)
-                        .font(.system(size: 17, weight: .semibold))
-                        .kerning(-0.43)
-                        .foregroundStyle(.black)
-                }
-
-                Text(message)
-                    // Figma: SF Pro Regular 17 / 자간 -0.43 / 행높이 22
-                    .font(.system(size: 17))
+                Text(title)
+                    // Figma: 자간 -0.43 / 행높이 22
+                    .font(.system(size: Self.titleFontSize, weight: .semibold))
                     .kerning(-0.43)
                     .lineSpacing(2)
                     .foregroundStyle(.black)
+
+                if let message {
+                    Text(message)
+                        .font(.system(size: Self.messageFontSize))
+                        .kerning(-0.43)
+                        .foregroundStyle(.black)
+                }
             }
             .multilineTextAlignment(.center)
 
@@ -100,7 +108,7 @@ struct DoodleConfirmPopup: View {
         Color.doodleBackground.ignoresSafeArea()
         VStack(spacing: 24) {
             DoodleConfirmPopup(
-                message: "프로필 사진으로 설정하시겠습니까?",
+                title: "프로필 사진으로 설정하시겠습니까?",
                 cancelTitle: "아니오",
                 confirmTitle: "예",
                 onCancel: { },

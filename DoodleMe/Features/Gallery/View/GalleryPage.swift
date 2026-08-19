@@ -188,7 +188,7 @@ struct GalleryPage: View {
                 // 한가운데로 보내면 방금 고른 카드를 덮어, 무엇을 고른 건지 보이지 않는다.
                 if profileCandidatePost != nil {
                     DoodleConfirmPopup(
-                        message: "프로필 사진으로 설정하시겠습니까?",
+                        title: "프로필 사진으로 설정하시겠습니까?",
                         cancelTitle: "아니오",
                         confirmTitle: "예",
                         onCancel: {
