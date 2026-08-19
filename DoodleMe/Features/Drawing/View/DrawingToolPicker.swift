@@ -16,9 +16,12 @@ struct DrawingToolPicker: View {
     static let buttonSide: CGFloat = 44
 
     var body: some View {
-        // 방금 한 일을 무르는 버튼을 앞에, 무엇으로 그릴지를 뒤에 둔다.
-        // 되돌리기와 다시하기는 짝이므로 갈라놓지 않고 나란히 붙인다.
+        // 무엇으로 그릴지를 앞에, 방금 한 일을 무르는 버튼을 뒤에 둔다.
+        // 연필과 지우개, 되돌리기와 다시하기는 각각 짝이므로 갈라놓지 않는다.
         HStack(spacing: 12) {
+            toolButton(icon: "pencil.tip", tool: .pen, label: "연필")
+            toolButton(icon: "eraser.fill", tool: .eraser, label: "지우개")
+
             historyButton(
                 icon: "arrow.uturn.backward",
                 label: "실행 취소",
@@ -34,9 +37,6 @@ struct DrawingToolPicker: View {
             ) {
                 session.redo()
             }
-
-            toolButton(icon: "pencil.tip", tool: .pen, label: "연필")
-            toolButton(icon: "eraser.fill", tool: .eraser, label: "지우개")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
