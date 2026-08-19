@@ -346,11 +346,15 @@ struct DrawingPage: View {
         // 갤러리로 보내 놓고 다른 섹션을 보여주면 그림이 사라진 것처럼 보인다.
         gallerySection = GallerySection.drawnByMe.rawValue
 
-        // 그리기 화면을 비우는 건 갤러리로 건너간 뒤에 한다.
-        // 먼저 비우면 넘어가는 동안 빈 그리기 화면이 한 번 스쳐 지나간다.
-        withAnimation {
-            selectedTabIndex = 0
-        } completion: {
+        selectedTabIndex = 0
+
+        // 그리기 화면을 비우는 건 갤러리로 완전히 건너간 뒤에 한다.
+        // 먼저 비우면 넘어가는 동안 처음으로 돌아간 화면이 한 번 스쳐 지나간다.
+        //
+        // `withAnimation` 의 완료 콜백을 써 봤지만, 탭 전환은 그 애니메이션을
+        // 타지 않아 콜백이 곧바로 불려 소용이 없었다. 전환이 끝날 시간을 직접 준다.
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
             resetAll()
         }
     }
