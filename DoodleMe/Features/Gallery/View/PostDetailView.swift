@@ -195,9 +195,15 @@ struct PostDetailView: View {
         ZStack {
             // 본문은 카드 정가운데. 위아래 요소에 밀리지 않도록 따로 겹쳐 놓는다.
             Text(post.text.isEmpty ? "(텍스트 없음)" : post.text)
-                .font(.system(size: 30, weight: .medium))
-                // Figma 행간 44. 30pt 본문의 기본 행높이에 약 8 을 더하면 비슷해진다.
-                .lineSpacing(8)
+                // Figma `iPhone 17 - 14` 의 `Frame 35`(92:828):
+                // `RF대충쓴준우체v3` 30 / `#424242`.
+                //
+                // 행높이만 Figma 와 다르다. 디자인은 44 인데 화면에서는 73 이 된다.
+                // 이 손글씨체가 30pt 에서 갖는 기본 행높이가 그만큼이고(세로 여백이 넉넉하다),
+                // `lineSpacing` 은 거기에 더하기만 할 뿐 줄이지 못한다.
+                // 문단 스타일의 `maximumLineHeight` 도 SwiftUI `Text` 는 무시한다 — 재 보고 확인했다.
+                // 44 로 못박으려면 `UILabel` 을 감싸야 해서, 그때까지는 글꼴 기본값으로 둔다.
+                .font(.doodleHandwriting(size: 30))
                 .foregroundStyle(Color.doodlePrimary)
                 .multilineTextAlignment(.center)
                 .frame(width: 253)
