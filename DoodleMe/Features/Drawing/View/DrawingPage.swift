@@ -243,7 +243,7 @@ struct DrawingPage: View {
 
                 Spacer(minLength: 0)
             }
-            .padding(.top, 35)
+            .padding(.top, 30)
             .padding(.horizontal, 30)
             .frame(maxWidth: .infinity)
             .frame(height: 80)
