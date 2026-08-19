@@ -19,5 +19,12 @@ extension ModelContext {
             existing.isProfile = false
         }
         post?.isProfile = true
+
+        // 바꾼 자리에서 바로 디스크에 남긴다.
+        //
+        // 자동 저장은 앱이 물러날 때를 기다린다.
+        // 그 전에 앱이 강제 종료되면 방금 고른 프로필이 없던 일이 되고,
+        // 다시 켰을 때 예전 그림이 돌아와 있다. 받은 그림을 즉시 저장하는 것과 같은 이유다.
+        try? save()
     }
 }
