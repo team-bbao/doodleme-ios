@@ -37,13 +37,25 @@ struct DrawingPage: View {
 
     private var canSave: Bool { !recipientName.isEmpty && !inputText.isEmpty }
 
+    /// 타이머를 화면 맨 위에서 얼마나 내려 붙일지.
+    ///
+    /// 안전영역을 무시하고 화면 꼭대기부터 재기 때문에 상태표시줄과 툴바를 스스로 비켜야 한다.
+    /// 안전영역을 따르면 단계마다 툴바가 생겼다 사라지면서 타이머가 위아래로 튄다.
+    /// 상태표시줄(최대 62) + 툴바(44) 를 지나는 값이다.
+    private static let countdownTopInset: CGFloat = 112
+
     var body: some View {
         NavigationStack {
             ZStack {
                 PaperBackground()
 
+                // 타이머는 화면 맨 위에서 잰 자리에 고정한다.
+                // 툴바가 단계에 따라 나타났다 사라지는데, 그때마다 안전영역이 달라져
+                // 타이머가 위아래로 튀었다. 안전영역을 직접 재서 붙이면 흔들리지 않는다.
                 countdown
-                    .offset(y: -320)
+                    .padding(.top, Self.countdownTopInset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .ignoresSafeArea()
 
                 VStack {
                     Spacer()
@@ -67,6 +79,19 @@ struct DrawingPage: View {
             .task(id: countdownRuns) {
                 guard countdownRuns else { return }
                 await session.runCountdown()
+            }
+            // Figma `iPhone 17 - 16` 의 확인창. 시스템 alert 를 쓴다.
+            // 파괴적 동작이 빨갛게, 취소가 제자리에 오는 배치는 시스템이 알아서 잡아준다.
+            .alert("처음부터 다시 그릴까요?", isPresented: $showResetAlert) {
+                Button("다시 그리기", role: .destructive) {
+                    // 시간만 되돌리면 그려둔 획이 그대로 남아 다음 판에 얹힌다.
+                    // 처음부터 다시 그리자는 뜻이므로 그림도 함께 비운다.
+                    session.reset()
+                    peelPhase = 0
+                }
+                Button("취소", role: .cancel) { }
+            } message: {
+                Text("지금까지 그린 그림이 지워져요.")
             }
         }
     }
@@ -217,12 +242,7 @@ struct DrawingPage: View {
         // 예전에는 흐린 채로 자리를 지켰는데, 누를 수 없는 버튼은 없는 것만 못하다.
         if session.phase == .drawing {
             ToolbarItem(placement: .topBarLeading) {
-                Button("초기화") {
-                    // 시간만 되돌리면 그려둔 획이 그대로 남아 다음 판에 얹힌다.
-                    // 처음부터 다시 그리자는 뜻이므로 그림도 함께 비운다.
-                    session.reset()
-                    peelPhase = 0
-                }
+                Button("초기화") { showResetAlert = true }
             }
         }
 
@@ -235,19 +255,14 @@ struct DrawingPage: View {
             }
         }
 
+        // 메모 단계에는 초기화를 두지 않는다.
+        // 여기까지 왔으면 저장하거나 그냥 두는 두 갈래뿐이고,
+        // 되돌아갈 길은 그리기 단계의 초기화가 맡는다.
         if session.phase == .memo {
-            ToolbarItem(placement: .topBarLeading) {
-                Button("초기화") {
-                    showResetAlert = true
-                }
-                .alert("정말 리셋하시겠습니까?", isPresented: $showResetAlert) {
-                    Button("예", role: .destructive) { resetAll() }
-                    Button("아니오", role: .cancel) { }
-                }
-            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("저장") { save() }
-                    .opacity(canSave ? 1.0 : 0.4)
+                    .buttonStyle(.glassProminent)
+                    .disabled(!canSave)
             }
         }
     }
