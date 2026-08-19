@@ -44,6 +44,10 @@ struct DrawingPage: View {
     /// 상태표시줄(최대 62) + 툴바(44) 를 지나는 값이다.
     private static let countdownTopInset: CGFloat = 112
 
+    /// 캔버스를 화면 정중앙에서 얼마나 올릴지.
+    /// 아래쪽 도구 막대와 탭바가 앉을 자리를 남기려고 위로 당겨 둔다.
+    private static let canvasCenterOffset: CGFloat = -40
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -66,8 +70,13 @@ struct DrawingPage: View {
                 }
                 .safeAreaPadding(.all)
 
+                // 캔버스도 화면 한가운데에 못박는다.
+                // 단계마다 툴바와 탭바가 생겼다 사라지면서 안전영역이 달라지는데,
+                // 그때마다 캔버스가 따라 움직여 초기화를 누르면 자리가 어긋났다.
                 memoCard
-                    .offset(x: shakeAmount, y: -40)
+                    .offset(x: shakeAmount, y: Self.canvasCenterOffset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .ignoresSafeArea()
             }
             .ignoresSafeArea(edges: .bottom)
             .onTapGesture { focusedField = nil }
@@ -240,7 +249,7 @@ struct DrawingPage: View {
     private var toolbarContent: some ToolbarContent {
         // 아직 포스트잇을 떼지도 않았으면 되돌릴 것이 없다.
         // 예전에는 흐린 채로 자리를 지켰는데, 누를 수 없는 버튼은 없는 것만 못하다.
-        if session.phase == .drawing {
+        if session.phase != .notStarted {
             ToolbarItem(placement: .topBarLeading) {
                 Button("초기화") { showResetAlert = true }
             }
@@ -255,9 +264,6 @@ struct DrawingPage: View {
             }
         }
 
-        // 메모 단계에는 초기화를 두지 않는다.
-        // 여기까지 왔으면 저장하거나 그냥 두는 두 갈래뿐이고,
-        // 되돌아갈 길은 그리기 단계의 초기화가 맡는다.
         if session.phase == .memo {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("저장") { save() }
