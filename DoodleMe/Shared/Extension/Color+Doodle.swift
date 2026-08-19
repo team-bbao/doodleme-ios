@@ -25,6 +25,8 @@ extension Color {
     static let doodleSecondary = Color(red: 0x6F / 255, green: 0x6F / 255, blue: 0x6F / 255)
     /// 아바타 원 테두리. Figma `#E1E1E1`
     static let doodleHairline = Color(red: 0xE1 / 255, green: 0xE1 / 255, blue: 0xE1 / 255)
+    /// 눌러서 다시 시도하는 글자 색. Figma `iPhone 17 - 9` 의 "다시 찾기" 에서 뽑았다.
+    static let doodleAction = Color(red: 0x2E / 255, green: 0x73 / 255, blue: 0xF4 / 255)
     /// 접혀 올라온 뒷면 색. 본체보다 한 톤 어둡다. 역시 에셋에서 뽑았다.
     static let doodleFoldFlap = Color(red: 0xEF / 255, green: 0xEF / 255, blue: 0xEF / 255)
     /// 메모지 본체 색. memoFront 에셋에서 직접 뽑은 값이라 카드 앞뒤가 정확히 같아진다.

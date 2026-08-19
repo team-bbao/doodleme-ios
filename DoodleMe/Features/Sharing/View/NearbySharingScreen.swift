@@ -61,7 +61,9 @@ struct NearbySharingScreen: View {
 
                 Spacer(minLength: 0)
 
-                if let session, !session.peers.isEmpty {
+                if session?.searchTimedOut == true {
+                    retryButton
+                } else if let session, !session.peers.isEmpty {
                     peerCard(session: session)
                 }
             }
@@ -145,17 +147,12 @@ struct NearbySharingScreen: View {
                 .multilineTextAlignment(.center)
 
             if count == 0 {
-                if timedOut {
-                    Button("다시 찾기") { session?.searchAgain() }
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Color.doodleOnPrimary)
-                        .padding(.horizontal, 22)
-                        .padding(.vertical, 10)
-                        .background(Self.primary, in: Capsule())
-                } else {
-                    Text("상대도 서칭중인지 확인하세요")
-                        .font(.system(size: 15, weight: .medium))
-                }
+                // Figma `iPhone 17 - 9` 의 안내. 폭 200 에서 두 줄로 나뉜다.
+                Text(timedOut
+                     ? "기기가 가까이 있는지 확인한 후 다시 시도해 주세요."
+                     : "상대도 서칭중인지 확인하세요")
+                    .font(.system(size: 15, weight: .medium))
+                    .frame(width: timedOut ? 200 : 220)
             }
 
             // 조용히 실패하면 무엇이 잘못됐는지 알 길이 없다.
@@ -168,6 +165,25 @@ struct NearbySharingScreen: View {
         .foregroundStyle(Self.primary)
         .multilineTextAlignment(.center)
         .frame(width: 220)
+    }
+
+    /// Figma `iPhone 17 - 9` 의 다시 찾기 버튼.
+    /// 210x70 흰 캡슐이 화면 아래에서 75 만큼 떠 있다.
+    private var retryButton: some View {
+        Button {
+            session?.searchAgain()
+        } label: {
+            Text("다시 찾기")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Color.doodleAction)
+                .frame(width: 210, height: 70)
+                .background(.white, in: Capsule())
+                .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
+        }
+        .buttonStyle(.plain)
+        // 안전영역 안쪽 기준. Figma 의 화면 아래 75 에서 홈 인디케이터 몫을 뺀 값이다.
+        .padding(.bottom, 41)
+        .transition(.opacity)
     }
 
     private func statusTitle(count: Int, timedOut: Bool) -> String {
