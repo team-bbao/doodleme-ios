@@ -21,6 +21,9 @@ struct PostDetailView: View {
     /// 확대된 카드 크기. Figma `iPhone 17 - 17` 의 `메모지 1`(141:698).
     /// 그리기 캔버스(350x390)와 별개다 — 캔버스를 건드리면 그리기 탭이 흔들린다.
     private static let cardSize = CGSize(width: 362, height: 396)
+    /// 한마디 글자 크기와 행높이. Figma `Frame 35`(92:828).
+    private static let messageFontSize: CGFloat = 30
+    private static let messageLineHeight: CGFloat = 44
     /// 알약 툴바 안쪽 좌우 여백과 버튼 사이 간격. Figma: 칩이 x=5 에서 시작해 60 폭.
     private static let toolbarInset: CGFloat = 5
     private static let toolbarButtonSpacing: CGFloat = 6
@@ -194,19 +197,18 @@ struct PostDetailView: View {
     private var backFaceContent: some View {
         ZStack {
             // 본문은 카드 정가운데. 위아래 요소에 밀리지 않도록 따로 겹쳐 놓는다.
-            Text(post.text.isEmpty ? "(텍스트 없음)" : post.text)
-                // Figma `iPhone 17 - 14` 의 `Frame 35`(92:828):
-                // `RF대충쓴준우체v3` 30 / `#424242`.
-                //
-                // 행높이만 Figma 와 다르다. 디자인은 44 인데 화면에서는 73 이 된다.
-                // 이 손글씨체가 30pt 에서 갖는 기본 행높이가 그만큼이고(세로 여백이 넉넉하다),
-                // `lineSpacing` 은 거기에 더하기만 할 뿐 줄이지 못한다.
-                // 문단 스타일의 `maximumLineHeight` 도 SwiftUI `Text` 는 무시한다 — 재 보고 확인했다.
-                // 44 로 못박으려면 `UILabel` 을 감싸야 해서, 그때까지는 글꼴 기본값으로 둔다.
-                .font(.doodleHandwriting(size: 30))
-                .foregroundStyle(Color.doodlePrimary)
-                .multilineTextAlignment(.center)
-                .frame(width: 253)
+            // Figma `iPhone 17 - 14` 의 `Frame 35`(92:828):
+            // `RF대충쓴준우체v3` 30 / `#424242` / 행높이 44 / 폭 253.
+            //
+            // 행높이 44 는 이 글꼴의 기본값(30pt 에서 73)보다 한참 낮아
+            // SwiftUI `Text` 로는 잡히지 않는다. 자세한 사정은 `FixedLineHeightText` 에 있다.
+            FixedLineHeightText(
+                text: post.text.isEmpty ? "(텍스트 없음)" : post.text,
+                font: .doodleHandwriting(size: Self.messageFontSize),
+                lineHeight: Self.messageLineHeight,
+                color: UIColor(Color.doodlePrimary)
+            )
+            .frame(width: 253)
 
             VStack(spacing: 0) {
             if !counterpartName.isEmpty {
