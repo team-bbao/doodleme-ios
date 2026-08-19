@@ -27,7 +27,6 @@ struct GalleryPage: View {
     @State private var profileCandidatePost: Post?
     @State private var showProfileEditPopup = false
     @State private var showDeleteConfirm = false
-    @State private var showSelectMenu = false
     @State private var showSharingScreen = false
     /// 카드를 꾹 눌러 "그림 공유하기" 를 고른 경우. 이 그림을 들고 멀티피어 화면을 연다.
     @State private var sharingPost: Post?
@@ -132,16 +131,6 @@ struct GalleryPage: View {
                     profileEditPopup
                 }
 
-                if showSelectMenu {
-                    // 바깥을 누르면 닫힌다. 그리드 위에 있어야 탭을 가로챌 수 있다.
-                    Color.clear
-                        .ignoresSafeArea()
-                        .contentShape(Rectangle())
-                        .onTapGesture { closeSelectMenu() }
-
-                    selectMenu
-                }
-
                 if mode == .deleting {
                     selectionBar
                 }
@@ -180,9 +169,7 @@ struct GalleryPage: View {
                             withAnimation(.spring()) { showProfileEditPopup = true }
                         }
                 } else {
-                    Image(.profileDefault)
-                        .resizable()
-                        .scaledToFit()
+                    DefaultDoodleImage()
                         // 원을 꽉 채우지 않고 지름의 80% 크기로 가운데 놓는다.
                         .frame(width: Self.profileDiameter * 0.8,
                                height: Self.profileDiameter * 0.8)
@@ -234,17 +221,14 @@ struct GalleryPage: View {
         ToolbarItem(placement: .topBarTrailing) {
             switch mode {
             case .browsing:
-                // 시스템 Menu 는 최소 너비가 정해져 있어 짧은 한글 라벨이면 오른쪽이 휑하다.
-                // 내용에 맞는 크기로 직접 그린다(selectMenu).
+                // 프로필 설정과 삭제는 카드를 꾹 눌러서 하므로 메뉴가 필요 없어졌다.
+                // 남은 건 공유받기 하나뿐이라 바로 여는 버튼으로 둔다.
                 Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showSelectMenu.toggle()
-                    }
+                    showSharingScreen = true
                 } label: {
-                    // Figma 17-1 은 글자 대신 ellipsis 아이콘을 쓴다.
-                    Image(systemName: "ellipsis")
+                    Image(systemName: "airplay.audio")
                 }
-                .accessibilityLabel("선택")
+                .accessibilityLabel("그림 공유받기")
 
             // 프로필 고르기는 팝업이, 삭제는 하단 선택 바가 대신한다.
             case .choosingProfile, .deleting:
@@ -253,66 +237,6 @@ struct GalleryPage: View {
         }
     }
 
-    // MARK: - 선택 메뉴
-
-    /// "선택" 버튼 아래에 붙는 드롭다운. 내용에 맞는 너비로 그린다.
-    private var selectMenu: some View {
-        VStack(spacing: 0) {
-            menuRow(title: "프로필 사진 설정", systemImage: "person.crop.circle") {
-                mode = .choosingProfile
-            }
-
-            Divider()
-                .padding(.horizontal, 12)
-
-            // Figma `Frame 9` 오른쪽 바의 공유 심볼.
-            menuRow(title: "그림 공유받기", systemImage: "airplay.audio") {
-                showSharingScreen = true
-            }
-
-            Divider()
-                .padding(.horizontal, 12)
-
-            menuRow(title: "삭제", systemImage: "trash", isDestructive: true) {
-                mode = .deleting
-            }
-        }
-        .frame(width: 190)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
-        .padding(.top, 108)
-        .padding(.trailing, 16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-        .transition(.scale(scale: 0.9, anchor: .topTrailing).combined(with: .opacity))
-    }
-
-    private func menuRow(
-        title: String,
-        systemImage: String,
-        isDestructive: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button {
-            withAnimation(.spring()) {
-                showSelectMenu = false
-                action()
-            }
-        } label: {
-            HStack(spacing: 10) {
-                // 심볼을 왼쪽에 둔다. 폭을 고정해야 세 줄의 글자 시작점이 맞는다.
-                Image(systemName: systemImage)
-                    .frame(width: 20)
-                Text(title)
-                Spacer(minLength: 0)
-            }
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(isDestructive ? Color.red : .primary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
 
     /// 카드를 꾹 눌러 고른 한 장을 지운다.
     ///
@@ -321,12 +245,6 @@ struct GalleryPage: View {
     private func requestDelete(_ post: Post) {
         selectedPostIDs = [post.persistentModelID]
         withAnimation(.spring()) { showDeleteConfirm = true }
-    }
-
-    private func closeSelectMenu() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            showSelectMenu = false
-        }
     }
 
     // MARK: - 삭제 선택 바

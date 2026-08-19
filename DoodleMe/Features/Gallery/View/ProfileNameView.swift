@@ -8,6 +8,9 @@ import SwiftUI
 struct ProfileNameView: View {
     @Binding var profileName: String
 
+    /// 이름 최대 글자 수. 세그먼트 위에 한 줄로 들어가야 해서 너무 길면 곤란하다.
+    private static let nameLimit = 15
+
     @State private var showingEditor = false
     @State private var draftName = ""
 
@@ -26,13 +29,22 @@ struct ProfileNameView: View {
         .buttonStyle(.plain)
         .alert("프로필 이름", isPresented: $showingEditor) {
             TextField("이름", text: $draftName)
+                // 저장할 때만 자르면 사용자는 넘치게 쓴 뒤에야 잘린 걸 안다.
+                // 입력하는 동안 막아서 지금 몇 글자까지 되는지 바로 알게 한다.
+                .onChange(of: draftName) { _, newValue in
+                    if newValue.count > Self.nameLimit {
+                        draftName = String(newValue.prefix(Self.nameLimit))
+                    }
+                }
             Button("저장") {
-                let trimmed = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
-                profileName = trimmed.isEmpty ? profileName : trimmed
+                let trimmed = draftName
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .prefix(Self.nameLimit)
+                profileName = trimmed.isEmpty ? profileName : String(trimmed)
             }
             Button("취소", role: .cancel) { }
         } message: {
-            Text("프로필에 표시되는 이름을 수정합니다.")
+            Text("프로필에 표시되는 이름을 수정합니다. (최대 \(Self.nameLimit)자)")
         }
     }
 }

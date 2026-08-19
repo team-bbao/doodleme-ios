@@ -47,6 +47,8 @@ final class MultipeerSession {
     /// 콜백을 쥐여주면 화면이 세션을 붙잡아 서로를 놓아주지 못한다.
     private(set) var receivedCount = 0
     private(set) var lastError: String?
+    /// 주변을 다 훑었는데 아무도 없었는지.
+    private(set) var searchTimedOut = false
 
     /// 상대에게 보이는 내 이름.
     let displayName: String
@@ -63,11 +65,13 @@ final class MultipeerSession {
     /// `peers` 와 다르다. `peers` 는 결과를 보여주려고 떠난 사람도 남겨두지만,
     /// 이건 실제로 초대를 받을 수 있는 사람만 담는다.
     @ObservationIgnored private var visiblePeers: Set<MCPeerID> = []
+    /// 정해진 시간이 지나면 찾기를 멈추는 일감.
+    @ObservationIgnored private var searchTask: Task<Void, Never>?
 
     init(displayName: String) {
         // MCPeerID 는 빈 문자열이나 64자 초과를 허용하지 않는다.
         let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let safeName = trimmed.isEmpty ? "doodle.me 사용자" : String(trimmed.prefix(60))
+        let safeName = trimmed.isEmpty ? Post.unknownSenderName : String(trimmed.prefix(60))
         self.displayName = safeName
 
         let peerID = Self.storedPeerID(displayName: safeName)
@@ -110,8 +114,13 @@ final class MultipeerSession {
 
     // MARK: - 시작 / 종료
 
+    /// 주변을 찾아보는 시간. 이만큼 지나도 아무도 없으면 그만둔다.
+    static let searchWindow: Duration = .seconds(10)
+
     func start() {
         guard advertiser == nil, browser == nil else { return }
+
+        searchTimedOut = false
 
         let advertiser = MCNearbyServiceAdvertiser(
             peer: peerID,
@@ -126,13 +135,36 @@ final class MultipeerSession {
         browser.delegate = delegateAdapter
         browser.startBrowsingForPeers()
         self.browser = browser
+
+        // 아무도 없는데 계속 찾으면 배터리만 쓰고 화면은 영영 "찾는중" 에 머문다.
+        // 정해진 시간까지만 찾아보고 결과를 알려준다.
+        searchTask?.cancel()
+        searchTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.searchWindow)
+            guard !Task.isCancelled, let self, self.peers.isEmpty else { return }
+            self.stopSearching()
+            self.searchTimedOut = true
+        }
     }
 
-    func stop() {
+    /// 찾기만 멈춘다. 이미 맺은 연결과 목록은 그대로 둔다.
+    private func stopSearching() {
         advertiser?.stopAdvertisingPeer()
         advertiser = nil
         browser?.stopBrowsingForPeers()
         browser = nil
+    }
+
+    /// 못 찾고 끝난 뒤 다시 찾아본다.
+    func searchAgain() {
+        stop()
+        start()
+    }
+
+    func stop() {
+        searchTask?.cancel()
+        searchTask = nil
+        stopSearching()
         session.disconnect()
         peers = []
         visiblePeers = []
@@ -189,6 +221,10 @@ final class MultipeerSession {
     // MARK: - 델리게이트 콜백 (메인 액터로 넘어온 뒤 호출됨)
 
     fileprivate func handleFoundPeer(_ peer: MCPeerID) {
+        // 한 명이라도 나타나면 더 이상 실패로 끝낼 일이 없다.
+        searchTask?.cancel()
+        searchTask = nil
+        searchTimedOut = false
         visiblePeers.insert(peer)
         guard !peers.contains(peer) else { return }
         peers.append(peer)

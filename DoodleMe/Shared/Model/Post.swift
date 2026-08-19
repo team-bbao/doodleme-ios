@@ -31,7 +31,7 @@ class Post {
 
 extension Post {
     /// 보낸 사람 이름을 모를 때 대신 보여주는 이름.
-    static let unknownSenderName = "홍길동"
+    static let unknownSenderName = "doodle.me 사용자"
 
     /// 화면에 표시할 보낸 사람 이름.
     var displaySenderName: String {

@@ -137,13 +137,25 @@ struct NearbySharingScreen: View {
     private var status: some View {
         let count = session?.peers.count ?? 0
 
+        let timedOut = session?.searchTimedOut ?? false
+
         VStack(spacing: 15) {
-            Text(count == 0 ? "주변 사용자를 찾는중" : "\(count)명 발견")
+            Text(statusTitle(count: count, timedOut: timedOut))
                 .font(.system(size: 25, weight: .semibold))
+                .multilineTextAlignment(.center)
 
             if count == 0 {
-                Text("상대도 서칭중인지 확인하세요")
-                    .font(.system(size: 15, weight: .medium))
+                if timedOut {
+                    Button("다시 찾기") { session?.searchAgain() }
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.doodleOnPrimary)
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 10)
+                        .background(Self.primary, in: Capsule())
+                } else {
+                    Text("상대도 서칭중인지 확인하세요")
+                        .font(.system(size: 15, weight: .medium))
+                }
             }
 
             // 조용히 실패하면 무엇이 잘못됐는지 알 길이 없다.
@@ -156,6 +168,11 @@ struct NearbySharingScreen: View {
         .foregroundStyle(Self.primary)
         .multilineTextAlignment(.center)
         .frame(width: 220)
+    }
+
+    private func statusTitle(count: Int, timedOut: Bool) -> String {
+        if count > 0 { return "\(count)명 발견" }
+        return timedOut ? "주변 사용자를 찾지 못했어요" : "주변 사용자를 찾는중"
     }
 
     // MARK: - 상대 목록

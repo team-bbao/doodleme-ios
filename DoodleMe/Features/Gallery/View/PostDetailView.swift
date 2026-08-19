@@ -252,9 +252,7 @@ extension PostDetailView {
                 if let counterpartDrawingData {
                     DoodleImageView(drawingData: counterpartDrawingData)
                 } else {
-                    Image(.profileDefault)
-                        .resizable()
-                        .scaledToFit()
+                    DefaultDoodleImage(lineWidth: 1)
                 }
             }
             .frame(width: 30, height: 30)
