@@ -291,10 +291,11 @@ struct DrawingPage: View {
 
         if session.phase == .drawing && session.hasStartedDrawing {
             ToolbarItem(placement: .topBarTrailing) {
+                // 초기화와 같은 유리 버튼으로 둔다.
+                // 강조 버튼은 저장 하나로 충분하다.
                 Button("다음") {
                     session.beginMemo()
                 }
-                .buttonStyle(.glassProminent)
             }
         }
 
