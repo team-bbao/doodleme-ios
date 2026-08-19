@@ -28,7 +28,6 @@ struct GalleryPage: View {
     @State private var postPendingDelete: Post?
     @State private var selectedPost: Post?
     @State private var profileCandidatePost: Post?
-    @State private var showProfileEditPopup = false
     @State private var showSharingScreen = false
     /// 카드를 꾹 눌러 "그림 공유하기" 를 고른 경우. 이 그림을 들고 멀티피어 화면을 연다.
     @State private var sharingPost: Post?
@@ -176,6 +175,7 @@ struct GalleryPage: View {
                         profileCandidatePost: $profileCandidatePost,
                         postPendingDelete: $postPendingDelete,
                         onShare: { sharingPost = $0 },
+                        onPickProfile: { setProfile($0) },
                         onEmptyAreaTap: emptyAreaTapAction
                     )
                 }
@@ -233,22 +233,13 @@ struct GalleryPage: View {
             .fullScreenCover(item: $sharingPost) { post in
                 NearbySharingScreen(post: post) { sharingPost = nil }
             }
-            // 확인을 묻는 자리는 모두 `alert` 로 통일한다.
+            // 되돌릴 수 없는 일만 물어본다. 이 화면에 남은 물음은 이것 하나다.
             //
             // `confirmationDialog` 는 누른 자리에 앵커되어 꼬리가 달린 채 뜬다.
             // 어느 카드인지는 알려주지만 뜨는 자리가 그때그때 달라 화면이 어수선하다.
-            // `alert` 는 언제나 가운데에 꼬리 없이 떠서 세 확인창이 같은 얼굴을 갖는다.
+            // `alert` 는 언제나 가운데에 꼬리 없이 뜬다.
             //
             // 파괴적 동작이 빨갛게, 취소가 제자리에 오는 배치는 시스템이 알아서 잡아준다.
-            .alert("프로필 사진", isPresented: $showProfileEditPopup) {
-                Button("다른 그림으로 변경") {
-                    withAnimation(.spring()) { mode = .choosingProfile }
-                }
-                Button("프로필 사진 삭제", role: .destructive) {
-                    modelContext.setProfilePost(nil)
-                }
-                Button("취소", role: .cancel) { }
-            }
             .alert(
                 "이 그림을 삭제할까요?",
                 isPresented: isDeletePresented,
@@ -301,17 +292,15 @@ struct GalleryPage: View {
     /// 설정 흐름으로 끌려 들어갔다. 연필은 "고칠 수 있다" 는 뜻으로 이미 그려져 있으니,
     /// 그 뜻대로 여기만 누르게 한다.
     ///
-    /// 프로필이 이미 있으면 무엇을 할지 묻고(바꾸기·지우기),
-    /// 아직 없으면 물어볼 것이 없으니 곧장 고르는 화면으로 간다.
+    /// 누르면 곧장 그림을 고르러 간다.
+    /// 프로필이 있든 없든 여기서 할 일은 "어느 그림으로 할지 정하기" 하나뿐이라,
+    /// 사이에 무엇을 할지 묻는 창을 두지 않는다.
+    ///
+    /// 지우기는 꾹 누르기에 둔다. 자주 하는 일이 아니고,
+    /// 한 번 누를 때마다 물어보게 하면 바꾸러 온 사람이 매번 한 번씩 더 눌러야 한다.
     private var profileEditBadge: some View {
         Button {
-            withAnimation(.spring()) {
-                if profilePost == nil {
-                    mode = .choosingProfile
-                } else {
-                    showProfileEditPopup = true
-                }
-            }
+            withAnimation(.spring()) { mode = .choosingProfile }
         } label: {
             Image(systemName: "pencil")
                 .font(.system(size: 12, weight: .medium))
@@ -330,6 +319,16 @@ struct GalleryPage: View {
             y: Self.profileBadgeTapMargin
         )
         .accessibilityLabel("프로필 사진 변경")
+        .contextMenu {
+            // 지울 프로필이 있을 때만 띄운다. 없으면 지울 것도 없다.
+            if profilePost != nil {
+                Button(role: .destructive) {
+                    modelContext.setProfilePost(nil)
+                } label: {
+                    Label("프로필 사진 삭제", systemImage: "trash")
+                }
+            }
+        }
     }
 
     /// 보이는 뱃지와 누를 수 있는 자리의 반지름 차이.
@@ -415,14 +414,22 @@ struct GalleryPage: View {
     }
 
     /// 고른 그림을 프로필로 앉힌다.
-    private func confirmProfile() {
-        guard let candidate = profileCandidatePost else { return }
-        modelContext.setProfilePost(candidate)
+    ///
+    /// 들어오는 길이 둘이다.
+    /// 연필을 눌러 고르는 화면에서 카드를 누르거나(바로 앉는다),
+    /// 카드를 꾹 눌러 「프로필 사진 설정」을 골라 확인창을 거치거나.
+    private func setProfile(_ post: Post) {
+        modelContext.setProfilePost(post)
         confettiTrigger += 1
         withAnimation(.spring()) {
             profileCandidatePost = nil
             mode = .browsing
         }
+    }
+
+    private func confirmProfile() {
+        guard let candidate = profileCandidatePost else { return }
+        setProfile(candidate)
     }
 
     private func exitSelection() {

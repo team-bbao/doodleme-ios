@@ -30,6 +30,9 @@ struct PostGridView: View {
     /// 카드를 꾹 눌러 고른 동작. 화면 전환은 `GalleryPage` 가 맡는다.
     var onShare: ((Post) -> Void)?
 
+    /// 고르는 중에 카드를 눌렀을 때. 누른 그림이 곧바로 프로필이 된다.
+    var onPickProfile: ((Post) -> Void)?
+
     /// 카드가 아닌 빈 곳을 눌렀을 때. 프로필 고르기에서 빠져나오는 데 쓴다.
     ///
     /// 그리드는 `ScrollView` 라 화면 아래쪽 대부분을 차지한다.
@@ -112,9 +115,7 @@ struct PostGridView: View {
     }
 
     private func card(for post: Post) -> some View {
-        let selected = isSelected(post)
-
-        return paperLayer(.memoFront)
+        paperLayer(.memoFront)
             .overlay {
                 // 접힌 삼각형과 잘려나간 모서리에는 그림이 얹히지 않게 한다.
                 // 마스크는 종이와 똑같은 배치를 거쳐야 접힌 자리가 정확히 맞는다.
@@ -122,15 +123,8 @@ struct PostGridView: View {
                     .mask { paperLayer(.memoFrontMask) }
             }
             .clipShape(RoundedRectangle(cornerRadius: 12))
-            // 고른 카드는 어둡게 덮어서 한눈에 구분되게 한다.
-            .overlay {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.black.opacity(selected ? 0.4 : 0))
-            }
             .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
-            .animation(.easeInOut(duration: 0.15), value: selected)
             .onTapGesture { handleTap(on: post) }
-            .accessibilityAddTraits(selected ? [.isSelected] : [])
             .contextMenu { cardMenu(for: post) }
     }
 
@@ -171,23 +165,17 @@ struct PostGridView: View {
             .clipped()
     }
 
-    private func isSelected(_ post: Post) -> Bool {
-        switch mode {
-        case .browsing:
-            false
-        case .choosingProfile:
-            profileCandidatePost?.persistentModelID == post.persistentModelID
-        }
-    }
-
     private func handleTap(on post: Post) {
         switch mode {
         case .browsing:
             selectedPost = post
 
         case .choosingProfile:
-            // 한 장만 고른다. 확인 팝업은 GalleryPage 가 띄운다.
-            withAnimation(.spring()) { profileCandidatePost = post }
+            // 누르는 순간 프로필이 된다. 한 번 더 묻지 않는다.
+            //
+            // 이 화면은 프로필을 고르러 일부러 들어온 자리라 무엇을 하려는지가 이미 분명하고,
+            // 잘못 골라도 연필을 다시 눌러 고르면 그만이다.
+            onPickProfile?(post)
         }
     }
 }
