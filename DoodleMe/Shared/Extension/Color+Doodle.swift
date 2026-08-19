@@ -46,8 +46,12 @@ extension Color {
     static let doodleHairline = Color(red: 0xE1 / 255, green: 0xE1 / 255, blue: 0xE1 / 255)
     /// 접혀 올라온 뒷면 색. 본체보다 한 톤 어둡다. 역시 에셋에서 뽑았다.
     static let doodleFoldFlap = Color(red: 0xEF / 255, green: 0xEF / 255, blue: 0xEF / 255)
-    /// 메모지 본체 색. memoFront 에셋에서 직접 뽑은 값이라 카드 앞뒤가 정확히 같아진다.
+    /// 메모지 본체 색. 에셋에서 직접 뽑은 값이라 카드 앞뒤가 정확히 같아진다.
     static let doodlePaper = Color(red: 0xFA / 255, green: 0xFA / 255, blue: 0xFA / 255)
+    /// 메모지에서 빛을 받는 쪽. `memoBack` 에셋 우상단 값.
+    static let doodlePaperHighlight = Color(red: 0xFC / 255, green: 0xFC / 255, blue: 0xFC / 255)
+    /// 메모지에서 접힌 모서리 쪽으로 지는 그늘. 같은 에셋 좌하단 값.
+    static let doodlePaperShade = Color(red: 0xE4 / 255, green: 0xE4 / 255, blue: 0xE4 / 255)
     /// 버튼 눌림 배경. Figma `rgba(121,121,121,0.1)`
     static let doodlePressed = Color(red: 121 / 255, green: 121 / 255, blue: 121 / 255).opacity(0.1)
     /// 어두운 버튼 위 글자. Figma `#E8E8E8`

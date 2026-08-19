@@ -117,12 +117,15 @@ struct PostGridView: View {
     private func card(for post: Post) -> some View {
         let selected = isSelected(post)
 
-        return paperLayer(.memoFront)
+        return paperLayer(.memoBack)
             .overlay {
-                // 접힌 삼각형과 잘려나간 모서리에는 그림이 얹히지 않게 한다.
-                // 마스크는 종이와 똑같은 배치를 거쳐야 접힌 자리가 정확히 맞는다.
+                // 잘려나간 모서리에는 그림이 얹히지 않게 한다.
+                //
+                // 종이 에셋의 잘린 자리가 이미 투명하니 그 알파를 그대로 마스크로 쓴다.
+                // 마스크 전용 에셋을 따로 두면 두 그림이 어긋날 여지가 생기는데,
+                // 같은 에셋을 같은 배치로 두 번 거치면 어긋날 수가 없다.
                 DoodleImageView(drawingData: post.drawingData)
-                    .mask { paperLayer(.memoFrontMask) }
+                    .mask { paperLayer(.memoBack) }
             }
             .clipShape(RoundedRectangle(cornerRadius: 12))
             // 고른 카드는 어둡게 덮어서 한눈에 구분되게 한다.
@@ -167,6 +170,9 @@ struct PostGridView: View {
 
     /// 종이와 그 마스크가 같은 배치를 쓰도록 한곳에 모아 둔다.
     /// 둘이 어긋나면 접힌 자리에 그림이 반쯤 걸친다.
+    ///
+    /// `memoFront` 가 아니라 `memoBack` 을 쓴다.
+    /// 접힌 모서리 쪽으로 그늘이 지는 그라디언트가 이쪽에만 들어 있다.
     private func paperLayer(_ resource: ImageResource) -> some View {
         Image(resource)
             .resizable()
