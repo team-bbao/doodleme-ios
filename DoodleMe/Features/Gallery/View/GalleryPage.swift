@@ -1,0 +1,362 @@
+//
+//  GalleryPage.swift
+//  DoodleMe
+//
+//  Created by Apple Developer Academy on 8/5/26.
+//
+
+import SwiftData
+import SwiftUI
+
+struct GalleryPage: View {
+
+    @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
+
+    private var profilePost: Post? { profilePosts.first }
+
+    @Environment(\.modelContext) private var modelContext
+
+    @State private var segmentedBar: Int = 0
+    @AppStorage("userName") private var inputName = ""
+
+    @State private var mode: GalleryMode = .browsing
+    /// 지우려고 확인 팝업을 띄운 그림. 한 번에 한 장만 지운다.
+    @State private var postPendingDelete: Post?
+    @State private var selectedPost: Post?
+    @State private var profileCandidatePost: Post?
+    @State private var showProfileEditPopup = false
+    @State private var showSharingScreen = false
+    /// 카드를 꾹 눌러 "그림 공유하기" 를 고른 경우. 이 그림을 들고 멀티피어 화면을 연다.
+    @State private var sharingPost: Post?
+    /// 헤더 높이. 그리드를 헤더 아래에 붙이는 데 쓴다.
+    @State private var headerHeight: CGFloat = 0
+    @State private var confettiTrigger = 0
+
+    private var isChoosingProfile: Bool { mode == .choosingProfile }
+
+    // Figma `iPhone 17 - 1` 기준 치수
+    /// 프로필 원 지름
+    private static let profileDiameter: CGFloat = 110
+    /// 연필 뱃지 지름
+    private static let profileBadgeDiameter: CGFloat = 25
+    /// 세그먼트 컨트롤 좌우 여백. 바깥 VStack 이 이미 16 을 주므로 그만큼 뺀 값을 더한다.
+    private static let segmentExtraInset: CGFloat = 12
+
+    /// 프로필 고르기에는 취소 버튼이 없다. 카드가 아닌 빈 곳을 누르면 빠져나온다.
+    private var emptyAreaTapAction: (() -> Void)? {
+        isChoosingProfile ? { exitSelection() } : nil
+    }
+
+    /// 화면을 덮는 오버레이가 하나라도 떠 있으면 툴바·탭바를 숨긴다.
+    /// 프로필을 고를 때도 그림에만 집중하도록 함께 숨긴다.
+    private var isOverlayShowing: Bool {
+        selectedPost != nil
+            || postPendingDelete != nil
+            || showProfileEditPopup
+            || profileCandidatePost != nil
+            || isChoosingProfile
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PaperBackground()
+
+                // 헤더는 어두운 레이어 **아래**에 둔다.
+                // 위에 두고 opacity/colorMultiply 로 낮추면 흰 원과 세그먼트가 밝게 남는다.
+                // 특히 글래스 효과는 시스템이 따로 그려서 색 보정이 먹지 않는다.
+                // 같은 합성을 거치게 해야 배경과 똑같이 어두워진다.
+                header
+                    .padding(.top, 140)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+                    .padding(.horizontal)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .allowsHitTesting(!isChoosingProfile)
+
+                // 프로필을 고르는 동안에는 그림 말고 다 어둡게 덮는다.
+                // 취소 버튼이 없으므로 어두운 곳을 눌러 빠져나온다.
+                if isChoosingProfile {
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                        .contentShape(Rectangle())
+                        .onTapGesture { exitSelection() }
+                        .transition(.opacity)
+                }
+
+                // 그리드만 어두운 레이어 위에 남아 밝게 보인다.
+                PostGridView(
+                    mode: mode,
+                    segmentedBar: $segmentedBar,
+                    selectedPost: $selectedPost,
+                    profileCandidatePost: $profileCandidatePost,
+                    onShare: { sharingPost = $0 },
+                    onRequestDelete: requestDelete,
+                    onEmptyAreaTap: emptyAreaTapAction
+                )
+                .padding(.horizontal)
+                .padding(.top, headerHeight)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+                // 카드 확대 상세 뷰
+                if let selectedPost {
+                    ZStack {
+                        // 흰 장막을 짙게 깔면 종이 질감까지 덮여 화면이 허옇게 뜬다.
+                        // 카드도 거의 흰색이라 배경과 구분이 안 됐다.
+                        // 반대로 옅게 깔면 질감은 살지만 뒤쪽 카드가 그대로 보여 산만하다.
+                        //
+                        // 재질을 쓰면 뒤가 흐려져 카드는 정리되고 종이 색은 남는다.
+                        Rectangle()
+                            .fill(.regularMaterial)
+                            .ignoresSafeArea()
+                            .onTapGesture {
+                                withAnimation { self.selectedPost = nil }
+                            }
+
+                        PostDetailView(post: selectedPost)
+                    }
+                }
+
+                if let candidate = profileCandidatePost {
+                    profileConfirmPopup(candidate: candidate)
+                }
+
+                if showProfileEditPopup {
+                    profileEditPopup
+                }
+
+                if let pending = postPendingDelete {
+                    deleteConfirmPopup(post: pending)
+                }
+            }
+            .toolbar { toolbarContent }
+            .toolbarVisibility(isOverlayShowing ? .hidden : .visible, for: .navigationBar)
+            // 삭제 중에는 탭바 자리를 선택 바가 대신 쓴다.
+            .toolbarVisibility(isOverlayShowing ? .hidden : .visible, for: .tabBar)
+            .ignoresSafeArea()
+            // 보낼 그림 없이 열면 받기 전용으로 동작한다.
+            .fullScreenCover(isPresented: $showSharingScreen) {
+                NearbySharingScreen { showSharingScreen = false }
+            }
+            // 카드를 꾹 눌러 고른 한 장을 들고 여는 경우.
+            .fullScreenCover(item: $sharingPost) { post in
+                NearbySharingScreen(post: post) { sharingPost = nil }
+            }
+        }
+    }
+
+    // MARK: - 상단
+
+    private var header: some View {
+        VStack {
+            ZStack {
+                Circle()
+                    .foregroundStyle(.white)
+
+                if let profilePost {
+                    DoodleImageView(drawingData: profilePost.drawingData, contentMode: .fill)
+                        .onTapGesture {
+                            withAnimation(.spring()) { showProfileEditPopup = true }
+                        }
+                } else {
+                    DefaultDoodleImage()
+                        // 원을 꽉 채우지 않고 지름의 80% 크기로 가운데 놓는다.
+                        .frame(width: Self.profileDiameter * 0.8,
+                               height: Self.profileDiameter * 0.8)
+                        .onTapGesture {
+                            withAnimation(.spring()) { mode = .choosingProfile }
+                        }
+                }
+            }
+            .frame(width: Self.profileDiameter, height: Self.profileDiameter)
+            .clipShape(Circle())
+            .shadow(color: .black.opacity(0.1), radius: 3, x: 2, y: 2)
+            .overlay(alignment: .bottomTrailing) {
+                // Figma: #424242 원 + 흰 연필, 그림자 y3 blur3 black 20%
+                Image(systemName: "pencil")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white)
+                    .frame(width: Self.profileBadgeDiameter, height: Self.profileBadgeDiameter)
+                    .background(Circle().fill(Color.doodlePrimary))
+                    .shadow(color: .black.opacity(0.2), radius: 2, y: 3)
+                    .offset(x: -4)
+            }
+            .overlay { ConfettiBurst(trigger: confettiTrigger) }
+            .offset(y: 5)
+
+            ProfileNameView(profileName: $inputName)
+                .padding(.bottom, 15)
+
+            CustomSegmentedControl(
+                selection: $segmentedBar,
+                titles: ["너가 그린", "내가 그린"]
+            )
+            .padding(.horizontal, Self.segmentExtraInset)
+            .padding(.bottom, 20)
+        }
+    }
+
+    // MARK: - 툴바
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            switch mode {
+            case .browsing:
+                // 프로필 설정과 삭제는 카드를 꾹 눌러서 하므로 메뉴가 필요 없어졌다.
+                // 남은 건 공유받기 하나뿐이라 바로 여는 버튼으로 둔다.
+                Button {
+                    showSharingScreen = true
+                } label: {
+                    Image(systemName: "airplay.audio")
+                }
+                .accessibilityLabel("그림 공유받기")
+
+            // 프로필 고르기는 카드를 누르면 바로 확인 팝업이 떠서 툴바 버튼이 필요 없다.
+            case .choosingProfile:
+                EmptyView()
+            }
+        }
+    }
+
+
+    /// 카드를 꾹 눌러 고른 한 장을 지운다.
+    ///
+    /// 삭제 확인 팝업은 고른 목록을 보고 움직이므로, 그 한 장만 담아 두고 띄운다.
+    /// 여러 장 삭제와 같은 팝업·같은 경로를 쓴다.
+    private func requestDelete(_ post: Post) {
+        withAnimation(.spring()) { postPendingDelete = post }
+    }
+
+    // MARK: - 팝업
+
+    private func profileConfirmPopup(candidate: Post) -> some View {
+        DoodlePopup(cardPadding: 24, horizontalInset: 40) {
+            withAnimation(.spring()) { profileCandidatePost = nil }
+        } content: {
+            VStack(spacing: 20) {
+                DoodleImageView(drawingData: candidate.drawingData, contentMode: .fill)
+                    .frame(width: 80, height: 80)
+                    .background(.white)
+                    .clipShape(Circle())
+                    .overlay {
+                        Circle().strokeBorder(.accent.opacity(0.3), lineWidth: 1)
+                    }
+
+                Text("프로필로 설정하시겠습니까?")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+
+                HStack(spacing: 24) {
+                    Button("예") {
+                        modelContext.setProfilePost(candidate)
+                        confettiTrigger += 1
+                        withAnimation(.spring()) {
+                            profileCandidatePost = nil
+                            mode = .browsing
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 30))
+                    .foregroundStyle(.white)
+
+                    Button("아니오", role: .destructive) {
+                        withAnimation(.spring()) { profileCandidatePost = nil }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(.gray.opacity(0.15), in: RoundedRectangle(cornerRadius: 30))
+                }
+            }
+        }
+    }
+
+    private var profileEditPopup: some View {
+        DoodlePopup(cardPadding: 50, horizontalInset: 40) {
+            withAnimation(.spring()) { showProfileEditPopup = false }
+        } content: {
+            VStack(spacing: 20) {
+                Text("프로필사진을 변경하시겠습니까?")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, 30)
+                    .padding(.top, 15)
+
+                HStack(spacing: 24) {
+                    Button("예") {
+                        withAnimation(.spring()) {
+                            showProfileEditPopup = false
+                            mode = .choosingProfile
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 30))
+                    .foregroundStyle(.white)
+
+                    Button("삭제", role: .destructive) {
+                        modelContext.setProfilePost(nil)
+                        withAnimation(.spring()) { showProfileEditPopup = false }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(.gray.opacity(0.15), in: RoundedRectangle(cornerRadius: 30))
+                }
+            }
+        }
+    }
+
+    private func deleteConfirmPopup(post: Post) -> some View {
+        DoodlePopup(cardPadding: 24, horizontalInset: 40) {
+            cancelDelete()
+        } content: {
+            VStack(spacing: 20) {
+                Text("이 그림을 삭제하시겠습니까?")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+
+                Text("삭제한 그림은 되돌릴 수 없어요.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 24) {
+                    Button("취소") { cancelDelete() }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(.gray.opacity(0.15), in: RoundedRectangle(cornerRadius: 30))
+
+                    Button("삭제", role: .destructive) {
+                        delete(post)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(.red.opacity(0.9), in: RoundedRectangle(cornerRadius: 30))
+                    .foregroundStyle(.white)
+                }
+            }
+        }
+    }
+
+    // MARK: - 동작
+
+    private func cancelDelete() {
+        withAnimation(.spring()) { postPendingDelete = nil }
+    }
+
+    private func exitSelection() {
+        withAnimation(.spring()) {
+            mode = .browsing
+            profileCandidatePost = nil
+        }
+    }
+
+    private func delete(_ post: Post) {
+        modelContext.delete(post)
+        withAnimation(.spring()) { postPendingDelete = nil }
+    }
+}
+
+#Preview {
+    GalleryPage()
+        .modelContainer(LocalDataStore.makePreviewContainer())
+}

@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Xcode - 사용자별 상태 (팀 공유 대상 아님, 충돌 유발)
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# 빌드 산출물
+build/
+DerivedData/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Packages/
+
+# 기타
+*.playground/*/timeline.xctimeline
