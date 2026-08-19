@@ -175,7 +175,6 @@ struct GalleryPage: View {
                         profileCandidatePost: $profileCandidatePost,
                         postPendingDelete: $postPendingDelete,
                         onShare: { sharingPost = $0 },
-                        onPickProfile: { setProfile($0) },
                         onEmptyAreaTap: emptyAreaTapAction
                     )
                 }
@@ -294,7 +293,8 @@ struct GalleryPage: View {
     ///
     /// 누르면 곧장 그림을 고르러 간다.
     /// 프로필이 있든 없든 여기서 할 일은 "어느 그림으로 할지 정하기" 하나뿐이라,
-    /// 사이에 무엇을 할지 묻는 창을 두지 않는다.
+    /// 무엇을 할지 고르는 창을 사이에 두지 않는다.
+    /// 정말 이 그림으로 할지는 카드를 고른 뒤 확인창이 한 번 묻는다.
     private var profileEditBadge: some View {
         Button {
             withAnimation(.spring()) { mode = .choosingProfile }
@@ -402,21 +402,17 @@ struct GalleryPage: View {
 
     /// 고른 그림을 프로필로 앉힌다.
     ///
-    /// 들어오는 길이 둘이다.
-    /// 연필을 눌러 고르는 화면에서 카드를 누르거나(바로 앉는다),
-    /// 카드를 꾹 눌러 「프로필 사진 설정」을 골라 확인창을 거치거나.
-    private func setProfile(_ post: Post) {
-        modelContext.setProfilePost(post)
+    /// 들어오는 길이 둘이지만 끝은 같다.
+    /// 연필을 눌러 고르는 화면에서 카드를 누르거나,
+    /// 카드를 꾹 눌러 「프로필 사진 설정」을 고르거나 — 둘 다 확인창을 거쳐 여기로 온다.
+    private func confirmProfile() {
+        guard let candidate = profileCandidatePost else { return }
+        modelContext.setProfilePost(candidate)
         confettiTrigger += 1
         withAnimation(.spring()) {
             profileCandidatePost = nil
             mode = .browsing
         }
-    }
-
-    private func confirmProfile() {
-        guard let candidate = profileCandidatePost else { return }
-        setProfile(candidate)
     }
 
     private func exitSelection() {
