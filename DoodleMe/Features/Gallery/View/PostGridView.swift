@@ -54,9 +54,21 @@ struct PostGridView: View {
         }
     }
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 30),
-        GridItem(.flexible(), spacing: 30)
+    // Figma `iPhone 17 - 13` 의 `Frame 28`(92:650): 362 폭 안에 170x186 카드가 두 장씩 세 줄.
+
+    /// 카드 높이. 폭은 칸이 정한다 — 402 화면에서 170 이 되고 좁은 기기에서는 함께 줄어든다.
+    ///
+    /// 메모지 에셋(687x749)의 가로세로비가 170:186 과 거의 같다.
+    /// 예전의 170 은 이보다 납작해서, 위아래가 잘리며 접힌 모서리도 함께 깎여 나갔다.
+    private static let cardHeight: CGFloat = 186
+    /// 카드 사이 가로 간격. 170 + 22 + 170 = 362 로 본문 폭에 딱 맞는다.
+    private static let columnSpacing: CGFloat = 22
+    /// 줄 사이 세로 간격. Figma 는 가로보다 좁은 17 을 쓴다 (186 세 줄 + 17 두 칸 = 592).
+    private static let rowSpacing: CGFloat = 17
+
+    private static let columns = [
+        GridItem(.flexible(), spacing: columnSpacing),
+        GridItem(.flexible(), spacing: columnSpacing)
     ]
 
     var body: some View {
@@ -75,7 +87,7 @@ struct PostGridView: View {
                 .onTapGesture { onEmptyAreaTap?() }
         } else {
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 20) {
+                LazyVGrid(columns: Self.columns, spacing: Self.rowSpacing) {
                     ForEach(currentPosts) { post in
                         card(for: post)
                     }
@@ -146,7 +158,7 @@ struct PostGridView: View {
         Image(resource)
             .resizable()
             .scaledToFill()
-            .frame(height: 170)
+            .frame(height: Self.cardHeight)
             .clipped()
     }
 
