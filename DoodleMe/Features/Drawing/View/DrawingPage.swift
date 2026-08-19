@@ -94,12 +94,12 @@ struct DrawingPage: View {
             VStack(spacing: 8) {
                 Text("Tap to start")
                     .fontWeight(.semibold)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .font(.system(size: 40))
                     .shadow(color: .white.opacity(0.2), radius: 2)
                 Text("상대방의 첫인상을 그려보세요")
                     .fontWeight(.regular)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .font(.system(size: 16))
                     .padding(.top, 10)
             }

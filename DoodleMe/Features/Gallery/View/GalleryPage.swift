@@ -379,7 +379,7 @@ struct GalleryPage: View {
 
     private var deleteConfirmPopup: some View {
         DoodlePopup(cardPadding: 24, horizontalInset: 40) {
-            withAnimation(.spring()) { showDeleteConfirm = false }
+            cancelDelete()
         } content: {
             VStack(spacing: 20) {
                 Text("\(selectedPostIDs.count)장을 삭제하시겠습니까?")
@@ -391,9 +391,7 @@ struct GalleryPage: View {
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 24) {
-                    Button("취소") {
-                        withAnimation(.spring()) { showDeleteConfirm = false }
-                    }
+                    Button("취소") { cancelDelete() }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .background(.gray.opacity(0.15), in: RoundedRectangle(cornerRadius: 30))
@@ -411,6 +409,17 @@ struct GalleryPage: View {
     }
 
     // MARK: - 동작
+
+    /// 삭제를 그만둔다.
+    ///
+    /// 고른 목록까지 비워야 한다. 남겨 두면 다음에 팝업을 열 때
+    /// 고르지도 않은 그림이 이미 골라진 채로 뜬다.
+    private func cancelDelete() {
+        withAnimation(.spring()) {
+            showDeleteConfirm = false
+            selectedPostIDs.removeAll()
+        }
+    }
 
     private func exitSelection() {
         withAnimation(.spring()) {

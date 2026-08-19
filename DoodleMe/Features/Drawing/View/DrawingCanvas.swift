@@ -64,6 +64,10 @@ private struct CanvasRepresentable: UIViewRepresentable {
             context.coordinator.appliedRevision = session.drawingRevision
             canvas.drawing = session.drawing
             canvas.undoManager?.removeAllActions()
+            // 세어둔 획 수도 함께 되돌린다.
+            // 이걸 빠뜨리면 초기화 뒤에 그린 획이 "이미 처리한 만큼"에 미치지 못해
+            // 굵기가 다시 매겨지지 않는다. 필압이 조용히 죽는다.
+            context.coordinator.resetShapedCount(to: canvas.drawing.strokes.count)
             session.refreshUndoState()
         }
     }
@@ -76,6 +80,11 @@ private struct CanvasRepresentable: UIViewRepresentable {
         private var shapedStrokeCount = 0
         /// 우리가 그림을 갈아끼우는 중인지. 그 변경으로 자신이 다시 불리는 걸 막는다.
         private var isReshaping = false
+
+        /// 코드에서 캔버스를 갈아끼웠을 때 세어둔 수를 맞춘다.
+        func resetShapedCount(to count: Int) {
+            shapedStrokeCount = count
+        }
 
         init(session: DrawingSession) {
             self.session = session
