@@ -73,36 +73,46 @@ private struct DoodleTabBar: View {
         Item(title: "갤러리", symbol: "square.grid.2x2", value: 0),
     ]
 
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(items) { item in
-                let isSelected = selection == item.value
+    /// 탭 한 칸의 높이. 알약이 손끝에 넉넉히 잡히도록 잡았다.
+    private static let itemHeight: CGFloat = 58
 
-                Button {
-                    selection = item.value
-                } label: {
-                    VStack(spacing: 3) {
-                        Image(systemName: item.symbol)
-                            .font(.system(size: 20))
-                        Text(item.title)
-                            .font(.system(size: 11))
-                    }
-                    .foregroundStyle(isSelected ? Color.white : Color.secondary)
-                    .frame(width: 96, height: 50)
-                    .background {
-                        if isSelected {
-                            Capsule().fill(Color.doodlePrimary)
+    var body: some View {
+        // 알약과 바깥 막대가 같은 유리로 묶이도록 한 그릇에 담는다.
+        // 따로 두면 두 유리가 서로를 굴절시켜 겹치는 자리가 탁해진다.
+        GlassEffectContainer(spacing: 4) {
+            HStack(spacing: 0) {
+                ForEach(items) { item in
+                    let isSelected = selection == item.value
+
+                    Button {
+                        selection = item.value
+                    } label: {
+                        VStack(spacing: 3) {
+                            Image(systemName: item.symbol)
+                                .font(.system(size: 20))
+                            Text(item.title)
+                                .font(.system(size: 11))
                         }
+                        .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                        .frame(width: 96, height: Self.itemHeight)
+                        .background {
+                            if isSelected {
+                                // 유리에 색을 입히면 뒤가 비쳐 글씨 대비가 흔들린다.
+                                // 단색을 깔고 그 위에 유리를 얹어 흰 글씨를 지킨다.
+                                Capsule().fill(Color.doodlePrimary)
+                                    .glassEffect(.regular.tint(Color.doodlePrimary), in: .capsule)
+                            }
+                        }
+                        .contentShape(.capsule)
                     }
-                    .contentShape(.capsule)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(item.title)
+                    .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(item.title)
-                .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
             }
+            .padding(4)
+            .glassEffect(.regular.interactive(), in: .capsule)
         }
-        .padding(4)
-        .glassEffect(.regular, in: .capsule)
         .padding(.bottom, 8)
         .animation(.snappy(duration: 0.25), value: selection)
     }
