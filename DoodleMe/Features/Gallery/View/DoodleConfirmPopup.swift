@@ -39,6 +39,9 @@ struct DoodleConfirmPopup: View {
     /// 같은 화면에서 이 창과 시스템 alert(그림 삭제)이 번갈아 뜨는데,
     /// 크기가 다르면 같은 무게의 물음인데도 한쪽이 더 급해 보인다.
     /// 재 보니 시스템은 제목 17 / 본문 13 이었다.
+    ///
+    /// 굵기까지 따라가지는 않는다. 시스템 제목은 Semibold 지만
+    /// Figma `Alert`(95:1179) 이 Regular 로 두고 있어 디자인 쪽을 따른다.
     private static let titleFontSize: CGFloat = 17
     private static let messageFontSize: CGFloat = 13
 
@@ -46,8 +49,8 @@ struct DoodleConfirmPopup: View {
         VStack(spacing: Self.contentSpacing) {
             VStack(spacing: Self.titleSpacing) {
                 Text(title)
-                    // Figma: 자간 -0.43 / 행높이 22
-                    .font(.system(size: Self.titleFontSize, weight: .semibold))
+                    // Figma `Alert`(95:1179): SF Pro Regular / 자간 -0.43 / 행높이 22
+                    .font(.system(size: Self.titleFontSize))
                     .kerning(-0.43)
                     .lineSpacing(2)
                     .foregroundStyle(.black)
