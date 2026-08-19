@@ -83,8 +83,8 @@ struct DoodleConfirmPopup: View {
         Color.doodleBackground.ignoresSafeArea()
         DoodleConfirmPopup(
             message: "프로필 사진으로 설정하시겠습니까?",
-            cancelTitle: "취소",
-            confirmTitle: "설정"
+            cancelTitle: "아니오",
+            confirmTitle: "예"
         ) { } onConfirm: { }
     }
 }

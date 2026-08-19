@@ -189,8 +189,8 @@ struct GalleryPage: View {
                 if profileCandidatePost != nil {
                     DoodleConfirmPopup(
                         message: "프로필 사진으로 설정하시겠습니까?",
-                        cancelTitle: "취소",
-                        confirmTitle: "설정"
+                        cancelTitle: "아니오",
+                        confirmTitle: "예"
                     ) {
                         withAnimation(.spring(response: 0.3)) { profileCandidatePost = nil }
                     } onConfirm: {

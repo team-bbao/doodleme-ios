@@ -217,7 +217,13 @@ struct PostDetailView: View {
 
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(counterpartName)
-                            .font(.system(size: 18, weight: .semibold))
+                            // Figma 는 Semi Bold 18 이지만 화면에서는 Bold 로 둔다.
+                            //
+                            // 한글은 Figma 가 지정한 글꼴(Inter)에 없어 폴백으로 그려지는데,
+                            // 그 폴백이 iOS 의 `.semibold` 보다 굵게 나온다.
+                            // 스펙대로 `.semibold` 를 주면 디자인보다 16% 옅어 medium 처럼 읽힌다.
+                            // `.bold` 가 디자인 렌더와 가장 가깝다 (잉크량 93%).
+                            .font(.system(size: 18, weight: .bold))
                             .foregroundStyle(Color.doodlePrimary)
 
                         if !counterpartSuffix.isEmpty {
