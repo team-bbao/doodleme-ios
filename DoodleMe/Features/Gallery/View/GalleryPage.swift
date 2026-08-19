@@ -61,6 +61,15 @@ struct GalleryPage: View {
     private static let profileDiameter: CGFloat = 110
     /// 연필 뱃지 지름
     private static let profileBadgeDiameter: CGFloat = 25
+    /// 뱃지가 프로필 원 오른쪽 끝에서 안으로 들어와 있는 정도.
+    private static let profileBadgeInset: CGFloat = 4
+    /// 뱃지를 누를 수 있는 자리의 지름.
+    ///
+    /// 보이는 25 는 손끝으로 겨누기에 작다.
+    /// 그렇다고 앱 공통 규격인 44 까지 키우지는 않는다.
+    /// 그만큼 넓히면 사진의 오른쪽 아래 귀퉁이가 통째로 눌리는 자리가 되어,
+    /// 뱃지로 옮긴 이유였던 "사진을 눌렀는데 설정이 열린다" 가 그대로 돌아온다.
+    private static let profileBadgeTapDiameter: CGFloat = 36
     /// 본문 좌우 여백.
     ///
     /// Figma 는 세그먼트(`Frame 2`)와 메모지 그리드(`Frame 28`) 를 둘 다 x=20, 폭 362 로 둔다.
@@ -262,40 +271,70 @@ struct GalleryPage: View {
                 Circle()
                     .foregroundStyle(.white)
 
+                // 사진 자체는 누를 수 없다. 프로필을 바꾸는 문은 연필 뱃지 하나뿐이다.
                 if let profilePost {
                     DoodleImageView(drawingData: profilePost.drawingData, contentMode: .fill)
-                        .onTapGesture {
-                            withAnimation(.spring()) { showProfileEditPopup = true }
-                        }
                 } else {
                     DefaultDoodleImage()
                         // 원을 꽉 채우지 않고 지름의 80% 크기로 가운데 놓는다.
                         .frame(width: Self.profileDiameter * 0.8,
                                height: Self.profileDiameter * 0.8)
-                        .onTapGesture {
-                            withAnimation(.spring()) { mode = .choosingProfile }
-                        }
                 }
             }
             .frame(width: Self.profileDiameter, height: Self.profileDiameter)
             .clipShape(Circle())
             .shadow(color: .black.opacity(0.1), radius: 3, x: 2, y: 2)
-            .overlay(alignment: .bottomTrailing) {
-                // Figma: #424242 원 + 흰 연필, 그림자 y3 blur3 black 20%
-                Image(systemName: "pencil")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white)
-                    .frame(width: Self.profileBadgeDiameter, height: Self.profileBadgeDiameter)
-                    .background(Circle().fill(Color.doodlePrimary))
-                    .shadow(color: .black.opacity(0.2), radius: 2, y: 3)
-                    .offset(x: -4)
-            }
+            .overlay(alignment: .bottomTrailing) { profileEditBadge }
             .overlay { ConfettiBurst(trigger: confettiTrigger) }
             .offset(y: 5)
 
             ProfileNameView(profileName: $inputName)
                 .padding(.bottom, 15)
         }
+    }
+
+    /// 프로필 사진을 바꾸는 연필 뱃지.
+    /// Figma: `#424242` 원 + 흰 연필, 그림자 y3 blur3 검정 20%.
+    ///
+    /// 프로필 설정으로 들어가는 문은 여기 하나뿐이다.
+    /// 예전에는 사진 아무 데나 눌러도 열려서, 그림을 들여다보려고 누른 사람까지
+    /// 설정 흐름으로 끌려 들어갔다. 연필은 "고칠 수 있다" 는 뜻으로 이미 그려져 있으니,
+    /// 그 뜻대로 여기만 누르게 한다.
+    ///
+    /// 프로필이 이미 있으면 무엇을 할지 묻고(바꾸기·지우기),
+    /// 아직 없으면 물어볼 것이 없으니 곧장 고르는 화면으로 간다.
+    private var profileEditBadge: some View {
+        Button {
+            withAnimation(.spring()) {
+                if profilePost == nil {
+                    mode = .choosingProfile
+                } else {
+                    showProfileEditPopup = true
+                }
+            }
+        } label: {
+            Image(systemName: "pencil")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white)
+                .frame(width: Self.profileBadgeDiameter, height: Self.profileBadgeDiameter)
+                .background(Circle().fill(Color.doodlePrimary))
+                .shadow(color: .black.opacity(0.2), radius: 2, y: 3)
+                .frame(width: Self.profileBadgeTapDiameter, height: Self.profileBadgeTapDiameter)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        // 누를 자리를 넓히면 뱃지가 그 절반만큼 원 안쪽으로 밀려난다.
+        // 밀린 만큼 되돌려, 보이는 자리는 Figma 그대로 둔다.
+        .offset(
+            x: Self.profileBadgeTapMargin - Self.profileBadgeInset,
+            y: Self.profileBadgeTapMargin
+        )
+        .accessibilityLabel("프로필 사진 변경")
+    }
+
+    /// 보이는 뱃지와 누를 수 있는 자리의 반지름 차이.
+    private static var profileBadgeTapMargin: CGFloat {
+        (profileBadgeTapDiameter - profileBadgeDiameter) / 2
     }
 
     // MARK: - 오른쪽 위 버튼
