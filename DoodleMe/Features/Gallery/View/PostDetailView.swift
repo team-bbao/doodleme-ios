@@ -11,6 +11,8 @@ import SwiftUI
 
 struct PostDetailView: View {
     let post: Post
+    /// 확대를 닫고 그리드로 돌아간다.
+    var onClose: () -> Void
 
     /// 내가 그린 카드의 아바타로 쓸 내 프로필 그림.
     @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
@@ -31,10 +33,35 @@ struct PostDetailView: View {
     @State private var saveMessage = ""
 
     var body: some View {
-        card
-            .fullScreenCover(isPresented: $showSharingScreen) {
-                NearbySharingScreen(post: post) { showSharingScreen = false }
-            }
+        // 뒤로가기는 카드가 아니라 **화면** 좌상단에 붙는다.
+        // 카드에 얹으면 카드가 가운데 있으므로 버튼도 따라 내려와 그림 위를 덮는다.
+        ZStack {
+            card
+
+            backButton
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .fullScreenCover(isPresented: $showSharingScreen) {
+            NearbySharingScreen(post: post) { showSharingScreen = false }
+        }
+    }
+
+    /// Figma `iPhone 17 - 14` 의 `Frame 6`: 화면 좌상단 (18, 72) 에 44x44.
+    ///
+    /// 예전에는 어두운 배경을 눌러야 닫혔다.
+    /// 눌러야 할 곳이 보이지 않으면 처음 온 사람은 빠져나갈 방법을 찾지 못한다.
+    private var backButton: some View {
+        Button(action: onClose) {
+            Image(systemName: "xmark")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(Color.doodlePrimary)
+                .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
+                .background(.white, in: Circle())
+                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+        }
+        .padding(.leading, 18)
+        .padding(.top, 72)
+        .accessibilityLabel("닫기")
     }
 
     private var card: some View {
@@ -45,7 +72,9 @@ struct PostDetailView: View {
                 Button {
                     showSharingScreen = true
                 } label: {
-                    Image(systemName: "square.and.arrow.up")
+                    // Figma `iPhone 17 - 14` 의 왼쪽 버튼 글리프.
+                    // AirDrop 으로 건네는 동작이라 내보내기 화살표보다 이쪽이 뜻이 맞는다.
+                    Image(systemName: "airplay.audio")
                         .font(.title2)
                 }
                 .buttonStyle(CardToolbarButtonStyle())
@@ -60,7 +89,7 @@ struct PostDetailView: View {
                 .buttonStyle(CardToolbarButtonStyle())
                 .accessibilityLabel("사진에 저장")
             }
-            .frame(width: 136, height: DrawingToolPicker.buttonSide)
+            .frame(width: 136, height: DoodleMetrics.buttonSide)
             .glassEffect(.regular, in: .capsule)
             .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
             .padding(.bottom, 10)
@@ -208,7 +237,7 @@ private struct CardToolbarButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(Color.doodlePrimary)
             // 아이콘 둘이 나란히 든 알약이라, 높이는 44 로 맞추고 폭만 알약 절반으로 나눈다.
-            .frame(width: 68, height: DrawingToolPicker.buttonSide)
+            .frame(width: 68, height: DoodleMetrics.buttonSide)
             .background {
                 if configuration.isPressed {
                     Capsule().fill(Color.doodlePressed)
@@ -304,7 +333,7 @@ extension PostDetailView {
 }
 
 #Preview {
-    PostDetailView(post: Post(drawingData: Data(), text: "테스트", isMine: false))
+    PostDetailView(post: Post(drawingData: Data(), text: "테스트", isMine: false)) { }
         .modelContainer(LocalDataStore.makePreviewContainer())
 }
 

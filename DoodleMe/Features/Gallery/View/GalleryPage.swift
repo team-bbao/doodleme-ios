@@ -36,13 +36,29 @@ struct GalleryPage: View {
 
     private var isChoosingProfile: Bool { mode == .choosingProfile }
 
+    /// 프로필로 쓸 그림을 고르는 흐름 안에 있는지.
+    ///
+    /// 들어오는 길이 둘이다.
+    /// 프로필 원을 눌러 그리드에서 고르거나, 카드를 꾹 눌러 곧장 확인창을 띄우거나.
+    ///
+    /// 예전에는 화면 처리를 `mode` 에만 걸어 두어 두 번째 길에서는
+    /// 어두운 막도, 세그먼트 바탕도, 툴바 숨김도 걸리지 않았다.
+    /// 같은 확인창이 열 때마다 다른 얼굴로 떠서 제멋대로인 것처럼 보였다.
+    private var isPickingProfile: Bool {
+        isChoosingProfile || profileCandidatePost != nil
+    }
+
     // Figma `iPhone 17 - 1` 기준 치수
     /// 프로필 원 지름
     private static let profileDiameter: CGFloat = 110
     /// 연필 뱃지 지름
     private static let profileBadgeDiameter: CGFloat = 25
-    /// 세그먼트 컨트롤 좌우 여백. 바깥 VStack 이 이미 16 을 주므로 그만큼 뺀 값을 더한다.
-    private static let segmentExtraInset: CGFloat = 12
+    /// 본문 좌우 여백.
+    ///
+    /// Figma 는 세그먼트(`Frame 2`)와 메모지 그리드(`Frame 28`) 를 둘 다 x=20, 폭 362 로 둔다.
+    /// 예전에는 세그먼트에만 여백을 더 줘서 그리드가 좌우로 더 튀어나왔다.
+    /// 한 값으로 묶어 두 줄의 끝이 어긋날 수 없게 한다.
+    private static let contentInset: CGFloat = 20
     /// 프로필 원이 시작하는 높이.
     private static let headerTopInset: CGFloat = 140
 
@@ -56,40 +72,45 @@ struct GalleryPage: View {
     /// `alert` 는 스스로 화면을 덮으므로 여기 넣지 않는다.
     /// 넣어 두면 확인창이 뜰 때마다 탭바가 사라졌다 돌아오며 화면이 흔들린다.
     private var isOverlayShowing: Bool {
-        selectedPost != nil || isChoosingProfile
+        selectedPost != nil || isPickingProfile
     }
 
     var body: some View {
         NavigationStack {
             ZStack {
-                PaperBackground()
+                // Figma `iPhone 17 - 14/15/16` 의 평평한 바탕.
+                // 종이 질감은 이 화면에서 은퇴했다.
+                Color.doodleBackground
+                    .ignoresSafeArea()
 
-                // 프로필 원과 이름은 어두운 레이어 **아래**에 둔다.
-                // 위에 두고 opacity/colorMultiply 로 낮추면 흰 원이 밝게 남는다.
-                // 특히 글래스 효과는 시스템이 따로 그려서 색 보정이 먹지 않는다.
-                // 같은 합성을 거치게 해야 배경과 똑같이 어두워진다.
-                profileBlock
-                    .padding(.top, Self.headerTopInset)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
-                    .padding(.horizontal)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .allowsHitTesting(!isChoosingProfile)
-
-                // 프로필을 고르는 동안에는 그림 말고 다 어둡게 덮는다.
+                // 프로필을 고르는 동안 종이 바탕만 어둡게 깔린다.
+                //
+                // Figma `iPhone 17 - 15` 의 층 순서를 그대로 따른다.
+                // 이 막 **위**에 남는 것 = 고를 수 있는 것: 프로필 원·이름·세그먼트·카드.
+                // 아래에 남는 것 = 바탕.
                 // 취소 버튼이 없으므로 어두운 곳을 눌러 빠져나온다.
-                if isChoosingProfile {
-                    Color.black.opacity(0.4)
+                if isPickingProfile {
+                    Color.doodleChoosingScrim
                         .ignoresSafeArea()
                         .contentShape(Rectangle())
                         .onTapGesture { exitSelection() }
                         .transition(.opacity)
                 }
 
-                // 세그먼트와 그리드는 어두운 레이어 **위**에 남아 밝게 보인다.
+                // 프로필 원과 이름. 고르는 중에도 밝게 남지만 누를 수는 없다.
+                // 지금 고르는 대상은 카드이고, 프로필은 그 결과가 놓일 자리일 뿐이다.
+                profileBlock
+                    .padding(.top, Self.headerTopInset)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+                    .padding(.horizontal, Self.contentInset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .allowsHitTesting(!isPickingProfile)
+
+                // 세그먼트와 그리드.
                 //
                 // 세그먼트가 헤더가 아니라 여기 있는 이유가 있다.
-                // 프로필로 쓸 그림은 받은 것 중에도, 내가 그린 것 중에도 있다.
-                // 고르는 동안에도 두 섹션을 오갈 수 있어야 해서 어두운 레이어 위로 올렸다.
+                // 프로필로 쓸 그림은 받은 것 중에도, 내가 그린 것 중에도 있어서
+                // 고르는 동안에도 두 섹션을 오갈 수 있어야 한다.
                 VStack(spacing: 0) {
                     // 시스템 세그먼트를 쓴다. 접근성·Dynamic Type·키보드 이동이 딸려 온다.
                     Picker("보기", selection: $segmentedBar) {
@@ -99,7 +120,16 @@ struct GalleryPage: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    .padding(.horizontal, Self.segmentExtraInset)
+                    // 세그먼트 트랙은 반투명이라 뒤에 깔린 것이 그대로 배어 나온다.
+                    //
+                    // 프로필을 고르는 동안에는 뒤에 어두운 막이 있어 트랙까지 한 톤 어두워졌다.
+                    // 고를 수 있는 것은 밝아야 하는데, 정작 눌러야 하는 세그먼트가 죽어 보였다.
+                    // 불투명 바탕을 한 겹 깔아 막이 배어 나오지 않게 한다.
+                    .background {
+                        if isPickingProfile {
+                            Capsule().fill(Color.doodleSegmentBase)
+                        }
+                    }
                     .padding(.bottom, 20)
 
                     PostGridView(
@@ -112,7 +142,7 @@ struct GalleryPage: View {
                         onEmptyAreaTap: emptyAreaTapAction
                     )
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, Self.contentInset)
                 .padding(.top, headerHeight)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
@@ -131,7 +161,9 @@ struct GalleryPage: View {
                                 withAnimation { self.selectedPost = nil }
                             }
 
-                        PostDetailView(post: selectedPost)
+                        PostDetailView(post: selectedPost) {
+                            withAnimation { self.selectedPost = nil }
+                        }
                     }
                 }
             }
@@ -156,10 +188,11 @@ struct GalleryPage: View {
             //
             // 파괴적 동작이 빨갛게, 취소가 제자리에 오는 배치는 시스템이 알아서 잡아준다.
             .alert(
-                "이 그림을 프로필로 설정할까요?",
+                "프로필 사진으로 설정하시겠습니까?",
                 isPresented: isProfileCandidatePresented
             ) {
-                Button("프로필로 설정") { confirmProfile() }
+                // HIG: 예/아니오 대신 무슨 일이 일어나는지 말해주는 동사를 쓴다.
+                Button("설정") { confirmProfile() }
                 Button("취소", role: .cancel) { profileCandidatePost = nil }
             }
             .alert("프로필 사진", isPresented: $showProfileEditPopup) {
@@ -277,8 +310,10 @@ struct GalleryPage: View {
         guard let candidate = profileCandidatePost else { return }
         modelContext.setProfilePost(candidate)
         confettiTrigger += 1
-        profileCandidatePost = nil
-        withAnimation(.spring()) { mode = .browsing }
+        withAnimation(.spring()) {
+            profileCandidatePost = nil
+            mode = .browsing
+        }
     }
 
     private func exitSelection() {

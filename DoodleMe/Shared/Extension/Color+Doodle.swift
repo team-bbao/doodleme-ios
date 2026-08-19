@@ -17,6 +17,19 @@ extension Color {
     /// 제목 아래 붙는 보조 설명. Figma `#6A6A6A` (`iPhone 17 - 9` 의 안내 문구)
     static let doodleSubtext = Color(red: 0x6A / 255, green: 0x6A / 255, blue: 0x6A / 255)
 
+    /// 갤러리 바탕. Figma `iPhone 17 - 14/15/16` 의 프레임 배경 `#F2F2F7`.
+    ///
+    /// 예전에는 종이 질감 이미지를 깔았는데, 최신 디자인이 평평한 색으로 바꿨다.
+    /// iOS 의 systemGroupedBackground 와 같은 값이지만, 다크 모드에서도
+    /// 디자인이 정한 이 색을 유지해야 하므로 시스템 색 대신 값을 못박는다.
+    static let doodleBackground = Color(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF7 / 255)
+
+    /// 무언가를 고르는 동안 뒤를 덮는 농도. Figma `iPhone 17 - 15` 의 `rgba(0,0,0,0.16)`
+    static let doodleChoosingScrim = Color.black.opacity(0.16)
+    /// 세그먼트 트랙 아래에 깔아 어두운 막이 배어 나오지 않게 하는 불투명 바탕.
+    /// Figma `iPhone 17 - 15` 의 트랙은 흰색에 가깝다.
+    static let doodleSegmentBase = Color(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF2 / 255)
+
     /// 보조 문구("님에게" 등). Figma `#6F6F6F`
     static let doodleSecondary = Color(red: 0x6F / 255, green: 0x6F / 255, blue: 0x6F / 255)
     /// 아바타 원 테두리. Figma `#E1E1E1`
