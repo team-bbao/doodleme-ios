@@ -67,7 +67,11 @@ struct DrawingPage: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                PaperBackground()
+                // Figma `iPhone 17 - 18` 의 배경. 뽑아 보니 #F2F2F7,
+                // 곧 iOS 의 systemGroupedBackground 와 같은 값이다.
+                // 값을 박아 두는 대신 시스템 색을 쓰면 대비 설정에도 따라간다.
+                Color(.systemGroupedBackground)
+                    .ignoresSafeArea()
 
                 // 타이머는 화면 맨 위에서 잰 자리에 고정한다.
                 // 툴바가 단계에 따라 나타났다 사라지는데, 그때마다 안전영역이 달라져
