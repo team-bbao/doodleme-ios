@@ -60,10 +60,11 @@ struct PostGridView: View {
             // 그리드가 차지할 영역 한가운데에 두어 "여기가 빈 자리" 임을 보여준다.
             Text(emptyMessage)
                 .foregroundStyle(.colorGray)
-                .fontWeight(.bold)
+                .fontWeight(.semibold)
                 .font(.system(size: 20))
                 .opacity(0.4)
                 .multilineTextAlignment(.center)
+                .padding(.bottom, 100)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .contentShape(Rectangle())
                 .onTapGesture { onEmptyAreaTap?() }

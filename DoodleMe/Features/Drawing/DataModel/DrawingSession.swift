@@ -17,6 +17,9 @@ final class DrawingSession {
         case pen
         case eraser
 
+        /// 펜의 기준 굵기. 속도로 굵기를 다시 매길 때도 이 값을 기준으로 삼는다.
+        static let penWidth: CGFloat = 3
+
         var pkTool: PKTool {
             switch self {
             case .pen:
@@ -24,7 +27,7 @@ final class DrawingSession {
                 // 저장된 획을 뜯어보니 force 가 0 이었다. 손가락 터치에는 힘 값이 없다.
                 // 3D Touch 가 사라진 뒤로 아이폰은 손가락 압력을 재지 않는다.
                 // 애플펜슬로 그리면 이 잉크도 굵기가 변한다.
-                PKInkingTool(.pen, color: .black, width: 3)
+                PKInkingTool(.pen, color: .black, width: Self.penWidth)
             case .eraser:
                 // 예전 지우개와 같이 닿은 획을 통째로 지운다. 픽셀 단위로 지우려면 .bitmap.
                 PKEraserTool(.vector)

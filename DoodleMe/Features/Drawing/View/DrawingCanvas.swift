@@ -72,11 +72,30 @@ private struct CanvasRepresentable: UIViewRepresentable {
         let session: DrawingSession
         var appliedRevision = 0
 
+        /// 굵기를 이미 매긴 획의 수.
+        private var shapedStrokeCount = 0
+        /// 우리가 그림을 갈아끼우는 중인지. 그 변경으로 자신이 다시 불리는 걸 막는다.
+        private var isReshaping = false
+
         init(session: DrawingSession) {
             self.session = session
         }
 
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
+            guard !isReshaping else { return }
+
+            let count = canvasView.drawing.strokes.count
+
+            // 획이 늘었을 때만 다시 매긴다.
+            // 되돌리기로 줄었으면 세어둔 수만 맞춰 두고 넘어간다.
+            if count > shapedStrokeCount {
+                isReshaping = true
+                canvasView.drawing = canvasView.drawing
+                    .withVelocityBasedWidth(baseWidth: DrawingSession.Tool.penWidth)
+                isReshaping = false
+            }
+            shapedStrokeCount = count
+
             session.canvasDidChange(drawing: canvasView.drawing)
         }
     }
