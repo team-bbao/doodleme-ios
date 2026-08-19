@@ -243,10 +243,12 @@ struct DrawingPage: View {
 
                 Spacer(minLength: 0)
             }
-            .padding(.top, 30)
+            .padding(.top, 38.5)
             .padding(.horizontal, 30)
             .frame(maxWidth: .infinity)
-            .frame(height: 80)
+            // 위 여백이 그대로 먹도록 위쪽에 붙인다.
+            // 가운데 정렬이면 여백을 5 줄여도 절반인 2.5 만 움직인다.
+            .frame(height: 80, alignment: .top)
             .contentShape(Rectangle())
             .onTapGesture { focusedField = .name }
 
