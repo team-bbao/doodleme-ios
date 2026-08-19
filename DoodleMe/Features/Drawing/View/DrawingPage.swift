@@ -148,7 +148,6 @@ struct DrawingPage: View {
                     .font(.system(size: 25, weight: .semibold))
                     .contentTransition(.numericText(countsDown: true))
                     .animation(.default, value: Int(session.remaining))
-                    .opacity(session.phase == .drawing ? 1 : 0.35)
 
                 // 예전에는 Slider 였는데, 썸을 숨겨도 트랙 드래그로 시간을 되감을 수 있었다.
                 // ProgressView 는 표시 전용이라 그런 조작이 불가능하다.
@@ -162,6 +161,10 @@ struct DrawingPage: View {
                     .accessibilityLabel("남은 시간")
                     .accessibilityValue("\(Int(session.remaining))초")
             }
+            // 아직 시작을 누르지 않았으면 시간은 흐르지 않는다.
+            // 숫자와 게이지를 함께 흐리게 두어, 지금은 세는 중이 아님을 알린다.
+            .opacity(session.phase == .drawing ? 1 : 0.35)
+            .animation(.easeOut(duration: 0.25), value: session.phase)
         }
     }
 
