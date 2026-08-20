@@ -295,6 +295,7 @@ struct DrawingPage: View {
                     font: .doodleHandwriting(size: Self.messageFontSize),
                     lineHeight: Self.messageLineHeight,
                     color: UIColor(Color.doodlePrimary),
+                    characterLimit: Self.textLimit,
                     isFocused: $isMessageFocused
                 )
                 // 자리글은 입력란 위에 겹쳐 그린다. 글꼴을 따로 둘 수 있고,
@@ -310,11 +311,6 @@ struct DrawingPage: View {
                 .padding(.horizontal, 30)
                 .padding(.bottom, 60)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .onChange(of: inputText) { _, newValue in
-                    if newValue.count > Self.textLimit {
-                        inputText = String(newValue.prefix(Self.textLimit))
-                    }
-                }
 
                 Text("\(inputText.count)/\(Self.textLimit)")
                     .font(.system(size: 17))
@@ -389,6 +385,17 @@ struct DrawingPage: View {
     }
 
     private func save() {
+        // 조합 중인 글자를 먼저 확정시킨다.
+        //
+        // 한마디는 조합이 끝나야 값을 넘기므로, 받침을 치다 말고 저장을 누르면
+        // 그 글자가 아직 밖으로 나오지 않은 상태다. 커서를 놓아 확정시킨 뒤 센다.
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+
         guard canSave else {
             triggerShake()
             return
