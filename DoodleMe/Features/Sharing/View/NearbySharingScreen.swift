@@ -45,19 +45,20 @@ struct NearbySharingScreen: View {
     /// 버튼 높이. 앱 전체가 같은 값을 쓴다.
     private static let buttonHeight = DoodleMetrics.buttonSide
 
-    /// 제목과 이름줄 사이. Figma `Frame 44` 가 12 를 둔다.
+    /// 제목과 이름줄 사이. Figma `Frame 45` 가 12 를 둔다.
     private static let titleSpacing: CGFloat = 12
+    /// 제목 덩이가 왼쪽에서 떨어진 거리. Figma `Frame 45` 의 x28.
+    private static let titleLeading: CGFloat = 28
     /// 본문이 안전영역 아래에서 시작하는 지점.
     ///
-    /// 안전영역 아래 25 가 Figma 의 y84 — 제목이 놓이는 자리다.
+    /// 안전영역 아래 13 이 Figma 의 y72 — 제목 덩이가 놓이는 자리다.
     ///
-    /// 제목이 들어오면서 아래 것들이 36(제목 24 + 사이 12)만큼 밀려 내려간다.
-    /// 찾은 사람 목록이 Figma 의 y572 보다 조금 아래에 서지만,
-    /// 더 당기면 제목이 상태 바와 같은 높이에 걸려 둘이 겹쳐 보인다.
+    /// 라지 타이틀이라 덩이가 77(제목 41 + 사이 12 + 이름줄 24)이나 된다.
+    /// 그만큼 아래 것들이 밀려 내려가, 찾은 사람 목록이 Figma 의 y572 보다 조금 아래에 선다.
     ///
     /// 이름줄을 20 으로 키운 몫이기도 하다.
-    /// Figma 의 `Frame 44` 는 이름줄을 15 로 잡아 세 덩이가 54 안에 들어간다.
-    private static let contentTop: CGFloat = 25
+    /// Figma `Frame 45` 는 이름줄을 15 로 잡는다.
+    private static let contentTop: CGFloat = 13
 
     /// 닫기 버튼 자리. 갤러리의 공유받기 버튼(`Frame 25`)과 같은 값이다.
     /// Figma 는 이 화면의 닫기를 72 에 두지만, 두 화면에서 같은 자리에 서는 쪽을 택했다.
@@ -172,18 +173,25 @@ struct NearbySharingScreen: View {
 
     // MARK: - 상단
 
-    /// 제목과 이름줄. Figma `iPhone 17 - 3`(그림 공유하기) · `iPhone 17 - 21`(그림 받기) 의 `Frame 44`.
+    /// 제목과 이름줄. Figma `iPhone 17 - 19` 의 `Frame 45`(149:524).
     ///
     /// 무엇을 하러 들어온 화면인지 한 줄로 알려 준다.
     /// 보낼 그림을 들고 왔으면 「그림 공유하기」, 받으러만 왔으면 「그림 받기」다.
+    ///
+    /// 가운데 정렬이 아니라 왼쪽에 붙는다.
+    /// 갤러리의 「갤러리」와 같은 라지 타이틀이라, 두 화면의 제목이 같은 자리에서 시작한다.
     private var titleGroup: some View {
-        VStack(spacing: Self.titleSpacing) {
+        VStack(alignment: .leading, spacing: Self.titleSpacing) {
             Text(post == nil ? "그림 받기" : "그림 공유하기")
-                .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(Self.primary)
+                // Figma: Large Title/Emphasized — SF Pro Bold 34 / `#1A1A1A` / 자간 0.4
+                .font(.system(size: 34, weight: .bold))
+                .kerning(0.4)
+                .foregroundStyle(Color.doodleTitle)
 
             nameRow
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, Self.titleLeading)
     }
 
     /// Figma `iPhone 17 - 9` 의 `Frame 12`(68:386): 20 / `#424242` / 사이 6.
