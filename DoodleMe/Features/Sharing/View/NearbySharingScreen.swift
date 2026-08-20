@@ -87,10 +87,10 @@ struct NearbySharingScreen: View {
             Color.doodleBackground
                 .ignoresSafeArea()
 
-            // 그림이 도착하면 찾는 화면을 접고 받기 화면으로 갈아 끼운다.
-            // 찾는 일은 끝났고, 이제 볼 것은 도착한 그림 하나뿐이다.
-            if let arrived {
-                arrivalScreen(for: arrived)
+            // 받으러 들어왔고 상대를 찾았으면 받기 화면으로 갈아 끼운다.
+            // 찾는 일은 끝났고, 이제 볼 것은 건너올 그림 하나뿐이다.
+            if post == nil, let sender = session?.peers.first?.displayName {
+                foundScreen(senderName: sender)
             } else {
                 searchingScreen
             }
@@ -155,19 +155,22 @@ struct NearbySharingScreen: View {
     // MARK: - 상단
 
 
-    /// 그림이 도착했을 때 보이는 화면. Figma `iPhone 17 - 23`(149:572).
+    /// 상대를 찾았을 때 보이는 화면. Figma `iPhone 17 - 23`(149:572).
     ///
-    /// 받은 그림을 크게 보여주고 「확인」으로 갤러리에 데려다 준다.
-    /// 그림은 도착하는 즉시 저장해 두었다 — 이 화면에서 무엇을 하든 잃지 않는다.
+    /// 누가 보내려 하는지 이름으로 알려 주고, 건너올 그림 자리를 미리 비워 둔다.
+    /// 그림이 아직 오지 않았으면 낙서가 획을 그려 가며 「오는 중」임을 보여주고,
+    /// 다 오면 그 자리에 받은 그림이 들어앉는다.
+    ///
+    /// 그림은 도착하는 즉시 저장한다. 이 화면에서 무엇을 하든 잃지 않는다.
     /// 그래서 「확인」은 받을지 말지를 묻는 것이 아니라, 다 봤으니 넘어가겠다는 뜻이다.
-    private func arrivalScreen(for arrived: Post) -> some View {
+    private func foundScreen(senderName: String) -> some View {
         VStack(spacing: 15) {
             // Figma `Frame 46`(149:625): 제목 아래 9 를 띄우고 보낸 사람.
             VStack(alignment: .leading, spacing: Self.senderSpacing) {
                 largeTitle("그림 받기")
 
                 HStack(spacing: 6) {
-                    Text(arrived.displaySenderName)
+                    Text(arrived?.displaySenderName ?? senderName)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Self.primary)
 
@@ -180,10 +183,17 @@ struct NearbySharingScreen: View {
             .padding(.leading, Self.titleLeading)
 
             // Figma `Frame 11`(149:626): 324x353.
-            // 찾는 화면의 낙서가 있던 자리를 받은 그림이 그대로 물려받는다.
-            DoodleImageView(drawingData: arrived.drawingData)
-                .padding(30)
-                .frame(width: 324, height: 353)
+            // 기다리는 화면의 낙서가 있던 자리를 그대로 물려받는다.
+            Group {
+                if let arrived {
+                    DoodleImageView(drawingData: arrived.drawingData)
+                } else {
+                    // 아직 오지 않았다. 획이 그려지는 동안이 곧 기다리는 시간이다.
+                    DoodleStrokeAnimation(strokes: animatedStrokes, isAnimating: true)
+                }
+            }
+            .padding(30)
+            .frame(width: 324, height: 353)
 
             // Figma `Frame 20`(149:629): 제목과 안내 사이 22.
             VStack(spacing: 22) {
@@ -201,7 +211,7 @@ struct NearbySharingScreen: View {
 
             Spacer(minLength: 0)
 
-            confirmButton(for: arrived)
+            confirmButton
                 .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity)
@@ -209,8 +219,12 @@ struct NearbySharingScreen: View {
     }
 
     /// 다 봤으니 갤러리로 데려다 달라는 버튼. Figma `Frame 21`(149:578): 168x48.
-    private func confirmButton(for arrived: Post) -> some View {
+    ///
+    /// 그림이 다 와야 누를 수 있다.
+    /// 오는 중에 눌러 봐야 데려다 줄 그림이 아직 없다.
+    private var confirmButton: some View {
         Button {
+            guard let arrived else { return }
             onReceived?(arrived)
             onClose()
         } label: {
@@ -218,10 +232,11 @@ struct NearbySharingScreen: View {
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 168, height: 48)
-                .background(Self.primary, in: Capsule())
+                .background(arrived == nil ? Self.muted : Self.primary, in: Capsule())
                 .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
         }
         .buttonStyle(.plain)
+        .disabled(arrived == nil)
     }
 
     /// 주변을 찾는 동안 보이는 화면.
@@ -229,11 +244,9 @@ struct NearbySharingScreen: View {
         VStack(spacing: 15) {
             titleGroup
 
-            // 못 찾고 끝났으면 그리기도 멈춘다. 계속 움직이면 아직 찾는 중처럼 보인다.
-            DoodleStrokeAnimation(
-                strokes: animatedStrokes,
-                isAnimating: session?.searchTimedOut != true
-            )
+            // 기다리는 동안에는 낙서가 다 그려진 채로 멈춰 있다.
+            // 획이 그려지는 움직임은 「무언가 오는 중」이라는 뜻으로 아껴 둔다 — `foundScreen` 참고.
+            DoodleStrokeAnimation(strokes: animatedStrokes, isAnimating: false)
             // 자리를 꽉 채우면 그림이 답답하고 가장자리 획이 잘려 보인다.
             // 보낼 그림이든 기본 낙서든 같은 여백을 둔다.
             .padding(30)
@@ -247,7 +260,7 @@ struct NearbySharingScreen: View {
             // 사람이 늘수록 아래로 늘린다 (85 → 170 → 255).
             // `Spacer` 뒤에 두면 카드가 화면 아래에 붙어, 한 명 늘 때마다
             // 먼저 있던 사람이 위로 밀려 올라간다 — 새로 온 사람이 아래에서 솟는 꼴이다.
-            if let session, !session.peers.isEmpty {
+            if post != nil, let session, !session.peers.isEmpty {
                 peerCard(session: session)
             }
 
@@ -277,7 +290,7 @@ struct NearbySharingScreen: View {
     /// 갤러리의 「갤러리」와 같은 라지 타이틀이라, 두 화면의 제목이 같은 자리에서 시작한다.
     private var titleGroup: some View {
         VStack(alignment: .leading, spacing: Self.titleSpacing) {
-            largeTitle("그림 공유하기")
+            largeTitle(post == nil ? "그림 받기" : "그림 공유하기")
             nameRow
         }
         .frame(maxWidth: .infinity, alignment: .leading)
