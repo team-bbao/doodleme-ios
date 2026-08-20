@@ -186,12 +186,17 @@ struct DrawingPage: View {
                     .multilineTextAlignment(.center)
                     // 여기 쓴 글이 그대로 카드 뒷면에 실린다.
                     // 쓸 때와 읽을 때가 다른 글씨면 보낸 사람이 자기 글을 알아보지 못한다.
-                    // 크기 25 는 이 화면의 여백·`lineSpacing` 에 맞춰 둔 값이라 그대로 둔다.
-                    .font(.doodleHandwriting(size: 25))
+                    // 카드 뒷면과 같은 40 으로 맞췄다.
+                    //
+                    // 행간 44 는 여기서 못 잡는다. 이 글꼴은 40pt 에서 기본 행높이가 약 50 인데
+                    // SwiftUI 의 `lineSpacing` 은 더하기만 되고 빼지는 못한다.
+                    // 44 로 눌러야 하면 카드 뒷면처럼 `UILabel`/`UITextView` 를 빌려야 한다
+                    // — `FixedLineHeightText` 참고.
+                    .font(.doodleHandwriting(size: 40))
                     .padding(.horizontal, 30)
                     .padding(.bottom, 60)
                     .focused($focusedField, equals: .text)
-                    .lineSpacing(15)
+                    .lineSpacing(0)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onChange(of: inputText) { _, newValue in
                         if newValue.count > Self.textLimit {
