@@ -188,7 +188,8 @@ struct NearbySharingScreen: View {
                 if let arrived {
                     DoodleImageView(drawingData: arrived.drawingData)
                 } else {
-                    // 아직 오지 않았다. 획이 그려지는 동안이 곧 기다리는 시간이다.
+                    // 아직 오지 않았다. 기다리는 화면에서 돌던 그리기가 그대로 이어진다 —
+                    // 찾는 중이든 오는 중이든 아직 기다리는 시간이라는 점은 같다.
                     DoodleStrokeAnimation(strokes: animatedStrokes, isAnimating: true)
                 }
             }
@@ -244,9 +245,12 @@ struct NearbySharingScreen: View {
         VStack(spacing: 15) {
             titleGroup
 
-            // 기다리는 동안에는 낙서가 다 그려진 채로 멈춰 있다.
-            // 획이 그려지는 움직임은 「무언가 오는 중」이라는 뜻으로 아껴 둔다 — `foundScreen` 참고.
-            DoodleStrokeAnimation(strokes: animatedStrokes, isAnimating: false)
+            // 기다리는 동안 낙서가 계속 그려진다. 아직 찾고 있다는 뜻이다.
+            // 못 찾고 끝났으면 그리기도 멈춘다. 계속 움직이면 아직 찾는 중처럼 보인다.
+            DoodleStrokeAnimation(
+                strokes: animatedStrokes,
+                isAnimating: session?.searchTimedOut != true
+            )
             // 자리를 꽉 채우면 그림이 답답하고 가장자리 획이 잘려 보인다.
             // 보낼 그림이든 기본 낙서든 같은 여백을 둔다.
             .padding(30)
