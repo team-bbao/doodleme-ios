@@ -23,6 +23,12 @@ struct DrawingPage: View {
     /// 포스트잇이 벗겨지는 연출 단계. 화면 연출 전용이라 세션 모델에 두지 않는다.
     @State private var peelPhase: Int = 0
     @FocusState private var focusedField: DrawingFocusField?
+    /// 한마디 입력란에 커서가 있는지.
+    ///
+    /// `@FocusState` 로 다루지 않는다. 그 값은 `.focused` 를 단 뷰가 있어야만 살아 있는데,
+    /// 한마디는 UIKit 을 빌려 그리므로 그 뷰가 없다.
+    /// 값을 넣어도 SwiftUI 가 곧바로 nil 로 되돌려, 커서가 방금 잡혔다가 풀리곤 했다.
+    @State private var isMessageFocused = false
     /// 키보드가 가리기 시작하는 높이. 키보드가 없으면 화면 맨 아래와 같다.
     @State private var keyboardTop: CGFloat = 0
 
@@ -129,7 +135,10 @@ struct DrawingPage: View {
                 .animation(.easeOut(duration: 0.25), value: keyboardTop)
             }
             .ignoresSafeArea(.container, edges: .bottom)
-            .onTapGesture { focusedField = nil }
+            .onTapGesture {
+                focusedField = nil
+                isMessageFocused = false
+            }
             .toolbarVisibility(session.phase == .notStarted ? .visible : .hidden, for: .tabBar)
             .toolbar { toolbarContent }
             // 그리기 단계이고 화면이 앞에 있을 때만 돈다.
@@ -269,28 +278,43 @@ struct DrawingPage: View {
             // 가운데 정렬이면 여백을 5 줄여도 절반인 2.5 만 움직인다.
             .frame(height: 80, alignment: .top)
             .contentShape(Rectangle())
-            .onTapGesture { focusedField = .name }
+            .onTapGesture {
+                isMessageFocused = false
+                focusedField = .name
+            }
 
             // 아래쪽: 첫인상 텍스트 입력 영역
             ZStack(alignment: .bottom) {
-                // 카드 뒷면에 남을 글씨와 같은 손글씨체로 쓴다.
+                // 카드 뒷면에 남을 글씨와 같은 손글씨체 · 같은 행높이로 쓴다.
                 // 쓰는 동안 보이는 글씨와 저장한 뒤에 보이는 글씨가 달라 놀랄 일이 없다.
                 //
-                // 이 글꼴은 세로 여백이 넉넉해 행간을 따로 벌리지 않는다.
-                TextField("첫 대화를 건네보세요 :)", text: $inputText, axis: .vertical)
-                    .lineLimit(1...5)
-                    .multilineTextAlignment(.center)
-                    .font(.doodleHandwriting(size: 30))
-                    .foregroundStyle(Color.doodlePrimary)
-                    .padding(.horizontal, 30)
-                    .padding(.bottom, 60)
-                    .focused($focusedField, equals: .text)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .onChange(of: inputText) { _, newValue in
-                        if newValue.count > Self.textLimit {
-                            inputText = String(newValue.prefix(Self.textLimit))
-                        }
+                // 자리글은 손글씨가 아니라 원래 쓰던 시스템 글꼴 그대로 둔다.
+                // 아직 아무것도 안 쓴 자리와 쓴 글을 눈으로 갈라 준다.
+                FixedLineHeightTextEditor(
+                    text: $inputText,
+                    font: .doodleHandwriting(size: Self.messageFontSize),
+                    lineHeight: Self.messageLineHeight,
+                    color: UIColor(Color.doodlePrimary),
+                    isFocused: $isMessageFocused
+                )
+                // 자리글은 입력란 위에 겹쳐 그린다. 글꼴을 따로 둘 수 있고,
+                // 첫 글자가 자리글 모양을 물려받는 일도 없다.
+                .overlay {
+                    if inputText.isEmpty {
+                        Text("첫 대화를 건네보세요 :)")
+                            .font(.system(size: 25, weight: .semibold))
+                            .foregroundStyle(.black.opacity(0.42))
+                            .allowsHitTesting(false)
                     }
+                }
+                .padding(.horizontal, 30)
+                .padding(.bottom, 60)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .onChange(of: inputText) { _, newValue in
+                    if newValue.count > Self.textLimit {
+                        inputText = String(newValue.prefix(Self.textLimit))
+                    }
+                }
 
                 Text("\(inputText.count)/\(Self.textLimit)")
                     .font(.system(size: 17))
@@ -300,9 +324,13 @@ struct DrawingPage: View {
                     .padding(.bottom, 20)
             }
             .contentShape(Rectangle())
-            .onTapGesture { focusedField = .text }
+            .onTapGesture { isMessageFocused = true }
         }
         .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
+        // 이름 칸으로 옮겨 가면 한마디에서는 손을 뗀다. 커서가 둘로 보이지 않게.
+        .onChange(of: focusedField) { _, field in
+            if field != nil { isMessageFocused = false }
+        }
     }
 
     // MARK: - 툴바
@@ -339,6 +367,10 @@ struct DrawingPage: View {
     // MARK: - 동작
 
     private static let textLimit = 30
+
+    /// 한마디 글씨. 카드 뒷면(`PostDetailView`)과 같은 값을 쓴다.
+    private static let messageFontSize: CGFloat = 30
+    private static let messageLineHeight: CGFloat = 44
 
     /// 포스트잇을 벗기고 그리기를 시작한다.
     ///
@@ -388,6 +420,7 @@ struct DrawingPage: View {
         session.reset()
         inputText = ""
         recipientName = ""
+        isMessageFocused = false
         shakeAmount = 0
         peelPhase = 0
     }
