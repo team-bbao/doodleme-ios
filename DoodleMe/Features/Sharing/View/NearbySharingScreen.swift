@@ -45,6 +45,26 @@ struct NearbySharingScreen: View {
     /// 버튼 높이. 앱 전체가 같은 값을 쓴다.
     private static let buttonHeight = DoodleMetrics.buttonSide
 
+    /// 제목과 이름줄 사이. Figma `Frame 45` 가 12 를 둔다.
+    private static let titleSpacing: CGFloat = 12
+    /// 제목 덩이가 왼쪽에서 떨어진 거리. Figma `Frame 45` 의 x28.
+    private static let titleLeading: CGFloat = 28
+    /// 본문이 안전영역 아래에서 시작하는 지점.
+    ///
+    /// 안전영역 아래 13 이 Figma 의 y72 — 제목 덩이가 놓이는 자리다.
+    ///
+    /// 라지 타이틀이라 덩이가 77(제목 41 + 사이 12 + 이름줄 24)이나 된다.
+    /// 그만큼 아래 것들이 밀려 내려가, 찾은 사람 목록이 Figma 의 y572 보다 조금 아래에 선다.
+    ///
+    /// 이름줄을 20 으로 키운 몫이기도 하다.
+    /// Figma `Frame 45` 는 이름줄을 15 로 잡는다.
+    private static let contentTop: CGFloat = 13
+
+    /// 닫기 버튼 자리. 갤러리의 공유받기 버튼(`Frame 25`)과 같은 값이다.
+    /// Figma 는 이 화면의 닫기를 72 에 두지만, 두 화면에서 같은 자리에 서는 쪽을 택했다.
+    private static let closeButtonTop: CGFloat = 70
+    private static let closeButtonTrailing: CGFloat = 20
+
     var body: some View {
         // Figma `iPhone 17 - 9` 세로 배치:
         // 닫기 y72 / 이름 y100 / 그림 y133(337x367) / 상태 y539 / 다시 찾기 y729.
@@ -55,7 +75,7 @@ struct NearbySharingScreen: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 15) {
-                nameRow
+                titleGroup
 
                 // 못 찾고 끝났으면 그리기도 멈춘다. 계속 움직이면 아직 찾는 중처럼 보인다.
                 DoodleStrokeAnimation(
@@ -69,6 +89,16 @@ struct NearbySharingScreen: View {
 
                 status
 
+                // 찾은 사람은 상태 문구 바로 아래에 쌓인다.
+                //
+                // Figma `iPhone 17 - 19/20/4` 가 이 카드를 y572 에 고정해 두고
+                // 사람이 늘수록 아래로 늘린다 (85 → 170 → 255).
+                // `Spacer` 뒤에 두면 카드가 화면 아래에 붙어, 한 명 늘 때마다
+                // 먼저 있던 사람이 위로 밀려 올라간다 — 새로 온 사람이 아래에서 솟는 꼴이다.
+                if let session, !session.peers.isEmpty {
+                    peerCard(session: session)
+                }
+
                 Spacer(minLength: 0)
 
                 if session?.searchTimedOut == true || session?.localNetworkBlocked == true {
@@ -78,21 +108,26 @@ struct NearbySharingScreen: View {
                     }
                     // 안전영역 안쪽 기준. Figma 의 화면 아래 75 에서 홈 인디케이터 몫을 뺀 값이다.
                     .padding(.bottom, 24)
-                } else if let session, !session.peers.isEmpty {
-                    peerCard(session: session)
                 }
             }
             // 화면 폭을 다 쓰게 해야 안쪽 요소가 가운데로 온다.
             .frame(maxWidth: .infinity)
-            // 안전영역 아래 41 지점이 Figma 의 y100 이다.
-            .padding(.top, 41)
+            .padding(.top, Self.contentTop)
 
             // ZStack 정렬을 topTrailing 으로 주면 본문까지 딸려 가므로
             // 닫기 버튼 자신만 모서리로 보낸다.
+            //
+            // 자리는 갤러리의 공유받기 버튼과 똑같이 잡는다 — 화면 위에서 70, 오른쪽에서 20.
+            // 두 버튼은 같은 44 원이고 화면을 오갈 때 같은 자리에 있어야 눈이 따라가지 않는다.
+            //
+            // 그래서 이 버튼만 안전영역을 무시한다.
+            // 이 화면의 다른 것들은 안전영역을 기준으로 놓이지만(이름줄이 그 아래 41),
+            // 갤러리는 화면 맨 위를 기준으로 삼기 때문에 같은 기준을 써야 자리가 맞는다.
             closeButton
-                .padding(.top, 13)
-                .padding(.trailing, 20)
+                .padding(.top, Self.closeButtonTop)
+                .padding(.trailing, Self.closeButtonTrailing)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .ignoresSafeArea(edges: .top)
         }
         .task {
             // 상대에게 보일 이름은 프로필 이름을 그대로 쓴다.
@@ -138,17 +173,47 @@ struct NearbySharingScreen: View {
 
     // MARK: - 상단
 
+    /// 제목과 이름줄. Figma `iPhone 17 - 19` 의 `Frame 45`(149:524).
+    ///
+    /// 무엇을 하러 들어온 화면인지 한 줄로 알려 준다.
+    /// 보낼 그림을 들고 왔으면 「그림 공유하기」, 받으러만 왔으면 「그림 받기」다.
+    ///
+    /// 가운데 정렬이 아니라 왼쪽에 붙는다.
+    /// 갤러리의 「갤러리」와 같은 라지 타이틀이라, 두 화면의 제목이 같은 자리에서 시작한다.
+    private var titleGroup: some View {
+        VStack(alignment: .leading, spacing: Self.titleSpacing) {
+            Text(post == nil ? "그림 받기" : "그림 공유하기")
+                // Figma: Large Title/Emphasized — SF Pro Bold 34 / `#1A1A1A` / 자간 0.4
+                .font(.system(size: 34, weight: .bold))
+                .kerning(0.4)
+                .foregroundStyle(Color.doodleTitle)
+
+            nameRow
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, Self.titleLeading)
+    }
+
+    /// Figma `iPhone 17 - 9` 의 `Frame 12`(68:386): 20 / `#424242` / 사이 6.
+    /// 「내 이름:」은 Medium, 이름은 Semi Bold.
+    ///
+    /// 굵기를 갈라 두는 이유가 있다.
+    /// 이 줄에서 정작 봐야 하는 것은 이름이고, 「내 이름:」은 그것이 무엇인지 알려주는 꼬리표다.
+    /// 둘을 같은 굵기로 두면 어느 쪽이 내 이름인지 한 번 더 읽어야 한다.
     private var nameRow: some View {
-        // 한 줄이 라벨과 값으로 갈려 보이지 않도록 굵기를 맞춘다.
-        // Figma 17-3 은 라벨을 Medium 으로 두지만, 화면에서는 두 조각처럼 읽혔다.
         HStack(spacing: 6) {
             Text("내 이름:")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: Self.nameFontSize, weight: .medium))
+            // 이름을 비워 둔 사람에게도 이름은 보여야 한다.
+            // 세션이 뜨기 전이라 아직 채워진 값이 없으면 기본 이름을 쓴다.
             Text(session?.displayName ?? Post.unknownSenderName)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: Self.nameFontSize, weight: .semibold))
         }
         .foregroundStyle(Self.primary)
     }
+
+    /// 「내 이름: OOO」 글자 크기. Figma `Frame 12`(68:386).
+    private static let nameFontSize: CGFloat = 20
 
     /// Figma `iPhone 17 - 9` 의 `Frame 6`: 우상단 X.
     /// Figma 원본은 55 지만 앱의 버튼 규격에 맞춰 44 로 쓴다.
@@ -305,7 +370,9 @@ struct NearbySharingScreen: View {
         .frame(height: Self.peerRowHeight * CGFloat(rows))
         // 목록이 다 들어오면 튕기지 않게 한다. 스크롤될 때만 튕긴다.
         .scrollBounceBehavior(.basedOnSize)
-        .scrollIndicators(.hidden)
+        // 세 명까지만 카드에 들어가고 그 아래는 밀어서 본다.
+        // 넘칠 때만 막대를 보여준다 — 다 보이는데 막대가 있으면 더 있는 줄 안다.
+        .scrollIndicators(session.peers.count > Self.visiblePeerLimit ? .visible : .hidden)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
         .background {
@@ -314,8 +381,7 @@ struct NearbySharingScreen: View {
                 .shadow(color: .black.opacity(0.12), radius: 16, y: -2)
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, 12)
-        .transition(.move(edge: .bottom))
+        .transition(.opacity)
     }
 
     private func peerRow(peer: MCPeerID, session: MultipeerSession) -> some View {
@@ -371,7 +437,7 @@ struct NearbySharingScreen: View {
             case .sending:
                 SendingRing()
             case .sent:
-                Circle().stroke(Self.progressRing, lineWidth: 2)
+                SentRing()
             default:
                 Circle().stroke(Color.doodleHairline, lineWidth: 1)
             }
@@ -449,4 +515,31 @@ private struct SendingRing: View {
                 .rotationEffect(.degrees(context.date.timeIntervalSinceReferenceDate * 240))
         }
     }
+}
+
+/// 다 보내고 나면 한 바퀴 그려지는 테두리. Figma `Frame 24` 의 「전송됨」.
+///
+/// 12시에서 시작해 시계 방향으로 한 바퀴 돈다.
+/// `trim` 은 3시에서 그리기 시작하므로 90도 돌려 12시에 맞춘다.
+///
+/// 다 그려진 원을 그냥 띄우면 무엇이 끝났는지 눈에 걸리지 않는다.
+/// 도는 동안 눈이 원을 따라가고, 다 돌고 나면 끝났다는 것이 남는다.
+/// 돌던 것(`SendingRing`)이 멈추고 채워지는 흐름이라 이어서 읽힌다.
+private struct SentRing: View {
+    /// 얼마나 그려졌는지. 0 이면 아무것도 없고 1 이면 한 바퀴다.
+    @State private var sweep: CGFloat = 0
+
+    var body: some View {
+        Circle()
+            .trim(from: 0, to: sweep)
+            .stroke(NearbySharingScreen.progressRing, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+            .rotationEffect(.degrees(-90))
+            .onAppear {
+                withAnimation(.easeOut(duration: Self.duration)) { sweep = 1 }
+            }
+    }
+
+    /// 한 바퀴 도는 데 걸리는 시간.
+    /// 더 빠르면 돌았는지 모르고, 더 느리면 다 됐는데 기다리는 기분이 든다.
+    private static let duration: TimeInterval = 0.45
 }
