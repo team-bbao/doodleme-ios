@@ -45,6 +45,20 @@ struct NearbySharingScreen: View {
     /// 버튼 높이. 앱 전체가 같은 값을 쓴다.
     private static let buttonHeight = DoodleMetrics.buttonSide
 
+    /// 제목과 이름줄 사이. Figma `Frame 44` 가 12 를 둔다.
+    private static let titleSpacing: CGFloat = 12
+    /// 본문이 안전영역 아래에서 시작하는 지점.
+    ///
+    /// 안전영역 아래 25 가 Figma 의 y84 — 제목이 놓이는 자리다.
+    ///
+    /// 제목이 들어오면서 아래 것들이 36(제목 24 + 사이 12)만큼 밀려 내려간다.
+    /// 찾은 사람 목록이 Figma 의 y572 보다 조금 아래에 서지만,
+    /// 더 당기면 제목이 상태 바와 같은 높이에 걸려 둘이 겹쳐 보인다.
+    ///
+    /// 이름줄을 20 으로 키운 몫이기도 하다.
+    /// Figma 의 `Frame 44` 는 이름줄을 15 로 잡아 세 덩이가 54 안에 들어간다.
+    private static let contentTop: CGFloat = 25
+
     /// 닫기 버튼 자리. 갤러리의 공유받기 버튼(`Frame 25`)과 같은 값이다.
     /// Figma 는 이 화면의 닫기를 72 에 두지만, 두 화면에서 같은 자리에 서는 쪽을 택했다.
     private static let closeButtonTop: CGFloat = 70
@@ -60,7 +74,7 @@ struct NearbySharingScreen: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 15) {
-                nameRow
+                titleGroup
 
                 // 못 찾고 끝났으면 그리기도 멈춘다. 계속 움직이면 아직 찾는 중처럼 보인다.
                 DoodleStrokeAnimation(
@@ -97,8 +111,7 @@ struct NearbySharingScreen: View {
             }
             // 화면 폭을 다 쓰게 해야 안쪽 요소가 가운데로 온다.
             .frame(maxWidth: .infinity)
-            // 안전영역 아래 41 지점이 Figma 의 y100 이다.
-            .padding(.top, 41)
+            .padding(.top, Self.contentTop)
 
             // ZStack 정렬을 topTrailing 으로 주면 본문까지 딸려 가므로
             // 닫기 버튼 자신만 모서리로 보낸다.
@@ -158,6 +171,20 @@ struct NearbySharingScreen: View {
     }
 
     // MARK: - 상단
+
+    /// 제목과 이름줄. Figma `iPhone 17 - 3`(그림 공유하기) · `iPhone 17 - 21`(그림 받기) 의 `Frame 44`.
+    ///
+    /// 무엇을 하러 들어온 화면인지 한 줄로 알려 준다.
+    /// 보낼 그림을 들고 왔으면 「그림 공유하기」, 받으러만 왔으면 「그림 받기」다.
+    private var titleGroup: some View {
+        VStack(spacing: Self.titleSpacing) {
+            Text(post == nil ? "그림 받기" : "그림 공유하기")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(Self.primary)
+
+            nameRow
+        }
+    }
 
     /// Figma `iPhone 17 - 9` 의 `Frame 12`(68:386): 20 / `#424242` / 사이 6.
     /// 「내 이름:」은 Medium, 이름은 Semi Bold.
