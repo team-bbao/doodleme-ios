@@ -81,6 +81,15 @@ struct PostGridView: View {
     private static let cardHeight: CGFloat = 186
     /// 카드 사이 가로 간격. 170 + 22 + 170 = 362 로 본문 폭에 딱 맞는다.
     private static let columnSpacing: CGFloat = 22
+    /// 마지막 줄 아래 여백.
+    ///
+    /// 탭 바가 화면 아래에 떠 있고 그리드는 그 밑까지 뻗어 있다.
+    /// 이 여백이 모자라면 **끝까지 밀어도 마지막 줄이 탭 바에 가린 채로 멈춘다.**
+    /// 스크롤이 아예 안 되는 것처럼 보이는데, 사실은 더 내려갈 자리가 없는 것이다.
+    ///
+    /// 탭 바가 아래에서 차지하는 높이(≈66)에 손끝이 닿을 자리와 홈 인디케이터를 더해 잡았다.
+    /// 마지막 줄 아래에 누를 수 있는 빈 자리를 남기는 몫도 겸한다.
+    private static let bottomInset: CGFloat = 96
     /// 줄 사이 세로 간격. Figma 는 가로보다 좁은 17 을 쓴다 (186 세 줄 + 17 두 칸 = 592).
     private static let rowSpacing: CGFloat = 17
 
@@ -111,8 +120,7 @@ struct PostGridView: View {
                             card(for: post)
                         }
                     }
-                    // 마지막 줄 아래에도 누를 수 있는 여백을 남긴다.
-                    .padding(.bottom, 40)
+                    .padding(.bottom, Self.bottomInset)
                     .frame(maxWidth: .infinity, minHeight: 0, alignment: .top)
                     // 공유 화면이 덮고 있는 동안 미리 옮겨 둔다.
                     // 화면이 걷히면 그림이 이미 그 자리에 있어, 스크롤이 흐르는 것을 볼 일이 없다.
