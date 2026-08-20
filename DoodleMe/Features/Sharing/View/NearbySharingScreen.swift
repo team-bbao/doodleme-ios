@@ -45,6 +45,11 @@ struct NearbySharingScreen: View {
     /// 버튼 높이. 앱 전체가 같은 값을 쓴다.
     private static let buttonHeight = DoodleMetrics.buttonSide
 
+    /// 닫기 버튼 자리. 갤러리의 공유받기 버튼(`Frame 25`)과 같은 값이다.
+    /// Figma 는 이 화면의 닫기를 72 에 두지만, 두 화면에서 같은 자리에 서는 쪽을 택했다.
+    private static let closeButtonTop: CGFloat = 70
+    private static let closeButtonTrailing: CGFloat = 20
+
     var body: some View {
         // Figma `iPhone 17 - 9` 세로 배치:
         // 닫기 y72 / 이름 y100 / 그림 y133(337x367) / 상태 y539 / 다시 찾기 y729.
@@ -89,10 +94,18 @@ struct NearbySharingScreen: View {
 
             // ZStack 정렬을 topTrailing 으로 주면 본문까지 딸려 가므로
             // 닫기 버튼 자신만 모서리로 보낸다.
+            //
+            // 자리는 갤러리의 공유받기 버튼과 똑같이 잡는다 — 화면 위에서 70, 오른쪽에서 20.
+            // 두 버튼은 같은 44 원이고 화면을 오갈 때 같은 자리에 있어야 눈이 따라가지 않는다.
+            //
+            // 그래서 이 버튼만 안전영역을 무시한다.
+            // 이 화면의 다른 것들은 안전영역을 기준으로 놓이지만(이름줄이 그 아래 41),
+            // 갤러리는 화면 맨 위를 기준으로 삼기 때문에 같은 기준을 써야 자리가 맞는다.
             closeButton
-                .padding(.top, 13)
-                .padding(.trailing, 20)
+                .padding(.top, Self.closeButtonTop)
+                .padding(.trailing, Self.closeButtonTrailing)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .ignoresSafeArea(edges: .top)
         }
         .task {
             // 상대에게 보일 이름은 프로필 이름을 그대로 쓴다.
