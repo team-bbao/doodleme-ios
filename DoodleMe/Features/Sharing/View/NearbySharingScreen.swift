@@ -144,7 +144,7 @@ struct NearbySharingScreen: View {
         HStack(spacing: 6) {
             Text("내 이름:")
                 .font(.system(size: 15, weight: .semibold))
-            Text(session?.displayName ?? userName)
+            Text(session?.displayName ?? Post.unknownSenderName)
                 .font(.system(size: 15, weight: .semibold))
         }
         .foregroundStyle(Self.primary)
@@ -402,7 +402,9 @@ struct NearbySharingScreen: View {
         session.send(
             PostTransferData(
                 post: post,
-                senderName: userName,
+                // 이름을 비워 둔 사람도 상대 화면에는 이름이 있어야 한다.
+                // 세션이 이미 「doodle.me 사용자」로 채워 둔 값을 그대로 쓴다.
+                senderName: session.displayName,
                 profileDrawingData: profilePosts.first?.drawingData
             ),
             to: peer
