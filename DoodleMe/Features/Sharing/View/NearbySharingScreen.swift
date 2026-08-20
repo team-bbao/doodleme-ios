@@ -33,6 +33,8 @@ struct NearbySharingScreen: View {
     @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
 
     @State private var session: MultipeerSession?
+    /// 방금 도착한 그림. 값이 있으면 찾는 화면 대신 받기 화면을 보여준다.
+    @State private var arrived: Post?
     /// 가운데에서 되살릴 획. 원본이 바뀔 때만 다시 푼다.
     @State private var animatedStrokes: [[CGPoint]] = DefaultDoodle.strokes
 
@@ -45,8 +47,19 @@ struct NearbySharingScreen: View {
     /// 버튼 높이. 앱 전체가 같은 값을 쓴다.
     private static let buttonHeight = DoodleMetrics.buttonSide
 
+    /// 화면 제목. 갤러리의 「갤러리」와 같은 라지 타이틀이다.
+    /// Figma: Large Title/Emphasized — SF Pro Bold 34 / `#1A1A1A` / 자간 0.4.
+    private func largeTitle(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 34, weight: .bold))
+            .kerning(0.4)
+            .foregroundStyle(Color.doodleTitle)
+    }
+
     /// 제목과 이름줄 사이. Figma `Frame 45` 가 12 를 둔다.
     private static let titleSpacing: CGFloat = 12
+    /// 제목과 보낸 사람 사이. Figma `Frame 46` 은 9 로 조금 더 좁다.
+    private static let senderSpacing: CGFloat = 9
     /// 제목 덩이가 왼쪽에서 떨어진 거리. Figma `Frame 45` 의 x28.
     private static let titleLeading: CGFloat = 28
     /// 본문이 안전영역 아래에서 시작하는 지점.
@@ -74,45 +87,13 @@ struct NearbySharingScreen: View {
             Color.doodleBackground
                 .ignoresSafeArea()
 
-            VStack(spacing: 15) {
-                titleGroup
-
-                // 못 찾고 끝났으면 그리기도 멈춘다. 계속 움직이면 아직 찾는 중처럼 보인다.
-                DoodleStrokeAnimation(
-                    strokes: animatedStrokes,
-                    isAnimating: session?.searchTimedOut != true
-                )
-                // 자리를 꽉 채우면 그림이 답답하고 가장자리 획이 잘려 보인다.
-                // 보낼 그림이든 기본 낙서든 같은 여백을 둔다.
-                .padding(30)
-                .frame(width: 337, height: 367)
-
-                status
-
-                // 찾은 사람은 상태 문구 바로 아래에 쌓인다.
-                //
-                // Figma `iPhone 17 - 19/20/4` 가 이 카드를 y572 에 고정해 두고
-                // 사람이 늘수록 아래로 늘린다 (85 → 170 → 255).
-                // `Spacer` 뒤에 두면 카드가 화면 아래에 붙어, 한 명 늘 때마다
-                // 먼저 있던 사람이 위로 밀려 올라간다 — 새로 온 사람이 아래에서 솟는 꼴이다.
-                if let session, !session.peers.isEmpty {
-                    peerCard(session: session)
-                }
-
-                Spacer(minLength: 0)
-
-                if session?.searchTimedOut == true || session?.localNetworkBlocked == true {
-                    VStack(spacing: 8) {
-                        retryButton
-                        settingsButton
-                    }
-                    // 안전영역 안쪽 기준. Figma 의 화면 아래 75 에서 홈 인디케이터 몫을 뺀 값이다.
-                    .padding(.bottom, 24)
-                }
+            // 그림이 도착하면 찾는 화면을 접고 받기 화면으로 갈아 끼운다.
+            // 찾는 일은 끝났고, 이제 볼 것은 도착한 그림 하나뿐이다.
+            if let arrived {
+                arrivalScreen(for: arrived)
+            } else {
+                searchingScreen
             }
-            // 화면 폭을 다 쓰게 해야 안쪽 요소가 가운데로 온다.
-            .frame(maxWidth: .infinity)
-            .padding(.top, Self.contentTop)
 
             // ZStack 정렬을 topTrailing 으로 주면 본문까지 딸려 가므로
             // 닫기 버튼 자신만 모서리로 보낸다.
@@ -173,6 +154,119 @@ struct NearbySharingScreen: View {
 
     // MARK: - 상단
 
+
+    /// 그림이 도착했을 때 보이는 화면. Figma `iPhone 17 - 23`(149:572).
+    ///
+    /// 받은 그림을 크게 보여주고 「확인」으로 갤러리에 데려다 준다.
+    /// 그림은 도착하는 즉시 저장해 두었다 — 이 화면에서 무엇을 하든 잃지 않는다.
+    /// 그래서 「확인」은 받을지 말지를 묻는 것이 아니라, 다 봤으니 넘어가겠다는 뜻이다.
+    private func arrivalScreen(for arrived: Post) -> some View {
+        VStack(spacing: 15) {
+            // Figma `Frame 46`(149:625): 제목 아래 9 를 띄우고 보낸 사람.
+            VStack(alignment: .leading, spacing: Self.senderSpacing) {
+                largeTitle("그림 받기")
+
+                HStack(spacing: 6) {
+                    Text(arrived.displaySenderName)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Self.primary)
+
+                    Text("님으로부터")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.doodleSecondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, Self.titleLeading)
+
+            // Figma `Frame 11`(149:626): 324x353.
+            // 찾는 화면의 낙서가 있던 자리를 받은 그림이 그대로 물려받는다.
+            DoodleImageView(drawingData: arrived.drawingData)
+                .padding(30)
+                .frame(width: 324, height: 353)
+
+            // Figma `Frame 20`(149:629): 제목과 안내 사이 22.
+            VStack(spacing: 22) {
+                Text("그림을 받으시겠어요?")
+                    .font(.system(size: 25, weight: .semibold))
+                    .foregroundStyle(Self.primary)
+
+                Text("확인을 누르면 해당 그림 갤러리 탭으로\n넘어가져요.")
+                    .font(.system(size: 15))
+                    .lineSpacing(2)
+                    .foregroundStyle(Color.doodleSubtext)
+            }
+            .multilineTextAlignment(.center)
+            .padding(.top, 24)
+
+            Spacer(minLength: 0)
+
+            confirmButton(for: arrived)
+                .padding(.bottom, 24)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, Self.contentTop)
+    }
+
+    /// 다 봤으니 갤러리로 데려다 달라는 버튼. Figma `Frame 21`(149:578): 168x48.
+    private func confirmButton(for arrived: Post) -> some View {
+        Button {
+            onReceived?(arrived)
+            onClose()
+        } label: {
+            Text("확인")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 168, height: 48)
+                .background(Self.primary, in: Capsule())
+                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 주변을 찾는 동안 보이는 화면.
+    private var searchingScreen: some View {
+        VStack(spacing: 15) {
+            titleGroup
+
+            // 못 찾고 끝났으면 그리기도 멈춘다. 계속 움직이면 아직 찾는 중처럼 보인다.
+            DoodleStrokeAnimation(
+                strokes: animatedStrokes,
+                isAnimating: session?.searchTimedOut != true
+            )
+            // 자리를 꽉 채우면 그림이 답답하고 가장자리 획이 잘려 보인다.
+            // 보낼 그림이든 기본 낙서든 같은 여백을 둔다.
+            .padding(30)
+            .frame(width: 337, height: 367)
+
+            status
+
+            // 찾은 사람은 상태 문구 바로 아래에 쌓인다.
+            //
+            // Figma `iPhone 17 - 19/20/4` 가 이 카드를 y572 에 고정해 두고
+            // 사람이 늘수록 아래로 늘린다 (85 → 170 → 255).
+            // `Spacer` 뒤에 두면 카드가 화면 아래에 붙어, 한 명 늘 때마다
+            // 먼저 있던 사람이 위로 밀려 올라간다 — 새로 온 사람이 아래에서 솟는 꼴이다.
+            if let session, !session.peers.isEmpty {
+                peerCard(session: session)
+            }
+
+            Spacer(minLength: 0)
+
+            if session?.searchTimedOut == true || session?.localNetworkBlocked == true {
+                VStack(spacing: 8) {
+                    retryButton
+                    settingsButton
+                }
+                // 안전영역 안쪽 기준. Figma 의 화면 아래 75 에서 홈 인디케이터 몫을 뺀 값이다.
+                .padding(.bottom, 24)
+            }
+        }
+        // 화면 폭을 다 쓰게 해야 안쪽 요소가 가운데로 온다.
+        .frame(maxWidth: .infinity)
+        .padding(.top, Self.contentTop)
+    }
+
     /// 제목과 이름줄. Figma `iPhone 17 - 19` 의 `Frame 45`(149:524).
     ///
     /// 들어온 길과 상관없이 늘 「그림 공유하기」다.
@@ -183,12 +277,7 @@ struct NearbySharingScreen: View {
     /// 갤러리의 「갤러리」와 같은 라지 타이틀이라, 두 화면의 제목이 같은 자리에서 시작한다.
     private var titleGroup: some View {
         VStack(alignment: .leading, spacing: Self.titleSpacing) {
-            Text("그림 공유하기")
-                // Figma: Large Title/Emphasized — SF Pro Bold 34 / `#1A1A1A` / 자간 0.4
-                .font(.system(size: 34, weight: .bold))
-                .kerning(0.4)
-                .foregroundStyle(Color.doodleTitle)
-
+            largeTitle("그림 공유하기")
             nameRow
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -494,8 +583,8 @@ struct NearbySharingScreen: View {
         // 받은 그림은 "너가 그린" 에 쌓인다.
         gallerySection = GallerySection.receivedFromOthers.rawValue
 
-        onReceived?(saved)
-        onClose()
+        // 찾는 화면을 접고 받기 화면으로 넘어간다.
+        withAnimation(.spring(response: 0.35)) { arrived = saved }
     }
 }
 
