@@ -16,8 +16,8 @@ struct DrawingToolPicker: View {
     static let buttonSide: CGFloat = 44
 
     var body: some View {
-        // 무엇으로 그릴지(연필·지우개)를 먼저 두고, 방금 한 일을 무르는 버튼을 뒤에 둔다.
-        // 예전에는 되돌리기가 양 끝에 하나씩 갈라져 있어 짝이라는 게 드러나지 않았다.
+        // 무엇으로 그릴지를 앞에, 방금 한 일을 무르는 버튼을 뒤에 둔다.
+        // 연필과 지우개, 되돌리기와 다시하기는 각각 짝이므로 갈라놓지 않는다.
         HStack(spacing: 12) {
             toolButton(icon: "pencil.tip", tool: .pen, label: "연필")
             toolButton(icon: "eraser.fill", tool: .eraser, label: "지우개")

@@ -37,10 +37,16 @@ struct ProfileNameView: View {
                     }
                 }
             Button("저장") {
-                let trimmed = draftName
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                    .prefix(Self.nameLimit)
-                profileName = trimmed.isEmpty ? profileName : String(trimmed)
+                // 다 지우고 저장하면 비운 대로 둔다.
+                // 예전에는 빈 이름을 물리치고 옛 이름을 되살렸는데,
+                // 지운 사람 입장에서는 저장이 먹지 않은 것처럼 보였다.
+                // 비면 위에서 회색 「이름」이 대신 뜨고,
+                // 상대에게 보일 이름은 `MultipeerSession` 이 「doodle.me 사용자」로 채운다.
+                profileName = String(
+                    draftName
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .prefix(Self.nameLimit)
+                )
             }
             Button("취소", role: .cancel) { }
         } message: {

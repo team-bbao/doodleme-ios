@@ -14,6 +14,7 @@ struct DrawingPage: View {
 
     /// 저장을 마치면 갤러리가 열어야 할 섹션. 갤러리와 저장소를 통해 주고받는다.
     @AppStorage(GallerySection.storageKey) private var gallerySection = GallerySection.receivedFromOthers.rawValue
+    @AppStorage(Post.showsJustSavedKey) private var showsJustSavedPost = false
 
     @State private var inputText = ""
     @State private var recipientName = ""
@@ -22,6 +23,8 @@ struct DrawingPage: View {
     /// 포스트잇이 벗겨지는 연출 단계. 화면 연출 전용이라 세션 모델에 두지 않는다.
     @State private var peelPhase: Int = 0
     @FocusState private var focusedField: DrawingFocusField?
+    /// 키보드가 가리기 시작하는 높이. 키보드가 없으면 화면 맨 아래와 같다.
+    @State private var keyboardTop: CGFloat = 0
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
@@ -37,13 +40,65 @@ struct DrawingPage: View {
 
     private var canSave: Bool { !recipientName.isEmpty && !inputText.isEmpty }
 
+    /// 타이머를 화면 맨 위에서 얼마나 내려 붙일지.
+    ///
+    /// 안전영역을 무시하고 화면 꼭대기부터 재기 때문에 상태표시줄과 툴바를 스스로 비켜야 한다.
+    /// 안전영역을 따르면 단계마다 툴바가 생겼다 사라지면서 타이머가 위아래로 튄다.
+    /// 상태표시줄(최대 62) + 툴바(44) 를 지나는 값이다.
+    private static let countdownTopInset: CGFloat = 112
+
+    /// 좌상단 제목의 자리. 갤러리와 같은 값을 쓴다.
+    private static let titleLeadingInset: CGFloat = 20
+    private static let titleTopInset: CGFloat = 70
+
+    /// 캔버스를 화면 정중앙에서 얼마나 올릴지.
+    /// 아래쪽 도구 막대와 탭바가 앉을 자리를 남기려고 위로 당겨 둔다.
+    private static let canvasCenterOffset: CGFloat = -10
+
+    /// 카드와 키보드 사이에 남길 틈.
+    private static let keyboardGap: CGFloat = 12
+
+    /// 키보드에 가리지 않도록 카드를 위로 밀 거리.
+    ///
+    /// 화면 기준으로 못박아 둔 카드라 SwiftUI 의 자동 회피가 닿지 않는다.
+    /// 자동 회피에 맡기면 남는 자리 한가운데로 다시 앉느라 필요 이상으로 올라가
+    /// 이번에는 위쪽 툴바에 가렸다. 그래서 모자란 만큼만 직접 민다.
+    private func keyboardLift(screenHeight: CGFloat) -> CGFloat {
+        guard keyboardTop > 0, screenHeight > 0 else { return 0 }
+        let cardBottom = screenHeight / 2 + Self.canvasCenterOffset + DoodleMetrics.canvasSize.height / 2
+        return max(0, cardBottom - (keyboardTop - Self.keyboardGap))
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
-                PaperBackground()
+                // Figma `iPhone 17 - 18` 의 배경. 뽑아 보니 #F2F2F7,
+                // 곧 iOS 의 systemGroupedBackground 와 같은 값이다.
+                // 값을 박아 두는 대신 시스템 색을 쓰면 대비 설정에도 따라간다.
+                Color(.systemGroupedBackground)
+                    .ignoresSafeArea()
+
+                // 타이머는 화면 맨 위에서 잰 자리에 고정한다.
+                // 툴바가 단계에 따라 나타났다 사라지는데, 그때마다 안전영역이 달라져
+                // 타이머가 위아래로 튀었다. 안전영역을 직접 재서 붙이면 흔들리지 않는다.
+                // 갤러리와 같은 라지 타이틀. (20, 70) 에 34pt Bold.
+                // 시작을 누르면 그 자리를 툴바가 쓰므로 누르기 전에만 둔다.
+                if session.phase == .notStarted {
+                    Text("그리기")
+                        .font(.system(size: 34, weight: .bold))
+                        .kerning(0.4)
+                        .foregroundStyle(Color.doodleTitle)
+                        .padding(.leading, Self.titleLeadingInset)
+                        .padding(.top, Self.titleTopInset)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .allowsHitTesting(false)
+                        .ignoresSafeArea()
+                }
 
                 countdown
-                    .offset(y: -320)
+                    .padding(.top, Self.countdownTopInset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .ignoresSafeArea()
 
                 VStack {
                     Spacer()
@@ -54,10 +109,26 @@ struct DrawingPage: View {
                 }
                 .safeAreaPadding(.all)
 
-                memoCard
-                    .offset(x: shakeAmount, y: -40)
+                // 키보드가 어디까지 올라왔는지 재는 자.
+                // 안전영역을 따르는 빈 뷰라 키보드가 뜨면 아래 끝이 그만큼 올라온다.
+                Color.clear
+                    .allowsHitTesting(false)
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.frame(in: .global).maxY
+                    } action: { keyboardTop = $0 }
+
+                // 캔버스도 화면 한가운데에 못박는다.
+                // 단계마다 툴바와 탭바가 생겼다 사라지면서 안전영역이 달라지는데,
+                // 그때마다 캔버스가 따라 움직여 초기화를 누르면 자리가 어긋났다.
+                GeometryReader { proxy in
+                    memoCard
+                        .offset(x: shakeAmount, y: Self.canvasCenterOffset - keyboardLift(screenHeight: proxy.size.height))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .ignoresSafeArea()
+                .animation(.easeOut(duration: 0.25), value: keyboardTop)
             }
-            .ignoresSafeArea(edges: .bottom)
+            .ignoresSafeArea(.container, edges: .bottom)
             .onTapGesture { focusedField = nil }
             .toolbarVisibility(session.phase == .notStarted ? .visible : .hidden, for: .tabBar)
             .toolbar { toolbarContent }
@@ -67,6 +138,19 @@ struct DrawingPage: View {
             .task(id: countdownRuns) {
                 guard countdownRuns else { return }
                 await session.runCountdown()
+            }
+            // Figma `iPhone 17 - 16` 의 확인창. 시스템 alert 를 쓴다.
+            // 파괴적 동작이 빨갛게, 취소가 제자리에 오는 배치는 시스템이 알아서 잡아준다.
+            .alert("처음부터 다시 그릴까요?", isPresented: $showResetAlert) {
+                Button("다시 그리기", role: .destructive) {
+                    // 시간만 되돌리면 그려둔 획이 그대로 남아 다음 판에 얹힌다.
+                    // 처음부터 다시 그리자는 뜻이므로 그림도 함께 비운다.
+                    session.reset()
+                    peelPhase = 0
+                }
+                Button("취소", role: .cancel) { }
+            } message: {
+                Text("지금까지 그린 그림이 지워져요.")
             }
         }
     }
@@ -83,17 +167,23 @@ struct DrawingPage: View {
                     .font(.system(size: 25, weight: .semibold))
                     .contentTransition(.numericText(countsDown: true))
                     .animation(.default, value: Int(session.remaining))
-                    .opacity(session.phase == .drawing ? 1 : 0.35)
 
                 // 예전에는 Slider 였는데, 썸을 숨겨도 트랙 드래그로 시간을 되감을 수 있었다.
                 // ProgressView 는 표시 전용이라 그런 조작이 불가능하다.
                 ProgressView(value: session.remaining, total: DrawingSession.duration)
-                    .progressViewStyle(ThickBarProgressStyle(height: 10))
-                    .padding(.horizontal, 20)
+                    .progressViewStyle(ThickBarProgressStyle(height: 15))
+                    // 게이지 양 끝을 아래 캔버스의 좌우 끝과 맞춘다.
+                    // 여백을 따로 주면 캔버스 크기가 바뀔 때마다 어긋나므로 같은 값을 쓴다.
+                    .frame(width: DoodleMetrics.canvasSize.width)
+                    .padding(.top, 20)
                     .padding(.bottom, 40)
                     .accessibilityLabel("남은 시간")
                     .accessibilityValue("\(Int(session.remaining))초")
             }
+            // 아직 시작을 누르지 않았으면 시간은 흐르지 않는다.
+            // 숫자와 게이지를 함께 흐리게 두어, 지금은 세는 중이 아님을 알린다.
+            .opacity(session.phase == .drawing ? 1 : 0.35)
+            .animation(.easeOut(duration: 0.25), value: session.phase)
         }
     }
 
@@ -172,29 +262,53 @@ struct DrawingPage: View {
 
                 Spacer(minLength: 0)
             }
-            .padding(.top, 35)
+            .padding(.top, 33.5)
             .padding(.horizontal, 30)
             .frame(maxWidth: .infinity)
-            .frame(height: 80)
+            // 위 여백이 그대로 먹도록 위쪽에 붙인다.
+            // 가운데 정렬이면 여백을 5 줄여도 절반인 2.5 만 움직인다.
+            .frame(height: 80, alignment: .top)
             .contentShape(Rectangle())
             .onTapGesture { focusedField = .name }
 
             // 아래쪽: 첫인상 텍스트 입력 영역
             ZStack(alignment: .bottom) {
-                TextField("첫 대화를 건네보세요 :)", text: $inputText, axis: .vertical)
+                // 카드 뒷면에 남을 글씨와 같은 손글씨체 · 같은 행높이로 쓴다.
+                // 쓰는 동안 보이는 글씨와 저장한 뒤에 보이는 글씨가 달라 놀랄 일이 없다.
+                //
+                // 자리글은 손글씨가 아니라 원래 쓰던 시스템 글꼴 그대로 둔다.
+                // 아직 아무것도 안 쓴 자리와 쓴 글을 눈으로 갈라 준다.
+                // 글꼴은 카드 뒷면과 같은 손글씨체다. 행높이는 글꼴 기본값을 쓴다.
+                //
+                // 행높이 44 를 맞추려고 `UITextView` 를 감싼 입력란을 만들어 뒀다가
+                // 「받침이 씹힌다」는 말을 듣고 그것을 의심해 걷어냈는데, 오진이었다.
+                // 글자는 처음부터 정확했고, 손글씨체가 받침을 제 글자에서 멀리 떨어뜨려
+                // 그리는 탓에 「강나강」이 「가낭가」처럼 보였을 뿐이다.
+                // 같은 입력란에 시스템 글꼴만 물리면 「강나강」이 제대로 나온다.
+                TextField("", text: $inputText, axis: .vertical)
                     .lineLimit(1...5)
                     .multilineTextAlignment(.center)
-                    .font(.system(size: 25, weight: .semibold))
-                    .padding(.horizontal, 30)
-                    .padding(.bottom, 60)
+                    .font(.doodleHandwriting(size: Self.messageFontSize))
+                    .foregroundStyle(Color.doodlePrimary)
                     .focused($focusedField, equals: .text)
-                    .lineSpacing(15)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onChange(of: inputText) { _, newValue in
                         if newValue.count > Self.textLimit {
                             inputText = String(newValue.prefix(Self.textLimit))
                         }
                     }
+                // 자리글은 입력란 위에 겹쳐 그린다.
+                // `prompt` 로 주면 본문 글꼴을 그대로 물려받아 손글씨가 된다.
+                .overlay {
+                    if inputText.isEmpty {
+                        Text("첫 대화를 건네보세요 :)")
+                            .font(.system(size: 25, weight: .semibold))
+                            .foregroundStyle(.black.opacity(0.42))
+                            .allowsHitTesting(false)
+                    }
+                }
+                .padding(.horizontal, 30)
+                .padding(.bottom, 60)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 Text("\(inputText.count)/\(Self.textLimit)")
                     .font(.system(size: 17))
@@ -215,39 +329,27 @@ struct DrawingPage: View {
     private var toolbarContent: some ToolbarContent {
         // 아직 포스트잇을 떼지도 않았으면 되돌릴 것이 없다.
         // 예전에는 흐린 채로 자리를 지켰는데, 누를 수 없는 버튼은 없는 것만 못하다.
-        if session.phase == .drawing {
+        if session.phase != .notStarted {
             ToolbarItem(placement: .topBarLeading) {
-                Button("초기화") {
-                    // 시간만 되돌리면 그려둔 획이 그대로 남아 다음 판에 얹힌다.
-                    // 처음부터 다시 그리자는 뜻이므로 그림도 함께 비운다.
-                    session.reset()
-                    peelPhase = 0
-                }
+                Button("초기화") { showResetAlert = true }
             }
         }
 
         if session.phase == .drawing && session.hasStartedDrawing {
             ToolbarItem(placement: .topBarTrailing) {
+                // 초기화와 같은 유리 버튼으로 둔다.
+                // 강조 버튼은 저장 하나로 충분하다.
                 Button("다음") {
                     session.beginMemo()
                 }
-                .buttonStyle(.glassProminent)
             }
         }
 
         if session.phase == .memo {
-            ToolbarItem(placement: .topBarLeading) {
-                Button("초기화") {
-                    showResetAlert = true
-                }
-                .alert("정말 리셋하시겠습니까?", isPresented: $showResetAlert) {
-                    Button("예", role: .destructive) { resetAll() }
-                    Button("아니오", role: .cancel) { }
-                }
-            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("저장") { save() }
-                    .opacity(canSave ? 1.0 : 0.4)
+                    .buttonStyle(.glassProminent)
+                    .disabled(!canSave)
             }
         }
     }
@@ -255,6 +357,11 @@ struct DrawingPage: View {
     // MARK: - 동작
 
     private static let textLimit = 30
+
+    /// 한마디 글씨. 카드 뒷면(`PostDetailView`)과 같은 값을 쓴다.
+    /// 글꼴이 바뀌면서 40 으로 올랐다.
+    private static let messageFontSize: CGFloat = 40
+    private static let messageLineHeight: CGFloat = 44
 
     /// 포스트잇을 벗기고 그리기를 시작한다.
     ///
@@ -273,6 +380,14 @@ struct DrawingPage: View {
     }
 
     private func save() {
+        // 키보드를 먼저 내린다. 갤러리로 넘어가며 딸려 올라가 있으면 어수선하다.
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+
         guard canSave else {
             triggerShake()
             return
@@ -280,12 +395,24 @@ struct DrawingPage: View {
         let newPost = Post(drawingData: session.drawingData, text: inputText, isMine: true)
         newPost.recipientName = recipientName
         modelContext.insert(newPost)
-        resetAll()
 
         // 방금 저장한 그림이 놓인 자리를 열어 준다.
         // 갤러리로 보내 놓고 다른 섹션을 보여주면 그림이 사라진 것처럼 보인다.
         gallerySection = GallerySection.drawnByMe.rawValue
+        // 갤러리가 방금 저장한 그림 자리로 옮겨 가도록 표시를 켠다.
+        showsJustSavedPost = true
+
         selectedTabIndex = 0
+
+        // 그리기 화면을 비우는 건 갤러리로 완전히 건너간 뒤에 한다.
+        // 먼저 비우면 넘어가는 동안 처음으로 돌아간 화면이 한 번 스쳐 지나간다.
+        //
+        // `withAnimation` 의 완료 콜백을 써 봤지만, 탭 전환은 그 애니메이션을
+        // 타지 않아 콜백이 곧바로 불려 소용이 없었다. 전환이 끝날 시간을 직접 준다.
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            resetAll()
+        }
     }
 
     private func resetAll() {

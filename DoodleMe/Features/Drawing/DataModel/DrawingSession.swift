@@ -167,6 +167,10 @@ final class DrawingSession {
             } catch {
                 return // 취소됨
             }
+            // 초기화로 단계가 바뀐 뒤에도 계속 쓰면,
+            // 방금 되돌려 놓은 남은 시간을 예전 값으로 덮어버린다.
+            // 취소가 전달되기까지의 짧은 틈을 막는다.
+            guard phase == .drawing else { return }
             remaining = max(0, startedFrom - (clock.now - startedAt).seconds)
         }
 
