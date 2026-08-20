@@ -141,14 +141,21 @@ struct NearbySharingScreen: View {
     private var nameRow: some View {
         // 한 줄이 라벨과 값으로 갈려 보이지 않도록 굵기를 맞춘다.
         // Figma 17-3 은 라벨을 Medium 으로 두지만, 화면에서는 두 조각처럼 읽혔다.
+        //
+        // 크기는 Figma 의 15 가 아니라 20 이다.
+        // 상대에게 보일 내 이름이라 이 화면에서 가장 먼저 읽혀야 하는데,
+        // 15 로는 넓은 빈 화면 위에서 눈에 걸리지 않았다.
         HStack(spacing: 6) {
             Text("내 이름:")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: Self.nameFontSize, weight: .semibold))
             Text(session?.displayName ?? userName)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: Self.nameFontSize, weight: .semibold))
         }
         .foregroundStyle(Self.primary)
     }
+
+    /// 「내 이름: OOO」 글자 크기.
+    private static let nameFontSize: CGFloat = 20
 
     /// Figma `iPhone 17 - 9` 의 `Frame 6`: 우상단 X.
     /// Figma 원본은 55 지만 앱의 버튼 규격에 맞춰 44 로 쓴다.
