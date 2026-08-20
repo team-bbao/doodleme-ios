@@ -175,14 +175,15 @@ struct NearbySharingScreen: View {
 
     /// 제목과 이름줄. Figma `iPhone 17 - 19` 의 `Frame 45`(149:524).
     ///
-    /// 무엇을 하러 들어온 화면인지 한 줄로 알려 준다.
-    /// 보낼 그림을 들고 왔으면 「그림 공유하기」, 받으러만 왔으면 「그림 받기」다.
+    /// 들어온 길과 상관없이 늘 「그림 공유하기」다.
+    /// Figma `iPhone 17 - 21` 은 받으러 들어온 쪽을 「그림 받기」로 두지만,
+    /// 이 화면이 하는 일은 어느 쪽으로 들어왔든 주고받는 한 가지라 말을 나누지 않는다.
     ///
     /// 가운데 정렬이 아니라 왼쪽에 붙는다.
     /// 갤러리의 「갤러리」와 같은 라지 타이틀이라, 두 화면의 제목이 같은 자리에서 시작한다.
     private var titleGroup: some View {
         VStack(alignment: .leading, spacing: Self.titleSpacing) {
-            Text(post == nil ? "그림 받기" : "그림 공유하기")
+            Text("그림 공유하기")
                 // Figma: Large Title/Emphasized — SF Pro Bold 34 / `#1A1A1A` / 자간 0.4
                 .font(.system(size: 34, weight: .bold))
                 .kerning(0.4)
