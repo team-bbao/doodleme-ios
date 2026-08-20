@@ -73,6 +73,10 @@ struct NearbySharingScreen: View {
     /// Figma `Frame 45` 는 이름줄을 15 로 잡는다.
     private static let contentTop: CGFloat = 13
 
+    /// 가운데 그림 자리. Figma `Frame 11` — 17-19(149:358) 도 17-24(162:684) 도 324x353 이다.
+    private static let drawingWidth: CGFloat = 324
+    private static let drawingHeight: CGFloat = 353
+
     /// 닫기 버튼 자리. 갤러리의 공유받기 버튼(`Frame 25`)과 같은 값이다.
     /// Figma 는 이 화면의 닫기를 72 에 두지만, 두 화면에서 같은 자리에 서는 쪽을 택했다.
     private static let closeButtonTop: CGFloat = 70
@@ -259,7 +263,8 @@ struct NearbySharingScreen: View {
             // 자리를 꽉 채우면 그림이 답답하고 가장자리 획이 잘려 보인다.
             // 보낼 그림이든 기본 낙서든 같은 여백을 둔다.
             .padding(30)
-            .frame(width: 337, height: 367)
+            // Figma `Frame 11`. 17-19 와 17-24 가 같은 324x353 을 쓴다.
+            .frame(width: Self.drawingWidth, height: Self.drawingHeight)
 
             status
 
@@ -352,8 +357,8 @@ struct NearbySharingScreen: View {
         let timedOut = session?.searchTimedOut ?? false
         let blocked = session?.localNetworkBlocked ?? false
 
-        // Figma `iPhone 17 - 9` 의 `Frame 20`: 제목과 안내 사이 22, 가운데 정렬.
-        VStack(spacing: 22) {
+        // Figma `iPhone 17 - 9` 의 `Frame 20`: 제목과 안내 사이 22.
+        VStack(alignment: post == nil ? .center : .leading, spacing: 22) {
             Text(statusTitle(count: count, timedOut: timedOut || blocked))
                 .font(.system(size: 25, weight: .semibold))
                 .foregroundStyle(Self.primary)
@@ -378,12 +383,21 @@ struct NearbySharingScreen: View {
                     .foregroundStyle(.red)
             }
         }
-        .multilineTextAlignment(.center)
-        // 안내의 첫 줄("기기가 가까이 있는지, 로컬 네트워크 권한이")이 약 310 이라
-        // 320 으로는 아슬아슬해 제멋대로 접혔다. 넉넉히 열어 정한 자리에서만 끊기게 한다.
-        .frame(maxWidth: 360)
-        // Figma 는 그림 아래 39 를 띄운다. 바깥 VStack 이 이미 15 를 주므로 나머지만 더한다.
-        .padding(.top, 24)
+        // 두 프레임이 이 덩이를 다르게 놓는다.
+        //
+        // 보내는 화면(`iPhone 17 - 19`)은 「1명 발견」을 x28 왼쪽에 붙인다 — 제목과 같은 선이다.
+        // 받는 화면(`iPhone 17 - 24`)은 `Frame 20` 을 x92·폭 218 로 두어 가운데 정렬한다.
+        //
+        // 문구 길이가 아니라 화면이 하는 일이 다르다.
+        // 보내는 쪽은 아래로 사람 목록이 이어져 왼쪽 선을 따라 읽히고,
+        // 받는 쪽은 그 아래에 아무것도 없어 가운데가 자연스럽다.
+        .multilineTextAlignment(post == nil ? .center : .leading)
+        .modifier(StatusPlacement(leadingAligned: post != nil, leading: Self.titleLeading))
+        // 그림 아래 간격도 두 프레임이 다르다.
+        // 17-19 는 그림이 y507 에서 끝나고 「1명 발견」이 y525 — 18.
+        // 17-24 는 같은 자리에서 끝나고 `Frame 20` 이 y539 — 32.
+        // 바깥 VStack 이 이미 15 를 주므로 나머지만 더한다.
+        .padding(.top, post == nil ? 17 : 3)
     }
 
     /// 다시 찾기 버튼. Figma `iPhone 17 - 9` 의 `Frame 21` 자리에 168x48 로 놓는다.
@@ -654,4 +668,26 @@ private struct SentRing: View {
     /// 한 바퀴 도는 데 걸리는 시간.
     /// 더 빠르면 돌았는지 모르고, 더 느리면 다 됐는데 기다리는 기분이 든다.
     private static let duration: TimeInterval = 0.45
+}
+
+/// 상태 문구 덩이를 화면에 놓는 방법.
+///
+/// 보내는 화면(`iPhone 17 - 19`)은 제목과 같은 x28 선에 왼쪽으로 붙이고,
+/// 받는 화면(`iPhone 17 - 24`)은 가운데에 둔다.
+/// 두 갈래가 `frame` 을 통째로 다르게 잡아야 해서 삼항 연산으로는 담기지 않는다.
+private struct StatusPlacement: ViewModifier {
+    let leadingAligned: Bool
+    let leading: CGFloat
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if leadingAligned {
+            content.frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, leading)
+        } else {
+            // 안내의 첫 줄("기기가 가까이 있는지, 로컬 네트워크 권한이")이 약 310 이라
+            // 320 으로는 아슬아슬해 제멋대로 접혔다. 넉넉히 열어 정한 자리에서만 끊기게 한다.
+            content.frame(maxWidth: 360)
+        }
+    }
 }
