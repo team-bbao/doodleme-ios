@@ -87,9 +87,13 @@ struct NearbySharingScreen: View {
             Color.doodleBackground
                 .ignoresSafeArea()
 
-            // 받으러 들어왔고 상대를 찾았으면 받기 화면으로 갈아 끼운다.
-            // 찾는 일은 끝났고, 이제 볼 것은 건너올 그림 하나뿐이다.
-            if post == nil, let sender = session?.peers.first?.displayName {
+            // 받으러 들어왔고 상대가 **보내기 시작했으면** 받기 화면으로 갈아 끼운다.
+            //
+            // 주변에 보이는 것만으로는 넘어가지 않는다.
+            // 상대는 사람 목록에서 나를 보고도 전송을 누르지 않을 수 있고,
+            // 그동안 「그림을 받으시겠어요?」가 떠 있으면 오지도 않는 그림을 기다리게 된다.
+            // 그래서 연결이 맺어지는 순간까지 기다린다 — 초대는 상대가 전송을 눌러야 나간다.
+            if post == nil, let sender = session?.connectedPeers.first?.displayName {
                 foundScreen(senderName: sender)
             } else {
                 searchingScreen
@@ -339,7 +343,11 @@ struct NearbySharingScreen: View {
 
     @ViewBuilder
     private var status: some View {
-        let count = session?.peers.count ?? 0
+        // 받으러 들어왔으면 사람 수를 세지 않는다.
+        // 고를 것도 누를 것도 없는데 「1명 발견」이 뜨면 곧 그림이 온다는 뜻으로 읽혀,
+        // 상대가 전송을 누르지 않는 동안 오지도 않는 그림을 기다리게 된다.
+        // 상대가 실제로 보내기 시작하면 화면 자체가 `foundScreen` 으로 갈린다.
+        let count = post == nil ? 0 : (session?.peers.count ?? 0)
 
         let timedOut = session?.searchTimedOut ?? false
         let blocked = session?.localNetworkBlocked ?? false
