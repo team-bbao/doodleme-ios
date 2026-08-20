@@ -138,23 +138,23 @@ struct NearbySharingScreen: View {
 
     // MARK: - 상단
 
+    /// Figma `iPhone 17 - 9` 의 `Frame 12`(68:386): 20 / `#424242` / 사이 6.
+    /// 「내 이름:」은 Medium, 이름은 Semi Bold.
+    ///
+    /// 굵기를 갈라 두는 이유가 있다.
+    /// 이 줄에서 정작 봐야 하는 것은 이름이고, 「내 이름:」은 그것이 무엇인지 알려주는 꼬리표다.
+    /// 둘을 같은 굵기로 두면 어느 쪽이 내 이름인지 한 번 더 읽어야 한다.
     private var nameRow: some View {
-        // 한 줄이 라벨과 값으로 갈려 보이지 않도록 굵기를 맞춘다.
-        // Figma 17-3 은 라벨을 Medium 으로 두지만, 화면에서는 두 조각처럼 읽혔다.
-        //
-        // 크기는 Figma 의 15 가 아니라 20 이다.
-        // 상대에게 보일 내 이름이라 이 화면에서 가장 먼저 읽혀야 하는데,
-        // 15 로는 넓은 빈 화면 위에서 눈에 걸리지 않았다.
         HStack(spacing: 6) {
             Text("내 이름:")
-                .font(.system(size: Self.nameFontSize, weight: .semibold))
+                .font(.system(size: Self.nameFontSize, weight: .medium))
             Text(session?.displayName ?? userName)
                 .font(.system(size: Self.nameFontSize, weight: .semibold))
         }
         .foregroundStyle(Self.primary)
     }
 
-    /// 「내 이름: OOO」 글자 크기.
+    /// 「내 이름: OOO」 글자 크기. Figma `Frame 12`(68:386).
     private static let nameFontSize: CGFloat = 20
 
     /// Figma `iPhone 17 - 9` 의 `Frame 6`: 우상단 X.
