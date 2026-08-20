@@ -359,7 +359,8 @@ struct DrawingPage: View {
     private static let textLimit = 30
 
     /// 한마디 글씨. 카드 뒷면(`PostDetailView`)과 같은 값을 쓴다.
-    private static let messageFontSize: CGFloat = 30
+    /// 글꼴이 바뀌면서 40 으로 올랐다.
+    private static let messageFontSize: CGFloat = 40
     private static let messageLineHeight: CGFloat = 44
 
     /// 포스트잇을 벗기고 그리기를 시작한다.
