@@ -23,12 +23,6 @@ struct DrawingPage: View {
     /// 포스트잇이 벗겨지는 연출 단계. 화면 연출 전용이라 세션 모델에 두지 않는다.
     @State private var peelPhase: Int = 0
     @FocusState private var focusedField: DrawingFocusField?
-    /// 한마디 입력란에 커서가 있는지.
-    ///
-    /// `@FocusState` 로 다루지 않는다. 그 값은 `.focused` 를 단 뷰가 있어야만 살아 있는데,
-    /// 한마디는 UIKit 을 빌려 그리므로 그 뷰가 없다.
-    /// 값을 넣어도 SwiftUI 가 곧바로 nil 로 되돌려, 커서가 방금 잡혔다가 풀리곤 했다.
-    @State private var isMessageFocused = false
     /// 키보드가 가리기 시작하는 높이. 키보드가 없으면 화면 맨 아래와 같다.
     @State private var keyboardTop: CGFloat = 0
 
@@ -135,10 +129,7 @@ struct DrawingPage: View {
                 .animation(.easeOut(duration: 0.25), value: keyboardTop)
             }
             .ignoresSafeArea(.container, edges: .bottom)
-            .onTapGesture {
-                focusedField = nil
-                isMessageFocused = false
-            }
+            .onTapGesture { focusedField = nil }
             .toolbarVisibility(session.phase == .notStarted ? .visible : .hidden, for: .tabBar)
             .toolbar { toolbarContent }
             // 그리기 단계이고 화면이 앞에 있을 때만 돈다.
@@ -278,10 +269,7 @@ struct DrawingPage: View {
             // 가운데 정렬이면 여백을 5 줄여도 절반인 2.5 만 움직인다.
             .frame(height: 80, alignment: .top)
             .contentShape(Rectangle())
-            .onTapGesture {
-                isMessageFocused = false
-                focusedField = .name
-            }
+            .onTapGesture { focusedField = .name }
 
             // 아래쪽: 첫인상 텍스트 입력 영역
             ZStack(alignment: .bottom) {
@@ -290,16 +278,26 @@ struct DrawingPage: View {
                 //
                 // 자리글은 손글씨가 아니라 원래 쓰던 시스템 글꼴 그대로 둔다.
                 // 아직 아무것도 안 쓴 자리와 쓴 글을 눈으로 갈라 준다.
-                FixedLineHeightTextEditor(
-                    text: $inputText,
-                    font: .doodleHandwriting(size: Self.messageFontSize),
-                    lineHeight: Self.messageLineHeight,
-                    color: UIColor(Color.doodlePrimary),
-                    characterLimit: Self.textLimit,
-                    isFocused: $isMessageFocused
-                )
-                // 자리글은 입력란 위에 겹쳐 그린다. 글꼴을 따로 둘 수 있고,
-                // 첫 글자가 자리글 모양을 물려받는 일도 없다.
+                // 글꼴은 카드 뒷면과 같은 손글씨체다. 행높이는 글꼴 기본값을 쓴다.
+                //
+                // 행높이 44 를 맞추려고 `UITextView` 를 감싼 입력란을 만들어 뒀다가
+                // 「받침이 씹힌다」는 말을 듣고 그것을 의심해 걷어냈는데, 오진이었다.
+                // 글자는 처음부터 정확했고, 손글씨체가 받침을 제 글자에서 멀리 떨어뜨려
+                // 그리는 탓에 「강나강」이 「가낭가」처럼 보였을 뿐이다.
+                // 같은 입력란에 시스템 글꼴만 물리면 「강나강」이 제대로 나온다.
+                TextField("", text: $inputText, axis: .vertical)
+                    .lineLimit(1...5)
+                    .multilineTextAlignment(.center)
+                    .font(.doodleHandwriting(size: Self.messageFontSize))
+                    .foregroundStyle(Color.doodlePrimary)
+                    .focused($focusedField, equals: .text)
+                    .onChange(of: inputText) { _, newValue in
+                        if newValue.count > Self.textLimit {
+                            inputText = String(newValue.prefix(Self.textLimit))
+                        }
+                    }
+                // 자리글은 입력란 위에 겹쳐 그린다.
+                // `prompt` 로 주면 본문 글꼴을 그대로 물려받아 손글씨가 된다.
                 .overlay {
                     if inputText.isEmpty {
                         Text("첫 대화를 건네보세요 :)")
@@ -320,13 +318,9 @@ struct DrawingPage: View {
                     .padding(.bottom, 20)
             }
             .contentShape(Rectangle())
-            .onTapGesture { isMessageFocused = true }
+            .onTapGesture { focusedField = .text }
         }
         .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
-        // 이름 칸으로 옮겨 가면 한마디에서는 손을 뗀다. 커서가 둘로 보이지 않게.
-        .onChange(of: focusedField) { _, field in
-            if field != nil { isMessageFocused = false }
-        }
     }
 
     // MARK: - 툴바
@@ -385,10 +379,7 @@ struct DrawingPage: View {
     }
 
     private func save() {
-        // 조합 중인 글자를 먼저 확정시킨다.
-        //
-        // 한마디는 조합이 끝나야 값을 넘기므로, 받침을 치다 말고 저장을 누르면
-        // 그 글자가 아직 밖으로 나오지 않은 상태다. 커서를 놓아 확정시킨 뒤 센다.
+        // 키보드를 먼저 내린다. 갤러리로 넘어가며 딸려 올라가 있으면 어수선하다.
         UIApplication.shared.sendAction(
             #selector(UIResponder.resignFirstResponder),
             to: nil,
@@ -427,7 +418,6 @@ struct DrawingPage: View {
         session.reset()
         inputText = ""
         recipientName = ""
-        isMessageFocused = false
         shakeAmount = 0
         peelPhase = 0
     }
