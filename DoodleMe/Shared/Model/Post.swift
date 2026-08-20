@@ -38,3 +38,11 @@ extension Post {
         senderName.isEmpty ? Self.unknownSenderName : senderName
     }
 }
+
+extension Post {
+    /// 방금 저장한 그림을 갤러리가 그 자리에서 보여주도록 알리는 표시.
+    ///
+    /// 그리기 화면은 갤러리를 직접 들고 있지 않다.
+    /// 저장을 마친 쪽이 켜 두면, 갤러리가 가장 최근에 만든 내 그림으로 옮겨 가고 도로 끈다.
+    static let showsJustSavedKey = "showsJustSavedPost"
+}

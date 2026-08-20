@@ -36,6 +36,9 @@ struct PostGridView: View {
     /// 최신순이면 맨 앞이라 그냥 보이지만, 오래된 순이면 맨 뒤에 붙는다.
     @Binding var postToShow: Post.ID?
 
+    /// 그리기 화면이 방금 저장했다고 켜 둔 표시.
+    @AppStorage(Post.showsJustSavedKey) private var showsJustSavedPost = false
+
     /// 카드가 아닌 빈 곳을 눌렀을 때. 프로필 고르기에서 빠져나오는 데 쓴다.
     ///
     /// 그리드는 `ScrollView` 라 화면 아래쪽 대부분을 차지한다.
@@ -126,7 +129,21 @@ struct PostGridView: View {
             // 카드보다 바깥쪽 제스처라, 카드 탭은 카드가 먼저 가져간다.
             .contentShape(Rectangle())
             .onTapGesture { onEmptyAreaTap?() }
+            // 방금 저장하고 넘어온 경우에도 같은 길을 쓴다.
+            // 표시가 먼저 켜질 수도, 그림이 먼저 들어올 수도 있어 양쪽을 다 본다.
+            .onChange(of: showsJustSavedPost, initial: true) { _, _ in revealJustSaved() }
+            .onChange(of: postsByMe.first?.id) { _, _ in revealJustSaved() }
         }
+    }
+
+    /// 방금 저장한 그림으로 옮겨 간다.
+    ///
+    /// 가장 최근에 만든 내 그림이 그것이다. 늘어놓는 순서와 상관없이
+    /// `postsByMe` 는 최신순이라 맨 앞을 보면 된다.
+    private func revealJustSaved() {
+        guard showsJustSavedPost, let newest = postsByMe.first else { return }
+        postToShow = newest.id
+        showsJustSavedPost = false
     }
 
     private func card(for post: Post) -> some View {

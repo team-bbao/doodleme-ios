@@ -14,6 +14,7 @@ struct DrawingPage: View {
 
     /// 저장을 마치면 갤러리가 열어야 할 섹션. 갤러리와 저장소를 통해 주고받는다.
     @AppStorage(GallerySection.storageKey) private var gallerySection = GallerySection.receivedFromOthers.rawValue
+    @AppStorage(Post.showsJustSavedKey) private var showsJustSavedPost = false
 
     @State private var inputText = ""
     @State private var recipientName = ""
@@ -345,6 +346,8 @@ struct DrawingPage: View {
         // 방금 저장한 그림이 놓인 자리를 열어 준다.
         // 갤러리로 보내 놓고 다른 섹션을 보여주면 그림이 사라진 것처럼 보인다.
         gallerySection = GallerySection.drawnByMe.rawValue
+        // 갤러리가 방금 저장한 그림 자리로 옮겨 가도록 표시를 켠다.
+        showsJustSavedPost = true
 
         selectedTabIndex = 0
 
