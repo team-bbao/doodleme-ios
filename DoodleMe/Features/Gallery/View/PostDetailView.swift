@@ -22,7 +22,7 @@ struct PostDetailView: View {
     /// 그리기 캔버스(350x390)와 별개다 — 캔버스를 건드리면 그리기 탭이 흔들린다.
     private static let cardSize = CGSize(width: 362, height: 396)
     /// 한마디 글자 크기와 행높이. Figma `Frame 35`(92:828).
-    private static let messageFontSize: CGFloat = 30
+    private static let messageFontSize: CGFloat = 40
     private static let messageLineHeight: CGFloat = 44
     /// 알약 툴바 안쪽 좌우 여백과 버튼 사이 간격. Figma: 칩이 x=5 에서 시작해 60 폭.
     private static let toolbarInset: CGFloat = 5
@@ -213,10 +213,11 @@ struct PostDetailView: View {
     private var backFaceContent: some View {
         ZStack {
             // 본문은 카드 정가운데. 위아래 요소에 밀리지 않도록 따로 겹쳐 놓는다.
-            // Figma `iPhone 17 - 14` 의 `Frame 35`(92:828):
-            // `RF대충쓴준우체v3` 30 / `#424242` / 행높이 44 / 폭 253.
+            // Figma `iPhone 17 - 14` 의 `Frame 35`(92:828) 자리다.
+            // 디자인의 `RF대충쓴준우체v3` 30 대신 `캘리폰트 하루일기 젤리펜` 40 을 쓴다 — 사용자 지시.
+            // 색 `#424242` / 행높이 44 / 폭 253 은 그대로다.
             //
-            // 행높이 44 는 이 글꼴의 기본값(30pt 에서 73)보다 한참 낮아
+            // 행높이 44 는 이 글꼴의 기본 행높이보다 낮아
             // SwiftUI `Text` 로는 잡히지 않는다. 자세한 사정은 `FixedLineHeightText` 에 있다.
             FixedLineHeightText(
                 text: post.text.isEmpty ? "(텍스트 없음)" : post.text,

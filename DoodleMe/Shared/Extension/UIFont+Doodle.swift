@@ -10,8 +10,8 @@ extension UIFont {
     /// 카드 뒷면 한마디에 쓰는 손글씨체.
     /// Figma `iPhone 17 - 14` 의 `Frame 35`(92:828) 가 쓰는 `RF대충쓴준우체v3`.
     ///
-    /// 넘기는 이름은 파일명이 아니라 PostScript 이름(`RFjunwooo`)이다.
-    /// 파일은 `Resources/Fonts/RFjunwooo.ttf` 에 있고 `Info.plist` 의 `UIAppFonts` 에 등록돼 있다.
+    /// 넘기는 이름은 파일명이 아니라 PostScript 이름(`CallifontDaynoteJellypen-Medium`)이다.
+    /// 파일은 `Resources/Fonts/CallifontDaynoteJellypen-Medium.ttf` 에 있고 `Info.plist` 의 `UIAppFonts` 에 등록돼 있다.
     /// 못 찾으면 시스템 글꼴로 떨어져 화면이 비지는 않는다.
     ///
     /// 출처를 밝히면 상업적으로 쓸 수 있는 글꼴이다.
@@ -22,6 +22,6 @@ extension UIFont {
     /// 디자인이 정한 44 로 줄이려면 SwiftUI `Text` 로는 안 되고 `UILabel` 을 빌려야 한다.
     /// 자세한 사정은 `FixedLineHeightText` 에 적어 두었다.
     static func doodleHandwriting(size: CGFloat) -> UIFont {
-        UIFont(name: "RFjunwooo", size: size) ?? .systemFont(ofSize: size)
+        UIFont(name: "CallifontDaynoteJellypen-Medium", size: size) ?? .systemFont(ofSize: size)
     }
 }
