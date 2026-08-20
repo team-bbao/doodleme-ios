@@ -178,7 +178,16 @@ struct FixedLineHeightTextEditor: UIViewRepresentable {
             // 그동안 값을 바깥으로 흘리면 SwiftUI 가 매번 다시 그리고,
             // 그 다시 그리기가 조합을 건드려 받침이 통째로 날아간다.
             // 조합이 끝나면 이 메서드가 한 번 더 불리므로 그때 한꺼번에 넘긴다.
-            guard view.markedTextRange == nil else { return }
+            guard view.markedTextRange == nil else {
+                // 다만 '비었는지 아닌지'가 뒤집히는 순간만은 조합 중에도 알린다.
+                // 저장 버튼이 그 값으로 켜지고 꺼지는데, 한 글자만 치고 저장하려 하면
+                // 그 글자가 아직 조합 중이라 버튼이 꺼진 채였다.
+                // 글 하나를 쓰는 동안 이 뒤집힘은 한 번뿐이라 조합을 흔들지 않는다.
+                if text.wrappedValue.isEmpty != view.text.isEmpty {
+                    text.wrappedValue = view.text
+                }
+                return
+            }
 
             // 자모가 모여 글자가 되면서 한도를 넘길 수 있다.
             if view.text.count > characterLimit {
