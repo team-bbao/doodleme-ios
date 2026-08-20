@@ -126,16 +126,17 @@ struct NearbySharingScreen: View {
 
     /// 가운데에서 되살릴 그림의 원본 바이너리.
     ///
-    /// 보낼 그림 → 내 프로필 그림 순으로 찾는다.
-    /// 받기 전용으로 열면 보낼 그림이 없으므로 내 프로필이 그려진다.
-    /// 둘 다 없으면 `nil` 을 돌려주고 `DefaultDoodle` 이 대신 그려진다.
+    /// 보내러 들어왔으면 보낼 그림을 그린다 — 무엇을 보내는지 눈으로 확인시켜 주는 자리다.
+    ///
+    /// 받으러 들어왔으면(`post == nil`) 늘 `nil` 을 돌려주고 `DefaultDoodle` 이 그려진다.
+    /// 아직 아무것도 오지 않은 자리라 보여줄 「그 그림」이 없다.
+    /// 예전에는 내 프로필 그림으로 메웠지만, 받는 화면에 내 그림이 뜨면
+    /// 이미 무언가 받은 것처럼 읽힌다. 어느 기기에서 열든 같은 그림이 도는 편이 낫다.
     ///
     /// 여기서는 바이너리만 고른다. 푸는 건 `.task` 가 한 번만 한다.
     private var animatedSourceData: Data? {
-        for candidate in [post?.drawingData, profilePosts.first?.drawingData] {
-            if let candidate, !candidate.isEmpty { return candidate }
-        }
-        return nil
+        guard let data = post?.drawingData, !data.isEmpty else { return nil }
+        return data
     }
 
     /// 그림을 점열로 푸는 일은 비싸다.
