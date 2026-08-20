@@ -400,7 +400,7 @@ struct NearbySharingScreen: View {
             case .sending:
                 SendingRing()
             case .sent:
-                Circle().stroke(Self.progressRing, lineWidth: 2)
+                SentRing()
             default:
                 Circle().stroke(Color.doodleHairline, lineWidth: 1)
             }
@@ -476,4 +476,31 @@ private struct SendingRing: View {
                 .rotationEffect(.degrees(context.date.timeIntervalSinceReferenceDate * 240))
         }
     }
+}
+
+/// 다 보내고 나면 한 바퀴 그려지는 테두리. Figma `Frame 24` 의 「전송됨」.
+///
+/// 12시에서 시작해 시계 방향으로 한 바퀴 돈다.
+/// `trim` 은 3시에서 그리기 시작하므로 90도 돌려 12시에 맞춘다.
+///
+/// 다 그려진 원을 그냥 띄우면 무엇이 끝났는지 눈에 걸리지 않는다.
+/// 도는 동안 눈이 원을 따라가고, 다 돌고 나면 끝났다는 것이 남는다.
+/// 돌던 것(`SendingRing`)이 멈추고 채워지는 흐름이라 이어서 읽힌다.
+private struct SentRing: View {
+    /// 얼마나 그려졌는지. 0 이면 아무것도 없고 1 이면 한 바퀴다.
+    @State private var sweep: CGFloat = 0
+
+    var body: some View {
+        Circle()
+            .trim(from: 0, to: sweep)
+            .stroke(NearbySharingScreen.progressRing, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+            .rotationEffect(.degrees(-90))
+            .onAppear {
+                withAnimation(.easeOut(duration: Self.duration)) { sweep = 1 }
+            }
+    }
+
+    /// 한 바퀴 도는 데 걸리는 시간.
+    /// 더 빠르면 돌았는지 모르고, 더 느리면 다 됐는데 기다리는 기분이 든다.
+    private static let duration: TimeInterval = 0.45
 }
