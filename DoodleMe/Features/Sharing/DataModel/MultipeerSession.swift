@@ -38,6 +38,13 @@ final class MultipeerSession {
     /// 주변에서 찾은 사람들. 연결되더라도 목록에서 빼지 않는다(화면에 계속 보여야 한다).
     private(set) var peers: [MCPeerID] = []
     private(set) var transferStates: [MCPeerID: TransferState] = [:]
+    /// 지금 연결이 맺어져 있는 사람들.
+    ///
+    /// 받는 쪽에서는 이것이 곧 「상대가 전송을 눌렀다」는 신호다.
+    /// 초대는 `send(_:to:)` 안에서만 나가므로, 내가 먼저 보내지 않는 한
+    /// 연결이 생겼다는 건 상대가 보내기 시작했다는 뜻이다.
+    /// 그냥 주변에 보이기만 하는 `peers` 와 다르다.
+    private(set) var connectedPeers: [MCPeerID] = []
     /// 방금 받은 그림. 화면에서 저장한 뒤 nil 로 되돌린다.
     private(set) var received: PostTransferData?
     /// 지금까지 받은 횟수.
@@ -173,6 +180,7 @@ final class MultipeerSession {
         stopSearching()
         session.disconnect()
         peers = []
+        connectedPeers = []
         visiblePeers = []
         transferStates = [:]
         pendingTransfers = [:]
@@ -249,6 +257,7 @@ final class MultipeerSession {
         case .connected:
             visiblePeers.insert(peer)
             if !peers.contains(peer) { peers.append(peer) }
+            if !connectedPeers.contains(peer) { connectedPeers.append(peer) }
             if let waiting = pendingTransfers.removeValue(forKey: peer) {
                 deliver(waiting, to: peer)
             }
@@ -257,6 +266,7 @@ final class MultipeerSession {
             break
 
         case .notConnected:
+            connectedPeers.removeAll { $0 == peer }
             if pendingTransfers.removeValue(forKey: peer) != nil {
                 // 연결을 기다리던 중이었다면 연결 자체가 안 된 것이다.
                 transferStates[peer] = .failed("연결하지 못했어요.")
