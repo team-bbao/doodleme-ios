@@ -11,13 +11,22 @@ import SwiftUI
 
 struct PostDetailView: View {
     let post: Post
-
-    /// 내가 그린 카드의 아바타로 쓸 내 프로필 그림.
-    @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
+    /// 확대를 닫고 그리드로 돌아간다.
+    var onClose: () -> Void
 
     @State private var isFlipped = false
     /// 앞면에 접힌 모서리를 보여줄 차례인지.
     @State private var showFold = false
+
+    /// 확대된 카드 크기. Figma `iPhone 17 - 17` 의 `메모지 1`(141:698).
+    /// 그리기 캔버스(350x390)와 별개다 — 캔버스를 건드리면 그리기 탭이 흔들린다.
+    private static let cardSize = CGSize(width: 362, height: 396)
+    /// 한마디 글자 크기와 행높이. Figma `Frame 35`(92:828).
+    private static let messageFontSize: CGFloat = 30
+    private static let messageLineHeight: CGFloat = 44
+    /// 알약 툴바 안쪽 좌우 여백과 버튼 사이 간격. Figma: 칩이 x=5 에서 시작해 60 폭.
+    private static let toolbarInset: CGFloat = 5
+    private static let toolbarButtonSpacing: CGFloat = 6
 
     /// 다 접혔을 때 접힌 정사각형 한 변의 길이.
     /// memoFront 에셋의 접힌 자리를 캔버스 크기로 환산한 값이다.
@@ -31,21 +40,67 @@ struct PostDetailView: View {
     @State private var saveMessage = ""
 
     var body: some View {
-        card
-            .fullScreenCover(isPresented: $showSharingScreen) {
-                NearbySharingScreen(post: post) { showSharingScreen = false }
+        // 뒤로가기는 카드가 아니라 **화면** 좌상단에 붙는다.
+        // 카드에 얹으면 카드가 가운데 있으므로 버튼도 따라 내려와 그림 위를 덮는다.
+        ZStack {
+            card
+
+            backButton
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            // 저장 결과를 알리는 창. 프로필 확인창과 같은 유리 카드를 쓴다.
+            //
+            // 시스템 `alert` 로 띄우면 이 화면에서만 생김새가 달라진다.
+            // 묻는 것이 없으니 버튼은 하나뿐이고, 그때는 카드가 폭을 다 쓴다.
+            if showSaveAlert {
+                Color.doodleChoosingScrim
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+
+                DoodleConfirmPopup(
+                    title: "사진 저장",
+                    message: saveMessage,
+                    confirmTitle: "확인",
+                    onConfirm: {
+                        withAnimation(.spring(response: 0.3)) { showSaveAlert = false }
+                    }
+                )
             }
+        }
+        .fullScreenCover(isPresented: $showSharingScreen) {
+            NearbySharingScreen(post: post) { showSharingScreen = false }
+        }
+    }
+
+    /// Figma `iPhone 17 - 14` 의 `Frame 6`: 화면 좌상단 (18, 72) 에 44x44.
+    ///
+    /// 예전에는 어두운 배경을 눌러야 닫혔다.
+    /// 눌러야 할 곳이 보이지 않으면 처음 온 사람은 빠져나갈 방법을 찾지 못한다.
+    private var backButton: some View {
+        Button(action: onClose) {
+            Image(systemName: "chevron.backward")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(Color.doodlePrimary)
+                .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
+                .background(.white, in: Circle())
+                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+        }
+        .padding(.leading, 18)
+        .padding(.top, 72)
+        .accessibilityLabel("뒤로")
     }
 
     private var card: some View {
         VStack(spacing: 24) {
 
-            // Figma `Frame 9` 왼쪽 디자인: 136x55 알약 안에 64x48 버튼 둘
-            HStack(spacing: 0) {
+            // Figma `iPhone 17 - 17`(평소) · `iPhone 17 - 14`(눌림) 의 `Group 4`.
+            // 흰색 80% 알약 136x48 안에 60 폭 버튼 둘.
+            HStack(spacing: Self.toolbarButtonSpacing) {
                 Button {
                     showSharingScreen = true
                 } label: {
-                    Image(systemName: "square.and.arrow.up")
+                    // AirDrop 으로 건네는 동작이라 내보내기 화살표보다 이쪽이 뜻이 맞는다.
+                    Image(systemName: "airplay.audio")
                         .font(.title2)
                 }
                 .buttonStyle(CardToolbarButtonStyle())
@@ -60,8 +115,9 @@ struct PostDetailView: View {
                 .buttonStyle(CardToolbarButtonStyle())
                 .accessibilityLabel("사진에 저장")
             }
-            .frame(width: 136, height: DrawingToolPicker.buttonSide)
-            .glassEffect(.regular, in: .capsule)
+            .padding(.horizontal, Self.toolbarInset)
+            .frame(width: 136, height: 48)
+            .background(.white.opacity(0.8), in: Capsule())
             .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
             .padding(.bottom, 10)
 
@@ -74,7 +130,7 @@ struct PostDetailView: View {
                 // 반경은 그리던 캔버스와 같은 값이라 그림이 잘린 모양과 정확히 맞물린다.
                 // 색도 에셋에서 뽑은 값이라 두 상태를 오갈 때 본체 색이 흔들리지 않는다.
                 paperFace
-                    .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
+                    .frame(width: Self.cardSize.width, height: Self.cardSize.height)
                 .shadow(color: .black.opacity(0.25), radius: 10)
                 .overlay {
                     DoodleImageView(drawingData: post.drawingData)
@@ -92,7 +148,7 @@ struct PostDetailView: View {
                 // 좌우를 뒤집어 두어 접힌 모서리가 오른쪽 아래에 온다.
                 paperFace
                     .scaleEffect(x: -1, y: 1)
-                    .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
+                    .frame(width: Self.cardSize.width, height: Self.cardSize.height)
                 .shadow(color: .black.opacity(0.25), radius: 10)
                 .overlay { backFaceContent }
                 .opacity(isFlipped ? 1 : 0)
@@ -118,11 +174,6 @@ struct PostDetailView: View {
                 withAnimation(.easeInOut(duration: Self.foldFade)) { showFold.toggle() }
             }
         }
-        .alert("사진 저장", isPresented: $showSaveAlert) {
-            Button("확인") { }
-        } message: {
-            Text(saveMessage)
-        }
     }
 
     /// 지금 접힌 정도. 0 이면 펴진 상태.
@@ -138,8 +189,10 @@ struct PostDetailView: View {
     /// 잘려나가는 삼각형과 접혀 올라온 삼각형이 늘 짝을 이룬다.
     private var paperFace: some View {
         ZStack {
+            // 모서리가 접혔다 펴지므로 그림이 아니라 도형으로 그린다.
+            // 색은 그리드 카드와 같은 그라디언트를 본다.
             FoldedPaperShape(depth: foldDepth, cornerRadius: DoodleMetrics.canvasCornerRadius)
-                .fill(Color.doodlePaper)
+                .fill(LinearGradient.doodlePaperFace)
 
             FoldFlapShape(depth: foldDepth)
                 .fill(Color.doodleFoldFlap)
@@ -160,22 +213,33 @@ struct PostDetailView: View {
     private var backFaceContent: some View {
         ZStack {
             // 본문은 카드 정가운데. 위아래 요소에 밀리지 않도록 따로 겹쳐 놓는다.
-            Text(post.text.isEmpty ? "(텍스트 없음)" : post.text)
-                .font(.system(size: 30, weight: .medium))
-                // Figma 행간 44. 30pt 본문의 기본 행높이에 약 8 을 더하면 비슷해진다.
-                .lineSpacing(8)
-                .foregroundStyle(Color.doodlePrimary)
-                .multilineTextAlignment(.center)
-                .frame(width: 253)
+            // Figma `iPhone 17 - 14` 의 `Frame 35`(92:828):
+            // `RF대충쓴준우체v3` 30 / `#424242` / 행높이 44 / 폭 253.
+            //
+            // 행높이 44 는 이 글꼴의 기본값(30pt 에서 73)보다 한참 낮아
+            // SwiftUI `Text` 로는 잡히지 않는다. 자세한 사정은 `FixedLineHeightText` 에 있다.
+            FixedLineHeightText(
+                text: post.text.isEmpty ? "(텍스트 없음)" : post.text,
+                font: .doodleHandwriting(size: Self.messageFontSize),
+                lineHeight: Self.messageLineHeight,
+                color: UIColor(Color.doodlePrimary)
+            )
+            .frame(width: 253)
 
             VStack(spacing: 0) {
             if !counterpartName.isEmpty {
-                HStack(spacing: 10) {
+                HStack(spacing: 13) {
                     avatar
 
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(counterpartName)
-                            .font(.system(size: 18, weight: .semibold))
+                            // Figma 는 Semi Bold 18 이지만 화면에서는 Bold 로 둔다.
+                            //
+                            // 한글은 Figma 가 지정한 글꼴(Inter)에 없어 폴백으로 그려지는데,
+                            // 그 폴백이 iOS 의 `.semibold` 보다 굵게 나온다.
+                            // 스펙대로 `.semibold` 를 주면 디자인보다 16% 옅어 medium 처럼 읽힌다.
+                            // `.bold` 가 디자인 렌더와 가장 가깝다 (잉크량 93%).
+                            .font(.system(size: 18, weight: .bold))
                             .foregroundStyle(Color.doodlePrimary)
 
                         if !counterpartSuffix.isEmpty {
@@ -202,19 +266,24 @@ struct PostDetailView: View {
     }
 }
 
-/// Figma `Frame 9` 왼쪽 디자인의 버튼. 누르면 회색 10% 배경이 깔린다.
+/// 카드 위에 뜬 알약 툴바의 버튼.
+///
+/// 평소에는 바탕이 없고(`iPhone 17 - 17`), 누르는 동안에만 회색 알약이 깔린다(`iPhone 17 - 14`).
+/// 눌린 표시는 60x42 지만 누를 수 있는 자리는 알약 높이(48)를 다 쓴다.
+/// 표시가 작다고 손가락이 닿는 자리까지 좁힐 이유는 없다.
 private struct CardToolbarButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(Color.doodlePrimary)
-            // 아이콘 둘이 나란히 든 알약이라, 높이는 44 로 맞추고 폭만 알약 절반으로 나눈다.
-            .frame(width: 68, height: DrawingToolPicker.buttonSide)
+            .frame(width: 60, height: 48)
             .background {
                 if configuration.isPressed {
-                    Capsule().fill(Color.doodlePressed)
+                    Capsule()
+                        .fill(Color.doodleCardToolbarPressed)
+                        .frame(height: 42)
                 }
             }
-            .contentShape(Capsule())
+            .contentShape(Rectangle())
     }
 }
 
@@ -225,33 +294,29 @@ extension PostDetailView {
         post.isMine ? post.recipientName : post.displaySenderName
     }
 
-    /// 이름 뒤에 붙일 말. 내가 그린 것에는 아무것도 붙이지 않는다.
+    /// 이름 뒤에 붙일 말. 그림이 오간 방향을 알려준다.
+    ///
+    /// 내가 그린 것은 상대에게 건네는 그림이라 "님에게",
+    /// 받은 것은 상대가 건네준 그림이라 "님으로부터".
     private var counterpartSuffix: String {
-        post.isMine ? "" : "님이 보냄"
-    }
-
-    /// 상대 자리에 넣을 그림. 내가 그린 카드에는 내 프로필을 쓴다.
-    private var counterpartDrawingData: Data? {
-        let data = post.isMine ? profilePosts.first?.drawingData : post.senderProfileDrawingData
-        guard let data, !data.isEmpty else { return nil }
-        return data
+        post.isMine ? "님에게" : "님으로부터"
     }
 
     /// Figma: 흰 원 55 + #E1E1E1 테두리, 안에 그림 30.
+    ///
+    /// 얼굴은 `Frame 34` 의 다섯 낙서 중 하나를 쓴다.
+    /// 매번 새로 뽑으면 화면이 다시 그려질 때마다 얼굴이 바뀌므로,
+    /// 이름을 해시해 고른다. 흩어져 보이면서도 같은 사람에게는 늘 같은 얼굴이 붙는다.
     private var avatar: some View {
         ZStack {
             Circle()
                 .fill(.white)
                 .overlay { Circle().stroke(Color.doodleHairline, lineWidth: 1) }
 
-            Group {
-                if let counterpartDrawingData {
-                    DoodleImageView(drawingData: counterpartDrawingData)
-                } else {
-                    DefaultDoodleImage(lineWidth: 1)
-                }
-            }
-            .frame(width: 30, height: 30)
+            Image(PeerAvatarPalette.image(for: counterpartName))
+                .resizable()
+                .scaledToFit()
+                .frame(width: 30, height: 30)
         }
         .frame(width: 55, height: 55)
     }
@@ -263,10 +328,7 @@ extension PostDetailView {
     /// 예전에는 `UIImageWriteToSavedPhotosAlbum` 의 결과 콜백을 모두 `nil` 로 버려서,
     /// 권한이 거부돼도 "저장 완료" 알럿이 떴다. 이제 권한과 저장 결과를 실제로 확인한다.
     private func saveDrawingToGallery() async {
-        let renderer = ImageRenderer(content: drawingSnapshot)
-        renderer.scale = 3
-
-        guard let image = renderer.uiImage, let data = image.pngData() else {
+        guard let data = snapshotData() else {
             present("이미지를 만들지 못했어요.")
             return
         }
@@ -278,45 +340,62 @@ extension PostDetailView {
         }
 
         do {
-            try await Self.addToPhotoLibrary(data)
+            try await Self.write(data)
             present("그림이 사진 앱에 저장됐어요.")
         } catch {
             present("저장에 실패했어요: \(error.localizedDescription)")
         }
     }
 
-    /// 사진 보관함에 실제로 써넣는다.
+    /// 사진 앱에 실제로 쓰는 부분.
     ///
-    /// 반드시 `nonisolated` 여야 한다.
-    /// 이 파일은 기본 격리가 MainActor 라, 그냥 두면 `performChanges` 에 넘기는 클로저까지
-    /// MainActor 로 추론된다. 그런데 Photos 는 그 클로저를 자기 큐에서 부르기 때문에
-    /// Swift 6 런타임이 "약속한 액터가 아니다" 라며 트랩을 걸어 앱이 죽는다.
-    ///
-    /// 격리를 벗겨 두면 어느 큐에서 불려도 문제가 없다.
-    private nonisolated static func addToPhotoLibrary(_ data: Data) async throws {
+    /// 화면 밖으로 꺼내 격리를 끊어야 한다.
+    /// `View` 안에 두면 메인 액터에 묶이고 넘기는 클로저도 함께 묶이는데,
+    /// `performChanges` 는 PhotoKit 이 **자기 큐**에서 그 클로저를 부른다.
+    /// 그러면 Swift 6 이 "여기는 메인이 아니다" 하고 앱을 끊는다 —
+    /// 저장 버튼을 누를 때마다 `EXC_BREAKPOINT` 로 튕기던 것이 이것이었다.
+    nonisolated private static func write(_ data: Data) async throws {
         try await PHPhotoLibrary.shared().performChanges {
             PHAssetCreationRequest.forAsset().addResource(with: .photo, data: data, options: nil)
         }
     }
 
-    /// 저장용 이미지. 화면에 보이는 카드가 아니라 흰 배경 위의 그림만 담는다.
+    /// 사진 앱에 남길 이미지. 흰 바탕(`#FFFFFF`)에 획만 담는다.
     ///
-    /// 높이에 너비를 넣어 두어 저장된 사진이 정사각형이 되고, 그림이 그만큼 작게 담겼다.
+    /// 화면의 메모지에는 그늘과 접힌 모서리가 있지만 사진에는 넣지 않는다.
+    /// 사진첩에 남는 건 그림이지 종이가 아니다.
+    ///
+    /// SwiftUI `ImageRenderer` 로 `DoodleImageView` 를 굽지 않는다.
+    /// 그 뷰는 `.task` 로 그림을 늦게 채우는데, 화면에 붙지 않은 뷰에서는 그 `task` 가 돌지 않는다.
+    /// 그대로 구우면 획 없는 흰 종이만 저장된다.
+    /// 캐시가 이미 구워 둔 그림이 있으니 흰 바탕에 얹기만 하면 된다.
+    ///
     /// 캔버스 비율을 그대로 써야 그린 대로 저장된다.
-    private var drawingSnapshot: some View {
-        DoodleImageView(drawingData: post.drawingData)
-            .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
-            .background(.white)
+    private func snapshotData() -> Data? {
+        let drawing = DoodleImageCache.image(for: post.drawingData)
+        let canvas = CGRect(origin: .zero, size: DoodleMetrics.canvasSize)
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 3
+        // 사진에 투명한 자리를 남기지 않는다. 흰 바탕이 전부 채운다.
+        format.opaque = true
+
+        let image = UIGraphicsImageRenderer(size: canvas.size, format: format).image { context in
+            UIColor.white.setFill()
+            context.fill(canvas)
+            drawing.draw(in: canvas)
+        }
+        return image.pngData()
     }
 
     private func present(_ message: String) {
         saveMessage = message
-        showSaveAlert = true
+        withAnimation(.spring(response: 0.3)) { showSaveAlert = true }
     }
 }
 
 #Preview {
-    PostDetailView(post: Post(drawingData: Data(), text: "테스트", isMine: false))
+    PostDetailView(post: Post(drawingData: Data(), text: "테스트", isMine: false)) { }
         .modelContainer(LocalDataStore.makePreviewContainer())
 }
 

@@ -19,6 +19,8 @@ struct GalleryPage: View {
     /// 지금 보고 있는 섹션. 그리기·공유 화면이 저장을 마치고 여기에 적어 둘 수 있어야 해서
     /// `@State` 가 아니라 저장소를 통해 오간다.
     @AppStorage(GallerySection.storageKey) private var segmentedBar = GallerySection.receivedFromOthers.rawValue
+    /// 카드를 늘어놓는 순서. 두 섹션이 함께 쓴다.
+    @AppStorage(GallerySortOrder.storageKey) private var sortOrder = GallerySortOrder.newestFirst.rawValue
     @AppStorage("userName") private var inputName = ""
 
     @State private var mode: GalleryMode = .browsing
@@ -26,25 +28,64 @@ struct GalleryPage: View {
     @State private var postPendingDelete: Post?
     @State private var selectedPost: Post?
     @State private var profileCandidatePost: Post?
-    @State private var showProfileEditPopup = false
     @State private var showSharingScreen = false
     /// 카드를 꾹 눌러 "그림 공유하기" 를 고른 경우. 이 그림을 들고 멀티피어 화면을 연다.
     @State private var sharingPost: Post?
     /// 헤더 높이. 그리드를 헤더 아래에 붙이는 데 쓴다.
     @State private var headerHeight: CGFloat = 0
+    /// 방금 받아서 보여줘야 할 그림. 그리드가 그 자리로 스크롤하고 비운다.
+    @State private var postToShow: Post.ID?
     @State private var confettiTrigger = 0
 
     private var isChoosingProfile: Bool { mode == .choosingProfile }
+
+    /// 저장소에 남은 숫자를 뜻이 있는 값으로 풀어 준다.
+    /// 모르는 값이 들어 있으면 처음 열었을 때의 순서로 돌아간다.
+    private var currentSortOrder: GallerySortOrder {
+        GallerySortOrder(rawValue: sortOrder) ?? .newestFirst
+    }
+
+    /// 프로필로 쓸 그림을 고르는 흐름 안에 있는지.
+    ///
+    /// 들어오는 길이 둘이다.
+    /// 프로필 원을 눌러 그리드에서 고르거나, 카드를 꾹 눌러 곧장 확인창을 띄우거나.
+    ///
+    /// 예전에는 화면 처리를 `mode` 에만 걸어 두어 두 번째 길에서는
+    /// 어두운 막도, 세그먼트 바탕도, 툴바 숨김도 걸리지 않았다.
+    /// 같은 확인창이 열 때마다 다른 얼굴로 떠서 제멋대로인 것처럼 보였다.
+    private var isPickingProfile: Bool {
+        isChoosingProfile || profileCandidatePost != nil
+    }
 
     // Figma `iPhone 17 - 1` 기준 치수
     /// 프로필 원 지름
     private static let profileDiameter: CGFloat = 110
     /// 연필 뱃지 지름
     private static let profileBadgeDiameter: CGFloat = 25
-    /// 세그먼트 컨트롤 좌우 여백. 바깥 VStack 이 이미 16 을 주므로 그만큼 뺀 값을 더한다.
-    private static let segmentExtraInset: CGFloat = 12
+    /// 뱃지가 프로필 원 오른쪽 끝에서 안으로 들어와 있는 정도.
+    private static let profileBadgeInset: CGFloat = 4
+    /// 뱃지를 누를 수 있는 자리의 지름.
+    ///
+    /// 보이는 25 는 손끝으로 겨누기에 작다.
+    /// 그렇다고 앱 공통 규격인 44 까지 키우지는 않는다.
+    /// 그만큼 넓히면 사진의 오른쪽 아래 귀퉁이가 통째로 눌리는 자리가 되어,
+    /// 뱃지로 옮긴 이유였던 "사진을 눌렀는데 설정이 열린다" 가 그대로 돌아온다.
+    private static let profileBadgeTapDiameter: CGFloat = 36
+    /// 본문 좌우 여백.
+    ///
+    /// Figma 는 세그먼트(`Frame 2`)와 메모지 그리드(`Frame 28`) 를 둘 다 x=20, 폭 362 로 둔다.
+    /// 예전에는 세그먼트에만 여백을 더 줘서 그리드가 좌우로 더 튀어나왔다.
+    /// 한 값으로 묶어 두 줄의 끝이 어긋날 수 없게 한다.
+    private static let contentInset: CGFloat = 20
     /// 프로필 원이 시작하는 높이.
     private static let headerTopInset: CGFloat = 140
+    /// 화면 제목이 놓이는 높이. Figma 의 y=70. 오른쪽 위 버튼들도 같은 줄에 선다.
+    private static let titleTopInset: CGFloat = 70
+    /// 오른쪽 위 버튼 둘 사이.
+    /// Figma 는 정렬(`Frame 40`, 276~320)과 공유받기(`Frame 25`, 338~382)를 18 띄운다.
+    private static let topButtonSpacing: CGFloat = 18
+    /// 프로필 확인창이 놓이는 높이. Figma `iPhone 17 - 16` 의 `Alert` y=390.
+    private static let confirmPopupTop: CGFloat = 390
 
     /// 프로필 고르기에는 취소 버튼이 없다. 카드가 아닌 빈 곳을 누르면 빠져나온다.
     private var emptyAreaTapAction: (() -> Void)? {
@@ -56,65 +97,113 @@ struct GalleryPage: View {
     /// `alert` 는 스스로 화면을 덮으므로 여기 넣지 않는다.
     /// 넣어 두면 확인창이 뜰 때마다 탭바가 사라졌다 돌아오며 화면이 흔들린다.
     private var isOverlayShowing: Bool {
-        selectedPost != nil || isChoosingProfile
+        selectedPost != nil || isPickingProfile
     }
 
     var body: some View {
         NavigationStack {
             ZStack {
-                PaperBackground()
+                // Figma `iPhone 17 - 14/15/16` 의 평평한 바탕.
+                // 종이 질감은 이 화면에서 은퇴했다.
+                Color.doodleBackground
+                    .ignoresSafeArea()
 
-                // 프로필 원과 이름은 어두운 레이어 **아래**에 둔다.
-                // 위에 두고 opacity/colorMultiply 로 낮추면 흰 원이 밝게 남는다.
-                // 특히 글래스 효과는 시스템이 따로 그려서 색 보정이 먹지 않는다.
-                // 같은 합성을 거치게 해야 배경과 똑같이 어두워진다.
-                profileBlock
-                    .padding(.top, Self.headerTopInset)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
-                    .padding(.horizontal)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .allowsHitTesting(!isChoosingProfile)
-
-                // 프로필을 고르는 동안에는 그림 말고 다 어둡게 덮는다.
+                // 프로필을 고르는 동안 종이 바탕만 어둡게 깔린다.
+                //
+                // Figma `iPhone 17 - 15` 의 층 순서를 그대로 따른다.
+                // 이 막 **위**에 남는 것 = 고를 수 있는 것: 프로필 원·이름·세그먼트·카드.
+                // 아래에 남는 것 = 바탕.
                 // 취소 버튼이 없으므로 어두운 곳을 눌러 빠져나온다.
-                if isChoosingProfile {
-                    Color.black.opacity(0.4)
+                if isPickingProfile {
+                    Color.doodleChoosingScrim
                         .ignoresSafeArea()
                         .contentShape(Rectangle())
                         .onTapGesture { exitSelection() }
                         .transition(.opacity)
                 }
 
-                // 세그먼트와 그리드는 어두운 레이어 **위**에 남아 밝게 보인다.
+                // Figma 의 라지 타이틀. (20, 70) 에 34pt Bold.
+                //
+                // 시스템 `navigationTitle` 을 쓰지 않는다.
+                // 이 화면은 ZStack 이 안전영역을 무시하며 자리를 직접 잡고 있어,
+                // 네비게이션 바가 끼어들면 프로필 원부터 아래가 통째로 밀린다.
+                Text("갤러리")
+                    .font(.system(size: 34, weight: .bold))
+                    .kerning(0.4)
+                    .foregroundStyle(Color.doodleTitle)
+                    .padding(.leading, Self.contentInset)
+                    .padding(.top, Self.titleTopInset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .allowsHitTesting(false)
+
+                // 정렬·공유받기. 제목과 같은 높이(y=70)의 오른쪽 끝에 나란히 뜬다.
+                //
+                // 화면을 덮는 것이 떠 있으면 제목과 함께 물러난다.
+                if !isOverlayShowing {
+                    HStack(spacing: Self.topButtonSpacing) {
+                        sortMenu
+                        receiveButton
+                    }
+                    .padding(.top, Self.titleTopInset)
+                    .padding(.trailing, Self.contentInset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                }
+
+                // 프로필 원과 이름. 고르는 중에도 밝게 남지만 누를 수는 없다.
+                // 지금 고르는 대상은 카드이고, 프로필은 그 결과가 놓일 자리일 뿐이다.
+                profileBlock
+                    .padding(.top, Self.headerTopInset)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+                    .padding(.horizontal, Self.contentInset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .allowsHitTesting(!isPickingProfile)
+
+                // 세그먼트와 그리드.
                 //
                 // 세그먼트가 헤더가 아니라 여기 있는 이유가 있다.
-                // 프로필로 쓸 그림은 받은 것 중에도, 내가 그린 것 중에도 있다.
-                // 고르는 동안에도 두 섹션을 오갈 수 있어야 해서 어두운 레이어 위로 올렸다.
+                // 프로필로 쓸 그림은 받은 것 중에도, 내가 그린 것 중에도 있어서
+                // 고르는 동안에도 두 섹션을 오갈 수 있어야 한다.
                 VStack(spacing: 0) {
-                    // 시스템 세그먼트를 쓴다. 접근성·Dynamic Type·키보드 이동이 딸려 온다.
-                    Picker("보기", selection: $segmentedBar) {
-                        ForEach(GallerySection.allCases, id: \.self) { section in
-                            Text(section.title).tag(section.rawValue)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .padding(.horizontal, Self.segmentExtraInset)
-                    .padding(.bottom, 20)
+                    // Figma `iPhone 17 - 12` 의 막대.
+                    // 트랙이 불투명한 흰색이라, 뒤에 어두운 막이 깔려도 배어 나오지 않는다.
+                    GallerySegmentedControl(selection: $segmentedBar)
+                        .padding(.bottom, 20)
 
                     PostGridView(
                         mode: mode,
                         segmentedBar: $segmentedBar,
+                        sortOrder: currentSortOrder,
                         selectedPost: $selectedPost,
                         profileCandidatePost: $profileCandidatePost,
                         postPendingDelete: $postPendingDelete,
                         onShare: { sharingPost = $0 },
+                        postToShow: $postToShow,
                         onEmptyAreaTap: emptyAreaTapAction
                     )
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, Self.contentInset)
                 .padding(.top, headerHeight)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+                // 프로필로 앉힐지 묻는 확인창. Figma `iPhone 17 - 16`.
+                //
+                // 화면 위에서 390 — 세그먼트 바로 아래다.
+                // 한가운데로 보내면 방금 고른 카드를 덮어, 무엇을 고른 건지 보이지 않는다.
+                if profileCandidatePost != nil {
+                    DoodleConfirmPopup(
+                        title: "프로필 사진으로 설정하시겠습니까?",
+                        cancelTitle: "아니오",
+                        confirmTitle: "예",
+                        onCancel: {
+                            withAnimation(.spring(response: 0.3)) { profileCandidatePost = nil }
+                        },
+                        onConfirm: {
+                            confirmProfile()
+                        }
+                    )
+                    .padding(.top, Self.confirmPopupTop)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                }
 
                 // 카드 확대 상세 뷰
                 if let selectedPost {
@@ -131,46 +220,40 @@ struct GalleryPage: View {
                                 withAnimation { self.selectedPost = nil }
                             }
 
-                        PostDetailView(post: selectedPost)
+                        PostDetailView(post: selectedPost) {
+                            withAnimation { self.selectedPost = nil }
+                        }
                     }
                 }
             }
-            .toolbar { toolbarContent }
-            .toolbarVisibility(isOverlayShowing ? .hidden : .visible, for: .navigationBar)
             // 삭제 중에는 탭바 자리를 선택 바가 대신 쓴다.
             .toolbarVisibility(isOverlayShowing ? .hidden : .visible, for: .tabBar)
             .ignoresSafeArea()
             // 보낼 그림 없이 열면 받기 전용으로 동작한다.
+            //
+            // 그림이 도착하면 공유 화면이 스스로 접히고 여기로 돌아온다.
+            // 받은 그림을 들고 오므로 그 자리를 그리드에 일러 준다.
             .fullScreenCover(isPresented: $showSharingScreen) {
-                NearbySharingScreen { showSharingScreen = false }
+                NearbySharingScreen(
+                    onClose: { showSharingScreen = false },
+                    onReceived: { postToShow = $0.id }
+                )
             }
             // 카드를 꾹 눌러 고른 한 장을 들고 여는 경우.
             .fullScreenCover(item: $sharingPost) { post in
-                NearbySharingScreen(post: post) { sharingPost = nil }
+                NearbySharingScreen(
+                    post: post,
+                    onClose: { sharingPost = nil },
+                    onReceived: { postToShow = $0.id }
+                )
             }
-            // 확인을 묻는 자리는 모두 `alert` 로 통일한다.
+            // 되돌릴 수 없는 일만 물어본다. 이 화면에 남은 물음은 이것 하나다.
             //
             // `confirmationDialog` 는 누른 자리에 앵커되어 꼬리가 달린 채 뜬다.
             // 어느 카드인지는 알려주지만 뜨는 자리가 그때그때 달라 화면이 어수선하다.
-            // `alert` 는 언제나 가운데에 꼬리 없이 떠서 세 확인창이 같은 얼굴을 갖는다.
+            // `alert` 는 언제나 가운데에 꼬리 없이 뜬다.
             //
             // 파괴적 동작이 빨갛게, 취소가 제자리에 오는 배치는 시스템이 알아서 잡아준다.
-            .alert(
-                "이 그림을 프로필로 설정할까요?",
-                isPresented: isProfileCandidatePresented
-            ) {
-                Button("프로필로 설정") { confirmProfile() }
-                Button("취소", role: .cancel) { profileCandidatePost = nil }
-            }
-            .alert("프로필 사진", isPresented: $showProfileEditPopup) {
-                Button("다른 그림으로 변경") {
-                    withAnimation(.spring()) { mode = .choosingProfile }
-                }
-                Button("프로필 사진 삭제", role: .destructive) {
-                    modelContext.setProfilePost(nil)
-                }
-                Button("취소", role: .cancel) { }
-            }
             .alert(
                 "이 그림을 삭제할까요?",
                 isPresented: isDeletePresented,
@@ -193,34 +276,20 @@ struct GalleryPage: View {
                 Circle()
                     .foregroundStyle(.white)
 
+                // 사진 자체는 누를 수 없다. 프로필을 바꾸는 문은 연필 뱃지 하나뿐이다.
                 if let profilePost {
                     DoodleImageView(drawingData: profilePost.drawingData, contentMode: .fill)
-                        .onTapGesture {
-                            withAnimation(.spring()) { showProfileEditPopup = true }
-                        }
                 } else {
                     DefaultDoodleImage()
                         // 원을 꽉 채우지 않고 지름의 80% 크기로 가운데 놓는다.
                         .frame(width: Self.profileDiameter * 0.8,
                                height: Self.profileDiameter * 0.8)
-                        .onTapGesture {
-                            withAnimation(.spring()) { mode = .choosingProfile }
-                        }
                 }
             }
             .frame(width: Self.profileDiameter, height: Self.profileDiameter)
             .clipShape(Circle())
             .shadow(color: .black.opacity(0.1), radius: 3, x: 2, y: 2)
-            .overlay(alignment: .bottomTrailing) {
-                // Figma: #424242 원 + 흰 연필, 그림자 y3 blur3 black 20%
-                Image(systemName: "pencil")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white)
-                    .frame(width: Self.profileBadgeDiameter, height: Self.profileBadgeDiameter)
-                    .background(Circle().fill(Color.doodlePrimary))
-                    .shadow(color: .black.opacity(0.2), radius: 2, y: 3)
-                    .offset(x: -4)
-            }
+            .overlay(alignment: .bottomTrailing) { profileEditBadge }
             .overlay { ConfettiBurst(trigger: confettiTrigger) }
             .offset(y: 5)
 
@@ -229,41 +298,115 @@ struct GalleryPage: View {
         }
     }
 
-    // MARK: - 툴바
-
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            switch mode {
-            case .browsing:
-                // 프로필 설정과 삭제는 카드를 꾹 눌러서 하므로 메뉴가 필요 없어졌다.
-                // 남은 건 공유받기 하나뿐이라 바로 여는 버튼으로 둔다.
-                Button {
-                    showSharingScreen = true
-                } label: {
-                    Image(systemName: "airplay.audio")
-                }
-                .accessibilityLabel("그림 공유받기")
-
-            // 프로필 고르기는 카드를 누르면 바로 확인 팝업이 떠서 툴바 버튼이 필요 없다.
-            case .choosingProfile:
-                EmptyView()
-            }
+    /// 프로필 사진을 바꾸는 연필 뱃지.
+    /// Figma: `#424242` 원 + 흰 연필, 그림자 y3 blur3 검정 20%.
+    ///
+    /// 프로필 설정으로 들어가는 문은 여기 하나뿐이다.
+    /// 예전에는 사진 아무 데나 눌러도 열려서, 그림을 들여다보려고 누른 사람까지
+    /// 설정 흐름으로 끌려 들어갔다. 연필은 "고칠 수 있다" 는 뜻으로 이미 그려져 있으니,
+    /// 그 뜻대로 여기만 누르게 한다.
+    ///
+    /// 누르면 곧장 그림을 고르러 간다.
+    /// 프로필이 있든 없든 여기서 할 일은 "어느 그림으로 할지 정하기" 하나뿐이라,
+    /// 무엇을 할지 고르는 창을 사이에 두지 않는다.
+    /// 정말 이 그림으로 할지는 카드를 고른 뒤 확인창이 한 번 묻는다.
+    private var profileEditBadge: some View {
+        Button {
+            withAnimation(.spring()) { mode = .choosingProfile }
+        } label: {
+            Image(systemName: "pencil")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white)
+                .frame(width: Self.profileBadgeDiameter, height: Self.profileBadgeDiameter)
+                .background(Circle().fill(Color.doodlePrimary))
+                .shadow(color: .black.opacity(0.2), radius: 2, y: 3)
+                .frame(width: Self.profileBadgeTapDiameter, height: Self.profileBadgeTapDiameter)
+                .contentShape(Circle())
         }
+        .buttonStyle(.plain)
+        // 누를 자리를 넓히면 뱃지가 그 절반만큼 원 안쪽으로 밀려난다.
+        // 밀린 만큼 되돌려, 보이는 자리는 Figma 그대로 둔다.
+        .offset(
+            x: Self.profileBadgeTapMargin - Self.profileBadgeInset,
+            y: Self.profileBadgeTapMargin
+        )
+        .accessibilityLabel("프로필 사진 변경")
     }
 
+    /// 보이는 뱃지와 누를 수 있는 자리의 반지름 차이.
+    private static var profileBadgeTapMargin: CGFloat {
+        (profileBadgeTapDiameter - profileBadgeDiameter) / 2
+    }
+
+    // MARK: - 오른쪽 위 버튼
+
+    /// 카드를 늘어놓는 순서를 고르는 메뉴.
+    /// Figma `iPhone 17 - 13` 의 `Frame 40`(142:703) · `Frame 41`(142:706).
+    ///
+    /// 메뉴는 손으로 그리지 않고 시스템 `Menu` 에 맡긴다.
+    /// 리퀴드 글래스도, 고른 줄을 짚어 주는 회색 바탕도, 체크 표시도 시스템이 붙여 준다.
+    /// Figma 의 `Frame 41`(198x90 · 흰색 80% · 45 짜리 두 줄 · 선택줄 `#DEDEDE` 80%)이
+    /// 그리고 있는 것이 바로 그 시스템 메뉴다. 베껴 그리면 겉만 닮고 동작이 어긋난다.
+    private var sortMenu: some View {
+        Menu {
+            ForEach(GallerySortOrder.allCases, id: \.rawValue) { order in
+                Button {
+                    sortOrder = order.rawValue
+                } label: {
+                    // 지금 보고 있는 순서에만 체크가 붙는다. Figma `Frame 41` 의 􀆅.
+                    if order.rawValue == sortOrder {
+                        Label(order.title, systemImage: "checkmark")
+                    } else {
+                        Text(order.title)
+                    }
+                }
+            }
+        } label: {
+            // Figma 글리프 상자가 26x24. 공유받기와 같은 20 으로 둔다.
+            Image(systemName: "list.bullet")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(Color.doodlePrimary)
+                .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
+                // Figma: 흰색 80% · 그림자 0 4 15 검정 5%. SwiftUI 반경은 blur 의 절반.
+                .background(.white.opacity(0.8), in: Circle())
+                .shadow(color: .black.opacity(0.05), radius: 7.5, y: 4)
+        }
+        .accessibilityLabel("정렬 방법")
+    }
+
+    /// 그림을 받으러 가는 버튼. Figma `iPhone 17 - 13` 의 `Frame 25`(92:612):
+    /// (338, 70) 에 44x44, `#424242` 90% 원에 `#F2F2F2` 아이콘.
+    ///
+    /// 디자인이 흰 원에서 먹색 원으로 뒤집었다.
+    /// 옆에 흰 원(정렬)이 하나 더 서면서, 둘 다 흰색이면 무엇이 주된 동작인지 알 수 없어졌다.
+    ///
+    /// 프로필 설정과 삭제는 카드를 꾹 눌러서 하므로 이 버튼에 메뉴를 달지 않는다.
+    /// 누르면 곧장 공유 화면이 열린다.
+    ///
+    /// 툴바에 두지 않는다. iOS 26 툴바는 항목마다 유리 배경을 깔아 주는데,
+    /// 디자인이 정한 것은 색이 찬 원이라 두 겹이 겹쳤다.
+    /// 제목이 그랬듯 ZStack 이 직접 자리를 잡으면 Figma 좌표가 그대로 맞는다.
+    private var receiveButton: some View {
+        Button {
+            showSharingScreen = true
+        } label: {
+            // Figma 글리프 상자가 24. `Frame 6` 이 21 짜리를 18 로 쓰므로 같은 비율로 20.
+            Image(systemName: "airplay.audio")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(Color.doodleOnDarkButton)
+                .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
+                // Figma: `#424242` 90% · 그림자 0 4 15 검정 5%. SwiftUI 반경은 blur 의 절반.
+                .background(Color.doodlePrimary.opacity(0.9), in: Circle())
+                .shadow(color: .black.opacity(0.05), radius: 7.5, y: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("그림 공유받기")
+    }
 
     // MARK: - 동작
 
     // `confirmationDialog` 는 `Bool` 로만 여닫는데, 우리가 든 건 "무엇에 대한 확인인가" 라는 값이다.
     // 값이 있으면 떠 있고 닫히면 비우도록 이어 준다.
-
-    private var isProfileCandidatePresented: Binding<Bool> {
-        Binding(
-            get: { profileCandidatePost != nil },
-            set: { if !$0 { profileCandidatePost = nil } }
-        )
-    }
 
     private var isDeletePresented: Binding<Bool> {
         Binding(
@@ -273,12 +416,18 @@ struct GalleryPage: View {
     }
 
     /// 고른 그림을 프로필로 앉힌다.
+    ///
+    /// 들어오는 길이 둘이지만 끝은 같다.
+    /// 연필을 눌러 고르는 화면에서 카드를 누르거나,
+    /// 카드를 꾹 눌러 「프로필 사진 설정」을 고르거나 — 둘 다 확인창을 거쳐 여기로 온다.
     private func confirmProfile() {
         guard let candidate = profileCandidatePost else { return }
         modelContext.setProfilePost(candidate)
         confettiTrigger += 1
-        profileCandidatePost = nil
-        withAnimation(.spring()) { mode = .browsing }
+        withAnimation(.spring()) {
+            profileCandidatePost = nil
+            mode = .browsing
+        }
     }
 
     private func exitSelection() {

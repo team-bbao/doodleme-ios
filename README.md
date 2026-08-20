@@ -235,6 +235,15 @@ open DoodleMe.xcodeproj
 
 ---
 
+## 에셋
+
+| 에셋 | 출처 | 조건 |
+| --- | --- | --- |
+| `RF대충쓴준우체v3` (`DoodleMe/Resources/Fonts/RFjunwooo.ttf`) | RixFont | 출처를 밝히면 상업적 사용 가능 |
+
+> 글꼴 출처를 **사용자가 볼 수 있는 자리**에 적어야 한다.
+> 아직 그럴 화면(정보·라이선스)이 없으므로, 배포 전에 앱스토어 설명이나 정보 화면에 넣을 것.
+
 ## 팀
 
 | Teri | Seung | Jay | Kevin | Erica |
