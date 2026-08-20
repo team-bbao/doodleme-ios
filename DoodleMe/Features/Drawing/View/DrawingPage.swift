@@ -184,7 +184,10 @@ struct DrawingPage: View {
                 TextField("첫 대화를 건네보세요 :)", text: $inputText, axis: .vertical)
                     .lineLimit(1...5)
                     .multilineTextAlignment(.center)
-                    .font(.system(size: 25, weight: .semibold))
+                    // 여기 쓴 글이 그대로 카드 뒷면에 실린다.
+                    // 쓸 때와 읽을 때가 다른 글씨면 보낸 사람이 자기 글을 알아보지 못한다.
+                    // 크기 25 는 이 화면의 여백·`lineSpacing` 에 맞춰 둔 값이라 그대로 둔다.
+                    .font(.doodleHandwriting(size: 25))
                     .padding(.horizontal, 30)
                     .padding(.bottom, 60)
                     .focused($focusedField, equals: .text)
