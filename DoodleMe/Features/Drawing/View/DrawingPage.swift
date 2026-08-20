@@ -47,6 +47,10 @@ struct DrawingPage: View {
     /// 상태표시줄(최대 62) + 툴바(44) 를 지나는 값이다.
     private static let countdownTopInset: CGFloat = 112
 
+    /// 좌상단 제목의 자리. 갤러리와 같은 값을 쓴다.
+    private static let titleLeadingInset: CGFloat = 20
+    private static let titleTopInset: CGFloat = 70
+
     /// 캔버스를 화면 정중앙에서 얼마나 올릴지.
     /// 아래쪽 도구 막대와 탭바가 앉을 자리를 남기려고 위로 당겨 둔다.
     private static let canvasCenterOffset: CGFloat = -10
@@ -77,6 +81,20 @@ struct DrawingPage: View {
                 // 타이머는 화면 맨 위에서 잰 자리에 고정한다.
                 // 툴바가 단계에 따라 나타났다 사라지는데, 그때마다 안전영역이 달라져
                 // 타이머가 위아래로 튀었다. 안전영역을 직접 재서 붙이면 흔들리지 않는다.
+                // 갤러리와 같은 라지 타이틀. (20, 70) 에 34pt Bold.
+                // 시작을 누르면 그 자리를 툴바가 쓰므로 누르기 전에만 둔다.
+                if session.phase == .notStarted {
+                    Text("그리기")
+                        .font(.system(size: 34, weight: .bold))
+                        .kerning(0.4)
+                        .foregroundStyle(Color.doodleTitle)
+                        .padding(.leading, Self.titleLeadingInset)
+                        .padding(.top, Self.titleTopInset)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .allowsHitTesting(false)
+                        .ignoresSafeArea()
+                }
+
                 countdown
                     .padding(.top, Self.countdownTopInset)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -255,14 +273,18 @@ struct DrawingPage: View {
 
             // 아래쪽: 첫인상 텍스트 입력 영역
             ZStack(alignment: .bottom) {
+                // 카드 뒷면에 남을 글씨와 같은 손글씨체로 쓴다.
+                // 쓰는 동안 보이는 글씨와 저장한 뒤에 보이는 글씨가 달라 놀랄 일이 없다.
+                //
+                // 이 글꼴은 세로 여백이 넉넉해 행간을 따로 벌리지 않는다.
                 TextField("첫 대화를 건네보세요 :)", text: $inputText, axis: .vertical)
                     .lineLimit(1...5)
                     .multilineTextAlignment(.center)
-                    .font(.system(size: 25, weight: .semibold))
+                    .font(.doodleHandwriting(size: 30))
+                    .foregroundStyle(Color.doodlePrimary)
                     .padding(.horizontal, 30)
                     .padding(.bottom, 60)
                     .focused($focusedField, equals: .text)
-                    .lineSpacing(15)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onChange(of: inputText) { _, newValue in
                         if newValue.count > Self.textLimit {
