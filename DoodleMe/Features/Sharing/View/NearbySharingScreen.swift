@@ -74,6 +74,16 @@ struct NearbySharingScreen: View {
 
                 status
 
+                // 찾은 사람은 상태 문구 바로 아래에 쌓인다.
+                //
+                // Figma `iPhone 17 - 19/20/4` 가 이 카드를 y572 에 고정해 두고
+                // 사람이 늘수록 아래로 늘린다 (85 → 170 → 255).
+                // `Spacer` 뒤에 두면 카드가 화면 아래에 붙어, 한 명 늘 때마다
+                // 먼저 있던 사람이 위로 밀려 올라간다 — 새로 온 사람이 아래에서 솟는 꼴이다.
+                if let session, !session.peers.isEmpty {
+                    peerCard(session: session)
+                }
+
                 Spacer(minLength: 0)
 
                 if session?.searchTimedOut == true || session?.localNetworkBlocked == true {
@@ -83,8 +93,6 @@ struct NearbySharingScreen: View {
                     }
                     // 안전영역 안쪽 기준. Figma 의 화면 아래 75 에서 홈 인디케이터 몫을 뺀 값이다.
                     .padding(.bottom, 24)
-                } else if let session, !session.peers.isEmpty {
-                    peerCard(session: session)
                 }
             }
             // 화면 폭을 다 쓰게 해야 안쪽 요소가 가운데로 온다.
@@ -325,7 +333,9 @@ struct NearbySharingScreen: View {
         .frame(height: Self.peerRowHeight * CGFloat(rows))
         // 목록이 다 들어오면 튕기지 않게 한다. 스크롤될 때만 튕긴다.
         .scrollBounceBehavior(.basedOnSize)
-        .scrollIndicators(.hidden)
+        // 세 명까지만 카드에 들어가고 그 아래는 밀어서 본다.
+        // 넘칠 때만 막대를 보여준다 — 다 보이는데 막대가 있으면 더 있는 줄 안다.
+        .scrollIndicators(session.peers.count > Self.visiblePeerLimit ? .visible : .hidden)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
         .background {
@@ -334,8 +344,7 @@ struct NearbySharingScreen: View {
                 .shadow(color: .black.opacity(0.12), radius: 16, y: -2)
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, 12)
-        .transition(.move(edge: .bottom))
+        .transition(.opacity)
     }
 
     private func peerRow(peer: MCPeerID, session: MultipeerSession) -> some View {
