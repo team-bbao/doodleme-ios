@@ -68,12 +68,10 @@ private struct CanvasRepresentable: UIViewRepresentable {
         let session: DrawingSession
         var appliedRevision = 0
 
-        /// 굵기를 이미 매긴 획의 수.
-        private var shapedStrokeCount = 0
         /// 우리가 그림을 갈아끼우는 중인지.
         ///
-        /// 그 변경은 사용자의 편집이 아니므로 되돌리기 기록에 쌓으면 안 되고,
-        /// 굵기를 다시 매길 일도 없다. 델리게이트가 되울려도 그냥 흘려보낸다.
+        /// 그 변경은 사용자의 편집이 아니므로 되돌리기 기록에 쌓으면 안 된다.
+        /// 델리게이트가 되울려도 그냥 흘려보낸다.
         private var isApplyingOurOwnChange = false
 
         init(session: DrawingSession) {
@@ -85,29 +83,21 @@ private struct CanvasRepresentable: UIViewRepresentable {
             isApplyingOurOwnChange = true
             canvas.drawing = drawing
             isApplyingOurOwnChange = false
-
-            // 세어둔 획 수도 함께 맞춘다.
-            // 빠뜨리면 이후에 그린 획이 "이미 처리한 만큼" 에 미치지 못해
-            // 굵기가 다시 매겨지지 않는다. 필압이 조용히 죽는다.
-            shapedStrokeCount = drawing.strokes.count
         }
 
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             // 우리가 갈아끼운 변경이 되울려 온 것이면 편집이 아니다.
             guard !isApplyingOurOwnChange else { return }
 
-            let count = canvasView.drawing.strokes.count
-
-            // 획이 늘었을 때만 굵기를 다시 매긴다.
-            // 지우개로 줄었으면 세어둔 수만 맞춰 두고 넘어간다.
-            if count > shapedStrokeCount {
-                isApplyingOurOwnChange = true
-                canvasView.drawing = canvasView.drawing
-                    .withVelocityBasedWidth(baseWidth: DrawingSession.Tool.penWidth)
-                isApplyingOurOwnChange = false
-            }
-            shapedStrokeCount = count
-
+            // 그려진 획에 손대지 않는다.
+            //
+            // 예전에는 여기서 그림을 통째로 속도 기반 굵기로 다시 매겨 넣었다.
+            // 그리는 동안에는 PencilKit 이 그려 보여주다가, 손을 떼는 순간 우리 계산으로
+            // 갈아끼우니 획이 눈앞에서 바뀌었다. 굵기가 최대 네 배까지 벌어졌다.
+            //
+            // 굵기는 PencilKit 에 맡긴다. 애플펜슬로 그리면 필압대로 변하고,
+            // 손가락으로 그리면 일정하다. 어느 쪽이든 그리는 중에 보이는 것이
+            // 손을 뗀 뒤에도 그대로다.
             session.canvasDidChange(drawing: canvasView.drawing)
         }
     }
