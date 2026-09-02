@@ -1,3 +1,6 @@
+<img width="304" height="304" alt="스크린샷 2026-09-03 오전 1 23 13" src="https://github.com/user-attachments/assets/4406eab8-e683-4f1c-b506-d3fbc122710d" />
+
+
 # doodle.me
 
 서로의 첫인상을 30초 동안 그려 주고받는 iOS 앱.
