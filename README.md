@@ -1,15 +1,13 @@
 <img width="304" height="304" alt="스크린샷 2026-09-03 오전 1 23 13" src="https://github.com/user-attachments/assets/4406eab8-e683-4f1c-b506-d3fbc122710d" />
 
-
 # doodle.me
+
+[![appstore](https://img.shields.io/badge/AppStore-다운로드-000000.svg?style=for-the-badge)](https://apps.apple.com/kr/app/id6802236794)
 
 서로의 첫인상을 30초 동안 그려 주고받는 iOS 앱.
 
 처음 만난 사람의 얼굴을 30초 안에 그리고, 짧은 인사말을 적어 카드로 남깁니다.
 가까이 있으면 서버를 거치지 않고 기기끼리 직접 그림을 건넬 수 있습니다.
-
-**목표는 App Store 출시입니다.** 제출에 필요한 문안·설정·체크리스트는
-[`docs/app-store-submission.md`](docs/app-store-submission.md) 에 모아 두었습니다.
 
 ---
 
