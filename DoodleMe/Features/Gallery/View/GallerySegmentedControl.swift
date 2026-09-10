@@ -5,35 +5,75 @@
 
 import SwiftUI
 
-/// 「나를 그린 / 내가 그린」을 고르는 막대. Figma `iPhone 17 - 12` 의 `Segmented Control`(222:1199).
+/// 「내가 그린 / 너가 그린」을 고르는 막대. Figma `Frame 38`(85:536) 기준.
 ///
-/// 시스템 `Picker(.segmented)` 를 쓴다.
-/// 예전에는 흰 트랙에 회색 캡슐을 직접 그렸는데, 디자인이 시스템 컴포넌트로 바뀌었다.
-/// 손으로 그리면 겉은 닮아도 눌림·전환·손쉬운 사용 동작이 시스템과 어긋난다.
+/// 시스템 `Picker(.segmented)` 를 쓰지 않는다.
+/// 흰 트랙에 얹힌 회색 캡슐과 14pt 라벨은 시스템 세그먼트로는 만들 수 없고,
+/// 이 막대는 종이 위에 놓인 카드처럼 보여야 화면의 다른 요소와 결이 맞는다.
 ///
 /// 칸의 **순서와 뜻**은 `GallerySection` 이 정한다.
+/// 「내가 그린」이 왼쪽이고, 저장소가 주고받는 `rawValue` 는 그 순서와 별개다.
 struct GallerySegmentedControl: View {
 
     @Binding var selection: Int
 
-    /// Figma `222:1199` 의 높이. 시스템 기본값보다 조금 높다.
-    private static let trackHeight: CGFloat = 35
+    @Namespace private var chipAnimation
 
-    /// 본문 폭(362)에서 좌우로 더 들어가는 정도.
-    ///
-    /// Figma 는 이 막대만 x=21 폭 359 로 두어, 카드 그리드(x=20 폭 362)보다 안쪽에 있다.
-    /// 그리드까지 함께 옮기지 않도록 이 막대에서만 좁힌다.
-    private static let extraInset: CGFloat = 1.5
+    // Figma `Frame 2`(85:530) 치수. 트랙 362x39 안에 173x31 캡슐 둘.
+    /// 트랙 높이.
+    private static let trackHeight: CGFloat = 39
+    /// 캡슐 높이. 트랙 안쪽으로 위아래 4 씩 들어간다.
+    private static let chipHeight: CGFloat = 31
+    /// 트랙과 캡슐 사이 여백.
+    private static let inset: CGFloat = 4
+    /// 캡슐 둘 사이 간격.
+    private static let chipSpacing: CGFloat = 7
+    /// 트랙·캡슐 모서리. 값이 높이보다 커서 사실상 알약이 된다.
+    private static let cornerRadius: CGFloat = 50
 
     var body: some View {
-        Picker("보고 있는 그림", selection: $selection) {
+        HStack(spacing: Self.chipSpacing) {
             ForEach(GallerySection.allCases, id: \.self) { section in
-                Text(section.title).tag(section.rawValue)
+                chip(for: section)
             }
         }
-        .pickerStyle(.segmented)
+        .padding(Self.inset)
         .frame(height: Self.trackHeight)
-        .padding(.horizontal, Self.extraInset)
+        .background {
+            RoundedRectangle(cornerRadius: Self.cornerRadius)
+                .fill(.white)
+                // Figma: 0 4 15 / 검정 5%. SwiftUI 반경은 blur 의 절반.
+                .shadow(color: .black.opacity(0.05), radius: 7.5, y: 4)
+        }
+    }
+
+    @ViewBuilder
+    private func chip(for section: GallerySection) -> some View {
+        let isSelected = selection == section.rawValue
+
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                selection = section.rawValue
+            }
+        } label: {
+            Text(section.title)
+                // Figma: 선택 Medium / 비선택 Regular, 둘 다 14.
+                .font(.system(size: 14, weight: isSelected ? .medium : .regular))
+                .foregroundStyle(isSelected ? Color.doodleSegmentLabel : Color.doodleSubtext)
+                .frame(maxWidth: .infinity)
+                .frame(height: Self.chipHeight)
+                .background {
+                    if isSelected {
+                        // 고른 칸이 바뀔 때 캡슐이 미끄러져 옮겨간다.
+                        Capsule()
+                            .fill(Color.doodleSegmentChip)
+                            .matchedGeometryEffect(id: "chip", in: chipAnimation)
+                    }
+                }
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }
 
