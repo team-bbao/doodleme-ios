@@ -322,9 +322,13 @@ struct GalleryPage: View {
 
             Spacer()
 
+            // 한 장도 고르지 않았으면 지울 것이 없다.
+            //
+            // 색을 직접 지정하면 시스템이 비활성일 때 걸어 주는 흐림이 덮인다.
+            // 눌리지도 않으면서 빨갛게 서 있어, 눌러 보고 나서야 안 된다는 걸 알게 된다.
+            // 그래서 흐림도 직접 준다.
             Button("삭제") { isConfirmingBulkDelete = true }
-                .foregroundStyle(.red)
-                // 한 장도 고르지 않았으면 지울 것이 없다.
+                .foregroundStyle(selectedForDeletion.isEmpty ? Color.doodleMuted : .red)
                 .disabled(selectedForDeletion.isEmpty)
         }
         .font(.system(size: 17, weight: .semibold))
