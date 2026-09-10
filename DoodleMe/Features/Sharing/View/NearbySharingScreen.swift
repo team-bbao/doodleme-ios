@@ -219,12 +219,16 @@ struct NearbySharingScreen: View {
                     .foregroundStyle(Color.doodleSubtext)
             }
             .multilineTextAlignment(.leading)
-            .padding(.top, 24)
+            // 찾는 화면과 마찬가지로 Figma 는 `Frame 20` 을 y539 에 둔다.
+            // 이 화면은 제목 덩이가 조금 낮아(이름줄이 15) 그만큼 덜 준다.
+            .padding(.top, 17)
 
             Spacer(minLength: 0)
 
             confirmButton
-                .padding(.bottom, 24)
+                // Figma `Frame 21`(149:578) 은 y734 에 50 높이 — 밑변이 784 다.
+                // 안전영역 아래변이 840 이므로 56 이 남는다.
+                .padding(.bottom, 56)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, Self.contentTop)
