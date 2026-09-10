@@ -58,8 +58,8 @@ struct GalleryPage: View {
     }
 
     // Figma `iPhone 17 - 1` 기준 치수
-    /// 프로필 원 지름
-    private static let profileDiameter: CGFloat = 110
+    /// 프로필 원 지름. Figma `iPhone 17 - 12` 의 `Frame 1`(92:715).
+    private static let profileDiameter: CGFloat = 97
     /// 연필 뱃지 지름
     private static let profileBadgeDiameter: CGFloat = 25
     /// 뱃지가 프로필 원 오른쪽 끝에서 안으로 들어와 있는 정도.
@@ -77,8 +77,11 @@ struct GalleryPage: View {
     /// 예전에는 세그먼트에만 여백을 더 줘서 그리드가 좌우로 더 튀어나왔다.
     /// 한 값으로 묶어 두 줄의 끝이 어긋날 수 없게 한다.
     private static let contentInset: CGFloat = 20
-    /// 프로필 원이 시작하는 높이.
-    private static let headerTopInset: CGFloat = 140
+    /// 프로필 블록이 시작하는 높이.
+    ///
+    /// Figma `iPhone 17 - 12` 는 원의 윗변을 129 에 둔다.
+    /// 원이 `offset(y: 5)` 로 내려가 있으므로 자리 자체는 그보다 5 위에서 시작한다.
+    private static let headerTopInset: CGFloat = 124
     /// 화면 제목이 놓이는 높이. Figma 의 y=70. 오른쪽 위 버튼들도 같은 줄에 선다.
     private static let titleTopInset: CGFloat = 70
     /// 오른쪽 위 버튼 둘 사이.
@@ -271,7 +274,9 @@ struct GalleryPage: View {
 
     /// 프로필 원과 이름. 세그먼트는 어두운 레이어 위에 있어야 해서 본문 쪽에 있다.
     private var profileBlock: some View {
-        VStack {
+        // 간격을 기본값에 맡기지 않는다.
+        // 기본 간격이 이름의 위 여백에 더해져, 원과 이름 사이가 Figma 보다 벌어졌다.
+        VStack(spacing: 0) {
             ZStack {
                 Circle()
                     .foregroundStyle(.white)
@@ -294,7 +299,9 @@ struct GalleryPage: View {
             .offset(y: 5)
 
             ProfileNameView(profileName: $inputName)
-                .padding(.bottom, 15)
+                // 이 여백이 곧 세그먼트가 놓이는 높이를 정한다.
+                // 124(시작) + 97(원) + 12.5(이름 위) + 24(이름) + 36.5 = 294 — Figma `222:1199` 의 y.
+                .padding(.bottom, 36.5)
         }
     }
 

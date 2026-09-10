@@ -21,7 +21,7 @@ enum GallerySection: Int, CaseIterable {
     /// 세그먼트에 표시할 이름.
     var title: String {
         switch self {
-        case .receivedFromOthers: "너가 그린"
+        case .receivedFromOthers: "나를 그린"
         case .drawnByMe: "내가 그린"
         }
     }
