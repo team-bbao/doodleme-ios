@@ -108,6 +108,9 @@ struct PostGridView: View {
     /// 줄 사이 세로 간격. Figma 는 가로보다 좁은 17 을 쓴다 (186 세 줄 + 17 두 칸 = 592).
     private static let rowSpacing: CGFloat = 17
 
+    /// 카드를 눌러 확대할 때의 결. `GalleryPage` 의 닫는 쪽과 같은 값을 쓴다.
+    static let cardTransition: Animation = .spring(response: 0.32, dampingFraction: 0.86)
+
     /// 고른 카드를 덮는 농도.
     ///
     /// 프로필은 한 장만 고르므로 짙게 덮어도 헷갈릴 일이 없었다.
@@ -167,6 +170,12 @@ struct PostGridView: View {
             // 표시가 먼저 켜질 수도, 그림이 먼저 들어올 수도 있어 양쪽을 다 본다.
             .onChange(of: showsJustSavedPost, initial: true) { _, _ in revealJustSaved() }
             .onChange(of: postsByMe.first?.id) { _, _ in revealJustSaved() }
+            // 고르고 푸는 순간마다 손끝에 알린다.
+            //
+            // 카드가 옅게 덮이고 동그라미가 채워지는 것은 눈으로만 오는 신호다.
+            // 여러 장을 빠르게 고를 때는 화면을 계속 확인하지 않게 되는데,
+            // 그때 눌린 것이 먹었는지 알 길이 없다.
+            .sensoryFeedback(.selection, trigger: selectedForDeletion)
         }
     }
 
@@ -223,7 +232,7 @@ struct PostGridView: View {
                 }
             }
             .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
-            .animation(.easeInOut(duration: 0.15), value: selected)
+            .animation(.spring(response: 0.25, dampingFraction: 0.72), value: selected)
             .animation(.easeInOut(duration: 0.2), value: mode)
             .onTapGesture { handleTap(on: post) }
             .accessibilityAddTraits(selected ? [.isSelected] : [])
@@ -323,7 +332,13 @@ struct PostGridView: View {
     private func handleTap(on post: Post) {
         switch mode {
         case .browsing:
-            selectedPost = post
+            // 여는 쪽에도 애니메이션을 건다.
+            //
+            // 닫을 때만 걸려 있어서 확대는 툭 튀어나오고 닫힘만 부드러웠다.
+            // 같은 동작의 앞뒤가 다르게 움직이면 화면이 미끄러지다 걸리는 것처럼 느껴진다.
+            withAnimation(Self.cardTransition) {
+                selectedPost = post
+            }
 
         case .choosingProfile:
             // 한 장만 고른다. 확인창은 GalleryPage 가 띄운다.
@@ -334,7 +349,7 @@ struct PostGridView: View {
             // 같은 카드를 다시 누르면 선택이 풀린다.
             // 지우는 일이라 되돌릴 길을 눌렀던 그 자리에 둔다.
             let id = post.persistentModelID
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.72)) {
                 if selectedForDeletion.contains(id) {
                     selectedForDeletion.remove(id)
                 } else {

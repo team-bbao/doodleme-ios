@@ -228,13 +228,19 @@ struct GalleryPage: View {
                             .fill(.regularMaterial)
                             .ignoresSafeArea()
                             .onTapGesture {
-                                withAnimation { self.selectedPost = nil }
+                                withAnimation(PostGridView.cardTransition) { self.selectedPost = nil }
                             }
 
                         PostDetailView(post: selectedPost) {
-                            withAnimation { self.selectedPost = nil }
+                            withAnimation(PostGridView.cardTransition) { self.selectedPost = nil }
                         }
                     }
+                    // 카드가 있던 자리에서 살짝 커지며 올라온다.
+                    //
+                    // 투명도만 바꾸면 화면이 통째로 덮이는 느낌이라
+                    // 「카드를 확대한다」는 동작과 결이 어긋난다.
+                    // 조금 작은 데서 시작해 제 크기로 붙어야 커졌다는 것이 읽힌다.
+                    .transition(.opacity.combined(with: .scale(scale: 0.94)))
                 }
 
                 // 여러 장을 고르는 동안 탭바 자리에 서는 막대.
