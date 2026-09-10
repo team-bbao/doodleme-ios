@@ -31,6 +31,8 @@ final class LiveStrokeView: UIView {
     private var speeds: [Double] = []
     /// 시작점부터의 누적 길이(pt).
     private var distances: [CGFloat] = []
+    /// 아직 오지 않은, 갈 것으로 셈한 자리들. 매번 새로 받는다.
+    private var predictedTail: [CGPoint] = []
 
     /// 굵기의 기준값. `DrawingSession.Tool.penWidth` 를 그대로 받는다.
     var baseWidth: CGFloat = 3
@@ -70,10 +72,21 @@ final class LiveStrokeView: UIView {
         speeds = [0]
         distances = [0]
         widths = [baseWidth * Self.tipScale]
+        predictedTail = []
         setNeedsDisplay()
     }
 
-    func extend(to point: CGPoint, time: TimeInterval) {
+    /// 화면 갱신 사이에 모아 둔 자리들을 한꺼번에 잇는다.
+    ///
+    /// 마지막 하나만 쓰면 그 사이 궤적이 빠져 선이 각지고, 손이 간 길과 달라진다.
+    /// `predicted` 는 아직 오지 않은 자리라 그림에 쌓지 않고 매번 새로 그린다.
+    func extend(through points: [CGPoint], predicted: [CGPoint], time: TimeInterval) {
+        for point in points { appendSample(point, time: time) }
+        predictedTail = predicted
+        setNeedsDisplay()
+    }
+
+    private func appendSample(_ point: CGPoint, time: TimeInterval) {
         guard let previous = samples.last else {
             begin(at: point, time: time)
             return
@@ -87,7 +100,7 @@ final class LiveStrokeView: UIView {
         distances.append((distances.last ?? 0) + step)
 
         let elapsed = time - previous.time
-        // 시각이 같게 들어오는 일이 있다. 그럴 때는 앞 속도를 그대로 잇는다.
+        // 모아 둔 자리들은 시각이 같게 들어온다. 그럴 때는 앞 속도를 그대로 잇는다.
         speeds.append(elapsed > 0 ? Double(step) / elapsed : (speeds.last ?? 0))
 
         let window = speeds.suffix(Self.speedWindow)
@@ -95,7 +108,6 @@ final class LiveStrokeView: UIView {
 
         let taper = Self.startTaper(distanceFromStart: distances[distances.count - 1])
         widths.append(baseWidth * PKStroke.widthScale(forSpeed: meanSpeed) * taper)
-        setNeedsDisplay()
     }
 
     /// 손을 뗐다. PencilKit 이 확정한 획이 대신 보이므로 이 층은 비운다.
@@ -104,6 +116,7 @@ final class LiveStrokeView: UIView {
         widths.removeAll()
         speeds.removeAll()
         distances.removeAll()
+        predictedTail.removeAll()
         setNeedsDisplay()
     }
 
@@ -130,6 +143,18 @@ final class LiveStrokeView: UIView {
             context.move(to: samples[index - 1].location)
             context.addLine(to: samples[index].location)
             context.strokePath()
+        }
+
+        // 갈 것으로 셈한 자리까지 이어 둔다. 그만큼 선이 손끝에 붙어 보인다.
+        // 굵기는 마지막에 매긴 것을 그대로 쓴다. 아직 속도를 알 수 없다.
+        guard let lastWidth = widths.last, var previous = samples.last?.location else { return }
+        context.setLineWidth(max(0.5, lastWidth))
+        for point in predictedTail {
+            context.beginPath()
+            context.move(to: previous)
+            context.addLine(to: point)
+            context.strokePath()
+            previous = point
         }
     }
 }

@@ -59,11 +59,15 @@ private struct CanvasRepresentable: UIViewRepresentable {
         //
         // PencilKit 의 `drawingGestureRecognizer` 에 타깃을 붙여 보면 `.began` 만 오고
         // `.changed` 가 오지 않는다. 시작만 알고 어디로 가는지는 알 수 없어 쓸 수 없다.
-        let tracker = TouchTrackingGestureRecognizer(
-            target: context.coordinator,
-            action: #selector(Coordinator.handleTouchTracking(_:))
-        )
+        let tracker = TouchTrackingGestureRecognizer()
         tracker.delegate = context.coordinator
+        tracker.onTouches = { [weak coordinator = context.coordinator, weak tracker] actual, predicted in
+            coordinator?.trackTouches(
+                actual: actual,
+                predicted: predicted,
+                isFirst: tracker?.state == .began
+            )
+        }
         // 캔버스가 받을 터치를 가로채거나 미루지 않는다. 그리기는 그대로 PencilKit 이 한다.
         tracker.cancelsTouchesInView = false
         tracker.delaysTouchesBegan = false
@@ -115,20 +119,16 @@ private struct CanvasRepresentable: UIViewRepresentable {
         ///
         /// 획을 만들고 다듬는 일은 그대로 PencilKit 이 한다.
         /// 우리는 같은 손끝을 보며 굵기만 미리 그려 보여 줄 뿐이다.
-        @objc func handleTouchTracking(_ recognizer: UIGestureRecognizer) {
-            guard let view = recognizer.view else { return }
-            let point = recognizer.location(in: view)
+        ///
+        /// 손을 뗀 자리에서 지우지 않는다.
+        /// 확정된 획이 화면에 올라오기 전에 지우면 획이 한 번 깜빡인다.
+        func trackTouches(actual: [CGPoint], predicted: [CGPoint], isFirst: Bool) {
             let now = CACurrentMediaTime()
-
-            switch recognizer.state {
-            case .began:
-                liveView?.begin(at: point, time: now)
-            case .changed:
-                liveView?.extend(to: point, time: now)
-            default:
-                // 손을 뗀 자리에서 지우지 않는다.
-                // 확정된 획이 화면에 올라오기 전에 지우면 획이 한 번 깜빡인다.
-                break
+            if isFirst, let first = actual.first {
+                liveView?.begin(at: first, time: now)
+                liveView?.extend(through: Array(actual.dropFirst()), predicted: predicted, time: now)
+            } else {
+                liveView?.extend(through: actual, predicted: predicted, time: now)
             }
         }
 
@@ -228,16 +228,26 @@ final class CanvasContainerView: UIView {
 ///
 /// 문턱값도 방향 판정도 없다. 닿으면 `began`, 움직이면 `changed`, 떼면 `ended` 를 낸다.
 /// `UIPanGestureRecognizer` 는 어느 정도 끌어야 시작을 알리므로 획의 첫머리를 놓친다.
+///
+/// 위치를 하나만 넘기지 않는다.
+/// iOS 는 화면을 한 번 갱신하는 사이에 손끝을 여러 번 읽어 **모아서** 준다.
+/// 마지막 하나만 쓰면 그 사이의 궤적이 통째로 빠져 선이 각지고 손이 간 길과 달라진다.
+/// 갈 자리를 미리 셈해 둔 **예측** 위치도 함께 넘긴다. 그만큼 선이 손끝에 붙는다.
 final class TouchTrackingGestureRecognizer: UIGestureRecognizer {
+
+    /// 실제로 지나온 자리들과, 앞으로 갈 것으로 셈한 자리들.
+    var onTouches: (([CGPoint], [CGPoint]) -> Void)?
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
         super.touchesBegan(touches, with: event)
         state = .began
+        report(touches, event)
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
         super.touchesMoved(touches, with: event)
         state = .changed
+        report(touches, event)
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
@@ -248,5 +258,12 @@ final class TouchTrackingGestureRecognizer: UIGestureRecognizer {
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
         super.touchesCancelled(touches, with: event)
         state = .cancelled
+    }
+
+    private func report(_ touches: Set<UITouch>, _ event: UIEvent) {
+        guard let touch = touches.first, let view else { return }
+        let actual = (event.coalescedTouches(for: touch) ?? [touch]).map { $0.location(in: view) }
+        let predicted = (event.predictedTouches(for: touch) ?? []).map { $0.location(in: view) }
+        onTouches?(actual, predicted)
     }
 }
