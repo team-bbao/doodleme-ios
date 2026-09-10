@@ -18,7 +18,7 @@ import Foundation
 /// 디자인이 칸의 좌우를 바꿔도 이미 저장된 값의 뜻은 그대로여야 한다.
 /// 함께 바꾸면 앱을 새로 켠 사람에게 엉뚱한 칸이 펴진다.
 enum GallerySection: Int, CaseIterable {
-    /// 내가 그린 그림. Figma `Frame 38`(85:536) 은 이쪽을 왼쪽에 둔다.
+    /// 내가 그린 그림. Figma `iPhone 17 - 12` 는 이쪽을 왼쪽에 둔다.
     case drawnByMe = 1
     /// 남이 그려서 보내준 그림.
     case receivedFromOthers = 0
@@ -26,7 +26,7 @@ enum GallerySection: Int, CaseIterable {
     /// 세그먼트에 표시할 이름.
     var title: String {
         switch self {
-        case .receivedFromOthers: "너가 그린"
+        case .receivedFromOthers: "나를 그린"
         case .drawnByMe: "내가 그린"
         }
     }
