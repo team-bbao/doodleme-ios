@@ -170,7 +170,9 @@ struct GalleryPage: View {
                     // Figma `iPhone 17 - 12` 의 막대.
                     // 트랙이 불투명한 흰색이라, 뒤에 어두운 막이 깔려도 배어 나오지 않는다.
                     GallerySegmentedControl(selection: $segmentedBar)
-                        .padding(.bottom, 20)
+                        // 막대 밑변(329)에서 그리드 윗변까지. Figma `iPhone 17 - 25` 는
+                        // `Frame 28`(222:1094) 을 354 에 두므로 25 가 된다.
+                        .padding(.bottom, 25)
 
                     PostGridView(
                         mode: mode,

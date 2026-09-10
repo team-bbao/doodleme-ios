@@ -75,15 +75,15 @@ struct PostGridView: View {
         }
     }
 
-    // Figma `iPhone 17 - 13` 의 `Frame 28`(92:650): 362 폭 안에 170x186 카드가 두 장씩 세 줄.
+    // Figma `iPhone 17 - 25` 의 `Frame 28`(222:1094): 362 폭 안에 167x183 카드가 두 장씩.
 
-    /// 카드 높이. 폭은 칸이 정한다 — 402 화면에서 170 이 되고 좁은 기기에서는 함께 줄어든다.
+    /// 카드 높이. 폭은 칸이 정한다 — 402 화면에서 167 이 되고 좁은 기기에서는 함께 줄어든다.
     ///
-    /// 메모지 에셋(687x749)의 가로세로비가 170:186 과 거의 같다.
+    /// 메모지 에셋(687x749)의 가로세로비가 167:183 과 거의 같다.
     /// 예전의 170 은 이보다 납작해서, 위아래가 잘리며 접힌 모서리도 함께 깎여 나갔다.
-    private static let cardHeight: CGFloat = 186
-    /// 카드 사이 가로 간격. 170 + 22 + 170 = 362 로 본문 폭에 딱 맞는다.
-    private static let columnSpacing: CGFloat = 22
+    private static let cardHeight: CGFloat = 183
+    /// 카드 사이 가로 간격. 167 + 28 + 167 = 362 로 본문 폭에 딱 맞는다.
+    private static let columnSpacing: CGFloat = 28
     /// 스크롤 막대를 본문 오른쪽 끝보다 얼마나 더 바깥으로 내보낼지.
     private static let indicatorOutset: CGFloat = 5
     /// 마지막 줄 아래 여백.
@@ -95,8 +95,8 @@ struct PostGridView: View {
     /// 탭 바가 아래에서 차지하는 높이(≈66)에 손끝이 닿을 자리와 홈 인디케이터를 더해 잡았다.
     /// 마지막 줄 아래에 누를 수 있는 빈 자리를 남기는 몫도 겸한다.
     private static let bottomInset: CGFloat = 96
-    /// 줄 사이 세로 간격. Figma 는 가로보다 좁은 17 을 쓴다 (186 세 줄 + 17 두 칸 = 592).
-    private static let rowSpacing: CGFloat = 17
+    /// 줄 사이 세로 간격. Figma `Frame 28` 은 줄 사이를 가로보다 넓은 30 으로 둔다.
+    private static let rowSpacing: CGFloat = 30
 
     private static let columns = [
         GridItem(.flexible(), spacing: columnSpacing),
@@ -114,9 +114,10 @@ struct PostGridView: View {
                 .opacity(0.4)
                 .multilineTextAlignment(.center)
                 // 아래 여백으로 글을 위로 밀어 올린다.
-                // 그리드가 349 부터 화면 끝까지 차지하므로, 이 값이 클수록 글이 올라간다.
+                // 그리드가 354 부터 화면 끝까지 차지하므로, 이 값이 클수록 글이 올라간다.
                 // Figma 는 이 문구의 가운데를 522.5 에 둔다.
-                .padding(.bottom, 178)
+                // 그리드 윗변이 349 에서 354 로 내려간 만큼 이 값도 함께 키워, 문구는 제자리에 남는다.
+                .padding(.bottom, 183)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .contentShape(Rectangle())
                 .onTapGesture { onEmptyAreaTap?() }
