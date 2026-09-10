@@ -305,22 +305,40 @@ extension PostDetailView {
 
     /// Figma: 흰 원 55 + #E1E1E1 테두리, 안에 그림 30.
     ///
-    /// 얼굴은 `Frame 34` 의 다섯 낙서 중 하나를 쓴다.
+    /// 상대가 자기 프로필 그림을 함께 보냈으면 그것을 쓴다.
+    /// 그림을 받을 때 `senderProfileDrawingData` 로 함께 실려 와 저장돼 있다.
+    ///
+    /// 없으면 `Frame 34` 의 다섯 낙서 중 하나로 대신한다.
     /// 매번 새로 뽑으면 화면이 다시 그려질 때마다 얼굴이 바뀌므로,
     /// 이름을 해시해 고른다. 흩어져 보이면서도 같은 사람에게는 늘 같은 얼굴이 붙는다.
+    ///
+    /// 내가 그린 그림에는 받는 사람의 프로필이 있을 수 없다.
+    /// 건네줄 상대를 이름으로만 적어 두기 때문이라, 그쪽은 늘 대신 쓰는 얼굴이 나온다.
     private var avatar: some View {
         ZStack {
             Circle()
                 .fill(.white)
                 .overlay { Circle().stroke(Color.doodleHairline, lineWidth: 1) }
 
-            Image(PeerAvatarPalette.image(for: counterpartName))
-                .resizable()
-                .scaledToFit()
-                .frame(width: 30, height: 30)
+            if let profileData = post.senderProfileDrawingData, !post.isMine {
+                // 받은 프로필은 원을 꽉 채운다.
+                // 대신 쓰는 낙서(30)와 같은 크기로 두면 그림이 원 한가운데
+                // 작게 떠서, 진짜 프로필이 왔다는 것이 읽히지 않는다.
+                DoodleImageView(drawingData: profileData, contentMode: .fill)
+                    .frame(width: Self.avatarDiameter, height: Self.avatarDiameter)
+                    .clipShape(Circle())
+            } else {
+                Image(PeerAvatarPalette.image(for: counterpartName))
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 30, height: 30)
+            }
         }
-        .frame(width: 55, height: 55)
+        .frame(width: Self.avatarDiameter, height: Self.avatarDiameter)
     }
+
+    /// 카드 뒷면 아바타 원의 지름. Figma 의 55.
+    private static let avatarDiameter: CGFloat = 55
 
     // MARK: - 사진 저장
 
