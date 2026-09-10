@@ -453,6 +453,15 @@ private struct ThickBarProgressStyle: ProgressViewStyle {
                     .fill(Color.accentColor)
                     .frame(width: proxy.size.width * (configuration.fractionCompleted ?? 0))
             }
+            // 채워진 쪽을 트랙 모양으로 잘라 낸다.
+            //
+            // `Capsule` 의 곡률 반경은 짧은 변의 절반이다.
+            // 남은 시간이 줄어 채워진 폭이 두께보다 작아지면 반경도 폭의 절반으로 함께
+            // 작아져, 트랙의 둥근 끝보다 덜 둥글어진다.
+            // 그러면 막대 끝이 트랙 밖으로 삐져나와 모서리가 어긋난 것처럼 보인다.
+            //
+            // 잘라 두면 채워진 쪽이 어떤 폭이든 트랙의 곡률을 넘지 못한다.
+            .clipShape(Capsule())
         }
         .frame(height: height)
     }
