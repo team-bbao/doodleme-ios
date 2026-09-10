@@ -33,6 +33,8 @@ final class LiveStrokeView: UIView {
     private var distances: [CGFloat] = []
     /// 아직 오지 않은, 갈 것으로 셈한 자리들. 매번 새로 받는다.
     private var predictedTail: [CGPoint] = []
+    /// 지난번에 예측 꼬리가 차지하던 자리. 다음에 지워야 할 곳이다.
+    private var lastPredictedRect: CGRect = .zero
 
     /// 굵기의 기준값. `DrawingSession.Tool.penWidth` 를 그대로 받는다.
     var baseWidth: CGFloat = 3
@@ -73,6 +75,7 @@ final class LiveStrokeView: UIView {
         distances = [0]
         widths = [baseWidth * Self.tipScale]
         predictedTail = []
+        lastPredictedRect = .zero
         setNeedsDisplay()
     }
 
@@ -81,9 +84,45 @@ final class LiveStrokeView: UIView {
     /// 마지막 하나만 쓰면 그 사이 궤적이 빠져 선이 각지고, 손이 간 길과 달라진다.
     /// `predicted` 는 아직 오지 않은 자리라 그림에 쌓지 않고 매번 새로 그린다.
     func extend(through points: [CGPoint], predicted: [CGPoint], time: TimeInterval) {
+        let firstNew = max(1, samples.count)
         for point in points { appendSample(point, time: time) }
+
+        // 새로 늘어난 마디와 예측 꼬리가 놓인 자리만 다시 그린다.
+        //
+        // 획 전체를 매번 다시 그으면 점이 쌓일수록 한 프레임에 할 일이 늘어난다.
+        // 500 점짜리 획이면 갱신할 때마다 500 번을 다시 긋는 셈이라 손끝을 놓친다.
+        // 바뀐 자리만 알려 주면 나머지는 이미 그려진 그림이 그대로 남는다.
+        var dirty = boundingRect(fromSampleIndex: firstNew - 1)
+        let oldPredicted = lastPredictedRect
         predictedTail = predicted
-        setNeedsDisplay()
+        lastPredictedRect = boundingRect(of: predicted, from: samples.last?.location)
+        dirty = dirty.union(oldPredicted).union(lastPredictedRect)
+
+        if dirty.isNull || dirty.isEmpty {
+            setNeedsDisplay()
+        } else {
+            // 선은 가운데를 기준으로 굵어지므로 굵기의 절반보다 넉넉히 넓혀 준다.
+            setNeedsDisplay(dirty.insetBy(dx: -Self.dirtyMargin, dy: -Self.dirtyMargin))
+        }
+    }
+
+    /// 다시 그릴 자리를 넉넉히 잡는 여유(pt). 가장 굵은 선과 둥근 끝을 덮는다.
+    private static let dirtyMargin: CGFloat = 8
+
+    private func boundingRect(fromSampleIndex index: Int) -> CGRect {
+        guard index >= 0, index < samples.count else { return .null }
+        return boundingRect(of: samples[index...].map(\.location), from: nil)
+    }
+
+    private func boundingRect(of points: [CGPoint], from start: CGPoint?) -> CGRect {
+        var all = points
+        if let start { all.append(start) }
+        guard let first = all.first else { return .null }
+        var rect = CGRect(origin: first, size: .zero)
+        for point in all.dropFirst() {
+            rect = rect.union(CGRect(origin: point, size: .zero))
+        }
+        return rect
     }
 
     private func appendSample(_ point: CGPoint, time: TimeInterval) {
@@ -117,6 +156,7 @@ final class LiveStrokeView: UIView {
         speeds.removeAll()
         distances.removeAll()
         predictedTail.removeAll()
+        lastPredictedRect = .zero
         setNeedsDisplay()
     }
 
@@ -138,10 +178,16 @@ final class LiveStrokeView: UIView {
         // 굵기가 점마다 다르므로 한 번에 긋지 못한다.
         // 마디마다 제 굵기로 나눠 긋고, 둥근 끝으로 이어 붙여 매끄럽게 보이게 한다.
         for index in 1..<samples.count {
+            let from = samples[index - 1].location, to = samples[index].location
+            // 다시 그릴 자리에 걸치지 않는 마디는 이미 그려진 것이 남아 있으므로 건너뛴다.
+            let span = boundingRect(of: [from, to], from: nil)
+                .insetBy(dx: -Self.dirtyMargin, dy: -Self.dirtyMargin)
+            guard span.intersects(rect) else { continue }
+
             context.setLineWidth(max(0.5, (widths[index - 1] + widths[index]) / 2))
             context.beginPath()
-            context.move(to: samples[index - 1].location)
-            context.addLine(to: samples[index].location)
+            context.move(to: from)
+            context.addLine(to: to)
             context.strokePath()
         }
 
