@@ -29,6 +29,8 @@ final class LiveStrokeView: UIView {
     private var widths: [CGFloat] = []
     /// 점마다의 속도(pt/초). 이웃과 평균 내려고 들고 있는다.
     private var speeds: [Double] = []
+    /// 시작점부터의 누적 길이(pt).
+    private var distances: [CGFloat] = []
 
     /// 굵기의 기준값. `DrawingSession.Tool.penWidth` 를 그대로 받는다.
     var baseWidth: CGFloat = 3
@@ -37,11 +39,16 @@ final class LiveStrokeView: UIView {
     /// 확정본은 앞뒤를 함께 보지만, 긋는 도중에는 앞이 없다.
     private static let speedWindow = 3
 
-    /// 시작을 가늘게 깎는 구간의 점 수.
+    /// 시작을 가늘게 깎는 구간의 **길이**(pt).
     ///
-    /// 확정본은 획 전체 점 수의 일부로 정하는데, 긋는 도중에는 전체를 알 수 없다.
-    /// 그래서 시작 쪽만 짧게 깎아 둔다. 획의 첫머리와 끝머리는 손을 뗀 뒤 정확해진다.
-    private static let startTaperCount = 8
+    /// 점의 개수로 세면 안 된다.
+    /// 손끝이 얼마나 자주 찍히느냐에 따라 같은 8점이 획의 5% 가 되기도 하고
+    /// 60% 가 되기도 해서, 획 대부분이 가늘어진 채로 그려진다.
+    /// 길이로 재면 찍히는 빈도와 상관없이 늘 같은 만큼만 깎인다.
+    ///
+    /// 확정본은 끝이 어디인지 알기에 양 끝을 깎지만, 긋는 도중에는 앞쪽만 깎는다.
+    /// 획의 끝머리는 손을 뗀 뒤에 잡힌다.
+    private static let startTaperLength: CGFloat = 15
     /// 끝점의 굵기 배율. 확정본과 같은 값.
     private static let tipScale: CGFloat = 0.45
 
@@ -61,6 +68,7 @@ final class LiveStrokeView: UIView {
     func begin(at point: CGPoint, time: TimeInterval) {
         samples = [Sample(location: point, time: time)]
         speeds = [0]
+        distances = [0]
         widths = [baseWidth * Self.tipScale]
         setNeedsDisplay()
     }
@@ -76,6 +84,7 @@ final class LiveStrokeView: UIView {
         guard step > 0.1 else { return }
 
         samples.append(Sample(location: point, time: time))
+        distances.append((distances.last ?? 0) + step)
 
         let elapsed = time - previous.time
         // 시각이 같게 들어오는 일이 있다. 그럴 때는 앞 속도를 그대로 잇는다.
@@ -84,8 +93,8 @@ final class LiveStrokeView: UIView {
         let window = speeds.suffix(Self.speedWindow)
         let meanSpeed = window.reduce(0, +) / Double(window.count)
 
-        let index = samples.count - 1
-        widths.append(baseWidth * PKStroke.widthScale(forSpeed: meanSpeed) * Self.startTaper(at: index))
+        let taper = Self.startTaper(distanceFromStart: distances[distances.count - 1])
+        widths.append(baseWidth * PKStroke.widthScale(forSpeed: meanSpeed) * taper)
         setNeedsDisplay()
     }
 
@@ -94,13 +103,14 @@ final class LiveStrokeView: UIView {
         samples.removeAll()
         widths.removeAll()
         speeds.removeAll()
+        distances.removeAll()
         setNeedsDisplay()
     }
 
     /// 획의 첫머리를 가늘게 만든다.
-    private static func startTaper(at index: Int) -> CGFloat {
-        guard index < startTaperCount else { return 1 }
-        return tipScale + (1 - tipScale) * CGFloat(index) / CGFloat(startTaperCount)
+    private static func startTaper(distanceFromStart: CGFloat) -> CGFloat {
+        guard distanceFromStart < startTaperLength else { return 1 }
+        return tipScale + (1 - tipScale) * distanceFromStart / startTaperLength
     }
 
     // MARK: - 그리기
