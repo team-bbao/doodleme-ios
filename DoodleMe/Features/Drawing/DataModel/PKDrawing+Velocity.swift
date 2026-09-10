@@ -76,7 +76,7 @@ nonisolated extension PKStroke {
     }
 
     /// 속도를 굵기 배율로 바꾼다. 느리면 두껍고 빠르면 얇다.
-    private static func widthScale(forSpeed speed: Double) -> CGFloat {
+    static func widthScale(forSpeed speed: Double) -> CGFloat {
         // 손가락 낙서는 대체로 0 ~ 1800 pt/초 사이에서 움직인다.
         let normalized = min(1, max(0, speed / 1800))
         // 느릴 때 1.6배, 빠를 때 0.85배.

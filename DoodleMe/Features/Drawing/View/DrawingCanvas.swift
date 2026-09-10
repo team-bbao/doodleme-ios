@@ -38,8 +38,9 @@ private struct CanvasRepresentable: UIViewRepresentable {
         Coordinator(session: session)
     }
 
-    func makeUIView(context: Context) -> DoodleCanvasView {
-        let canvas = DoodleCanvasView()
+    func makeUIView(context: Context) -> CanvasContainerView {
+        let container = CanvasContainerView()
+        let canvas = container.canvas
         canvas.delegate = context.coordinator
         // 기본값은 Apple Pencil 전용이라, 손가락으로도 그릴 수 있게 열어준다.
         canvas.drawingPolicy = .anyInput
@@ -50,10 +51,30 @@ private struct CanvasRepresentable: UIViewRepresentable {
         canvas.contentInsetAdjustmentBehavior = .never
         canvas.tool = session.tool.pkTool
         canvas.drawing = session.drawing
-        return canvas
+
+        container.live.baseWidth = DrawingSession.Tool.penWidth
+        context.coordinator.liveView = container.live
+
+        // 손끝을 따라가려면 전용 추적기가 필요하다.
+        //
+        // PencilKit 의 `drawingGestureRecognizer` 에 타깃을 붙여 보면 `.began` 만 오고
+        // `.changed` 가 오지 않는다. 시작만 알고 어디로 가는지는 알 수 없어 쓸 수 없다.
+        let tracker = TouchTrackingGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleTouchTracking(_:))
+        )
+        tracker.delegate = context.coordinator
+        // 캔버스가 받을 터치를 가로채거나 미루지 않는다. 그리기는 그대로 PencilKit 이 한다.
+        tracker.cancelsTouchesInView = false
+        tracker.delaysTouchesBegan = false
+        tracker.delaysTouchesEnded = false
+        container.addGestureRecognizer(tracker)
+
+        return container
     }
 
-    func updateUIView(_ canvas: DoodleCanvasView, context: Context) {
+    func updateUIView(_ container: CanvasContainerView, context: Context) {
+        let canvas = container.canvas
         canvas.tool = session.tool.pkTool
 
         // 코드에서 그림을 갈아끼운 경우(초기화·되돌리기)에만 캔버스를 덮어쓴다.
@@ -64,7 +85,7 @@ private struct CanvasRepresentable: UIViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, PKCanvasViewDelegate {
+    final class Coordinator: NSObject, PKCanvasViewDelegate, UIGestureRecognizerDelegate {
         let session: DrawingSession
         var appliedRevision = 0
 
@@ -76,8 +97,39 @@ private struct CanvasRepresentable: UIViewRepresentable {
         /// 굵기를 다시 매길 일도 없다. 델리게이트가 되울려도 그냥 흘려보낸다.
         private var isApplyingOurOwnChange = false
 
+        /// 긋는 동안의 획을 그리는 층. `makeUIView` 에서 꽂아 준다.
+        weak var liveView: LiveStrokeView?
+
         init(session: DrawingSession) {
             self.session = session
+        }
+
+        /// PencilKit 의 그리기 제스처와 나란히 인식되게 한다.
+        /// 한쪽이 다른 쪽을 밀어내면 그림이 그려지지 않거나 미리보기가 멈춘다.
+        nonisolated func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+        ) -> Bool { true }
+
+        /// 손끝을 따라가며 미리보기를 잇는다.
+        ///
+        /// 획을 만들고 다듬는 일은 그대로 PencilKit 이 한다.
+        /// 우리는 같은 손끝을 보며 굵기만 미리 그려 보여 줄 뿐이다.
+        @objc func handleTouchTracking(_ recognizer: UIGestureRecognizer) {
+            guard let view = recognizer.view else { return }
+            let point = recognizer.location(in: view)
+            let now = CACurrentMediaTime()
+
+            switch recognizer.state {
+            case .began:
+                liveView?.begin(at: point, time: now)
+            case .changed:
+                liveView?.extend(to: point, time: now)
+            default:
+                // 손을 뗀 자리에서 지우지 않는다.
+                // 확정된 획이 화면에 올라오기 전에 지우면 획이 한 번 깜빡인다.
+                break
+            }
         }
 
         /// 세션이 들고 있는 그림을 캔버스에 그대로 옮긴다. 초기화와 되돌리기가 이 길로 온다.
@@ -107,6 +159,9 @@ private struct CanvasRepresentable: UIViewRepresentable {
                 isApplyingOurOwnChange = false
             }
             shapedStrokeCount = count
+
+            // 확정된 획이 화면에 올라왔으니 미리보기는 물러난다.
+            liveView?.finish()
 
             session.canvasDidChange(drawing: canvasView.drawing)
         }
@@ -138,5 +193,60 @@ final class DoodleCanvasView: PKCanvasView {
             roundedRect: bounds,
             cornerRadius: DoodleMetrics.canvasCornerRadius
         ).contains(point)
+    }
+}
+
+
+/// 캔버스와 그 위에 얹히는 미리보기를 함께 담는 그릇.
+///
+/// 미리보기를 `PKCanvasView` 의 하위 뷰로 넣으면 PencilKit 이 그리는 층 밑으로 들어가
+/// 화면에 나타나지 않는다. 같은 높이의 형제로 두고 순서로 위에 올린다.
+final class CanvasContainerView: UIView {
+
+    let canvas = DoodleCanvasView()
+    let live = LiveStrokeView(frame: .zero)
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        for child in [canvas, live] as [UIView] {
+            child.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(child)
+            NSLayoutConstraint.activate([
+                child.leadingAnchor.constraint(equalTo: leadingAnchor),
+                child.trailingAnchor.constraint(equalTo: trailingAnchor),
+                child.topAnchor.constraint(equalTo: topAnchor),
+                child.bottomAnchor.constraint(equalTo: bottomAnchor)
+            ])
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+/// 손끝의 움직임을 그대로 알려 주는 제스처 추적기.
+///
+/// 문턱값도 방향 판정도 없다. 닿으면 `began`, 움직이면 `changed`, 떼면 `ended` 를 낸다.
+/// `UIPanGestureRecognizer` 는 어느 정도 끌어야 시작을 알리므로 획의 첫머리를 놓친다.
+final class TouchTrackingGestureRecognizer: UIGestureRecognizer {
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        super.touchesBegan(touches, with: event)
+        state = .began
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        super.touchesMoved(touches, with: event)
+        state = .changed
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        super.touchesEnded(touches, with: event)
+        state = .ended
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        super.touchesCancelled(touches, with: event)
+        state = .cancelled
     }
 }
