@@ -445,7 +445,10 @@ private struct ThickBarProgressStyle: ProgressViewStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         GeometryReader { proxy in
-            ZStack(alignment: .leading) {
+            // 남은 시간을 오른쪽 끝에 붙여 둔다.
+            // 왼쪽에 붙이면 막대가 오른쪽 끝에서부터 줄어들어,
+            // 시간이 오른쪽에서 왼쪽으로 사라지는 것처럼 보인다.
+            ZStack(alignment: .trailing) {
                 Capsule()
                     .fill(.quaternary)
 
@@ -453,6 +456,12 @@ private struct ThickBarProgressStyle: ProgressViewStyle {
                     .fill(Color.accentColor)
                     .frame(width: proxy.size.width * (configuration.fractionCompleted ?? 0))
             }
+            // 남은 막대를 회색 트랙 모양으로 잘라 둔다.
+            //
+            // 알약의 둥근 정도는 짧은 변의 절반이다. 남은 시간이 줄어 막대가
+            // 높이보다 좁아지면 그 절반도 함께 작아져 모서리가 각져 버린다.
+            // 트랙의 끝은 계속 둥그니, 각진 막대가 마지막에 트랙 밖으로 삐져나온다.
+            .clipShape(Capsule())
         }
         .frame(height: height)
     }

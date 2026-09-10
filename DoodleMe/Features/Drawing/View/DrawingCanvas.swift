@@ -30,6 +30,15 @@ struct DrawingCanvas: View {
     }
 }
 
+/// 그림도 되돌리기도 `PKCanvasView` 가 가진다. 우리는 읽기만 한다.
+///
+/// 예전에는 손가락에 필압 느낌을 주려고 획을 그을 때마다 굵기를 다시 매겨
+/// 그림 전체를 캔버스에 되돌려 넣었다. 그 대입이 PencilKit 의 상태와 어긋났다.
+/// 특히 **획이 줄어든 그림은 받아들여지지 않았다.** 되돌리기로 지운 획이
+/// 화면에서만 사라졌다가, 다음 획을 긋는 순간 PencilKit 이 자기가 들고 있던
+/// 예전 상태를 되살려 새 획과 함께 다시 나타났다.
+///
+/// 그리는 주체가 PencilKit 이면 그림의 주인도 PencilKit 이어야 한다.
 private struct CanvasRepresentable: UIViewRepresentable {
 
     let session: DrawingSession
@@ -56,76 +65,58 @@ private struct CanvasRepresentable: UIViewRepresentable {
     func updateUIView(_ canvas: DoodleCanvasView, context: Context) {
         canvas.tool = session.tool.pkTool
 
-        // 코드에서 그림을 갈아끼운 경우(초기화·되돌리기)에만 캔버스를 덮어쓴다.
-        // 사용자가 그리는 중에 덮어쓰면 획이 끊기므로 revision 으로 구분한다.
-        if context.coordinator.appliedRevision != session.drawingRevision {
-            context.coordinator.appliedRevision = session.drawingRevision
-            context.coordinator.apply(session.drawing, to: canvas)
+        // 버튼이 눌린 횟수만 세어 두고, 우리가 아는 횟수와 달라졌을 때 한 번씩 흘려보낸다.
+        // 세션은 캔버스를 직접 부를 길이 없고, 캔버스는 화면이 갱신될 때마다 여기를 지난다.
+        if context.coordinator.undoRequest != session.undoRequest {
+            context.coordinator.undoRequest = session.undoRequest
+            canvas.undoManager?.undo()
+            context.coordinator.refreshHistoryState(of: canvas)
+        }
+
+        if context.coordinator.redoRequest != session.redoRequest {
+            context.coordinator.redoRequest = session.redoRequest
+            canvas.undoManager?.redo()
+            context.coordinator.refreshHistoryState(of: canvas)
         }
     }
 
     final class Coordinator: NSObject, PKCanvasViewDelegate {
         let session: DrawingSession
-        var appliedRevision = 0
 
-        /// 굵기를 이미 매긴 획의 수.
-        private var shapedStrokeCount = 0
-        /// 우리가 그림을 갈아끼우는 중인지.
-        ///
-        /// 그 변경은 사용자의 편집이 아니므로 되돌리기 기록에 쌓으면 안 되고,
-        /// 굵기를 다시 매길 일도 없다. 델리게이트가 되울려도 그냥 흘려보낸다.
-        private var isApplyingOurOwnChange = false
+        /// 이 캔버스가 이미 처리한 되돌리기·다시하기 횟수.
+        var undoRequest = 0
+        var redoRequest = 0
 
         init(session: DrawingSession) {
             self.session = session
         }
 
-        /// 세션이 들고 있는 그림을 캔버스에 그대로 옮긴다. 초기화와 되돌리기가 이 길로 온다.
-        func apply(_ drawing: PKDrawing, to canvas: PKCanvasView) {
-            isApplyingOurOwnChange = true
-            canvas.drawing = drawing
-            isApplyingOurOwnChange = false
-
-            // 세어둔 획 수도 함께 맞춘다.
-            // 빠뜨리면 이후에 그린 획이 "이미 처리한 만큼" 에 미치지 못해
-            // 굵기가 다시 매겨지지 않는다. 필압이 조용히 죽는다.
-            shapedStrokeCount = drawing.strokes.count
+        func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
+            // 저장할 때 쓸 사본을 한 벌 받아 둔다. 이 값으로 캔버스를 되돌리지는 않는다.
+            session.canvasDidChange(drawing: canvasView.drawing)
+            refreshHistoryState(of: canvasView)
         }
 
-        func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
-            // 우리가 갈아끼운 변경이 되울려 온 것이면 편집이 아니다.
-            guard !isApplyingOurOwnChange else { return }
-
-            let count = canvasView.drawing.strokes.count
-
-            // 획이 늘었을 때만 굵기를 다시 매긴다.
-            // 지우개로 줄었으면 세어둔 수만 맞춰 두고 넘어간다.
-            if count > shapedStrokeCount {
-                isApplyingOurOwnChange = true
-                canvasView.drawing = canvasView.drawing
-                    .withVelocityBasedWidth(baseWidth: DrawingSession.Tool.penWidth)
-                isApplyingOurOwnChange = false
+        /// 버튼의 활성 여부를 캔버스의 되돌리기 사정에 맞춘다.
+        ///
+        /// PencilKit 이 방금 그은 획을 기록에 올리는 시점이 이 호출보다 늦을 수 있다.
+        /// 그 자리에서 읽으면 한 박자 뒤처진 값이 나오므로 한 바퀴 뒤에 읽는다.
+        func refreshHistoryState(of canvasView: PKCanvasView) {
+            let session = session
+            DispatchQueue.main.async { [weak canvasView] in
+                guard let manager = canvasView?.undoManager else { return }
+                session.updateHistoryState(canUndo: manager.canUndo, canRedo: manager.canRedo)
             }
-            shapedStrokeCount = count
-
-            session.canvasDidChange(drawing: canvasView.drawing)
         }
     }
 }
 
-/// 전용 `UndoManager` 를 갖는 캔버스.
+/// 메모지 모서리 바깥은 터치를 받지 않는 캔버스.
 ///
-/// 되돌리기는 `DrawingSession` 이 스냅샷으로 직접 관리한다. 이 매니저는 쓰지 않는다.
-/// 그래도 두는 이유는 **막기 위해서**다.
-/// 기본 `UIView.undoManager` 는 응답자 체인을 타고 올라가 윈도우의 것을 쓰는데,
-/// 그대로 두면 PencilKit 이 등록한 획 편집이 메모 화면의 텍스트 되돌리기와 같은 스택에 쌓인다.
-/// 여기서 받아 두면 앱의 다른 되돌리기가 그림에 오염되지 않는다.
+/// `undoManager` 를 가로채지 않는다. PencilKit 은 그은 획을 자기가 찾은 매니저에 쌓고
+/// 되돌리기도 그 매니저로 한다. 중간에서 다른 매니저를 쥐여 주면
+/// 쌓이는 곳과 되돌리는 곳이 어긋나 되돌리기가 아무 일도 하지 않는다.
 final class DoodleCanvasView: PKCanvasView {
-    private let canvasUndoManager = UndoManager()
-
-    override var undoManager: UndoManager? {
-        canvasUndoManager
-    }
 
     /// 메모지 모서리 바깥은 터치를 받지 않는다.
     ///

@@ -11,18 +11,21 @@ import Foundation
 /// 그리기를 마치거나 그림을 받았을 때 탭을 옮겨 주면서 숫자를 아는 곳이 더 늘어나,
 /// 어느 쪽이 0 인지 한곳에서만 알도록 이름을 붙였다.
 ///
-/// `rawValue` 는 세그먼트에 그려지는 순서다. 순서를 바꾸면 이 값도 함께 바뀐다.
+/// 세그먼트에 그려지는 **순서는 `allCases`**, 곧 아래 선언 순서가 정한다.
+/// `rawValue` 는 저장소와 화면들이 주고받는 값이라 순서와 따로 논다.
+/// 칸의 자리를 옮길 때는 선언 순서만 바꾼다. `rawValue` 를 함께 바꾸면
+/// 이미 저장된 값의 뜻이 뒤집혀, 그리기를 마친 뒤 엉뚱한 탭이 열린다.
 enum GallerySection: Int, CaseIterable {
-    /// 남이 그려서 보내준 그림.
-    case receivedFromOthers = 0
     /// 내가 그린 그림.
     case drawnByMe = 1
+    /// 남이 그려서 보내준 그림.
+    case receivedFromOthers = 0
 
     /// 세그먼트에 표시할 이름.
     var title: String {
         switch self {
-        case .receivedFromOthers: "너가 그린"
         case .drawnByMe: "내가 그린"
+        case .receivedFromOthers: "너가 그린"
         }
     }
 }

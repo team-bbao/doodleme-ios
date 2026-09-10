@@ -17,16 +17,15 @@ final class DrawingSession {
         case pen
         case eraser
 
-        /// 펜의 기준 굵기. 속도로 굵기를 다시 매길 때도 이 값을 기준으로 삼는다.
+        /// 펜 굵기.
         static let penWidth: CGFloat = 3
 
         var pkTool: PKTool {
             switch self {
             case .pen:
-                // 필압은 잉크 종류로 해결되지 않는다.
-                // 저장된 획을 뜯어보니 force 가 0 이었다. 손가락 터치에는 힘 값이 없다.
+                // 손가락 터치에는 힘 값이 없어 굵기가 일정하다.
                 // 3D Touch 가 사라진 뒤로 아이폰은 손가락 압력을 재지 않는다.
-                // 애플펜슬로 그리면 이 잉크도 굵기가 변한다.
+                // 애플펜슬로 그리면 이 잉크도 필압에 따라 굵기가 변한다.
                 PKInkingTool(.pen, color: .black, width: Self.penWidth)
             case .eraser:
                 // 예전 지우개와 같이 닿은 획을 통째로 지운다. 픽셀 단위로 지우려면 .bitmap.
@@ -53,25 +52,16 @@ final class DrawingSession {
     private(set) var drawing = PKDrawing()
     var tool: Tool = .pen
 
-    /// 코드에서 캔버스 내용을 갈아끼웠을 때만 올라간다.
-    /// 캔버스 쪽에서 이 값이 바뀐 걸 보고 `PKCanvasView.drawing` 을 덮어쓴다.
-    /// 사용자가 그리는 중에는 올라가지 않으므로 되먹임 루프가 생기지 않는다.
-    private(set) var drawingRevision = 0
-
     private(set) var canUndo = false
     private(set) var canRedo = false
 
-    /// 되돌리기 기록. 그림 전체를 통째로 담아 둔다.
+    /// 되돌리기·다시하기 버튼이 눌린 횟수.
     ///
-    /// PencilKit 의 `UndoManager` 를 쓰지 않는다.
-    /// 손가락 굵기를 다시 매기려고 매 획마다 캔버스의 그림을 통째로 갈아끼우는데,
-    /// 그 대입이 PencilKit 의 되돌리기 스택과 엉켜 `undo()` 가 아무 일도 하지 않았다.
-    /// 우리가 이미 그림 전체를 들고 있으니 직접 쌓는 편이 단순하고 확실하다.
-    @ObservationIgnored private var undoStack: [PKDrawing] = []
-    @ObservationIgnored private var redoStack: [PKDrawing] = []
-
-    /// 되짚을 수 있는 최대 횟수. 30초 안에 이보다 많이 그을 일은 없다.
-    private static let historyLimit = 50
+    /// 되돌리기는 `PKCanvasView` 가 가진 `UndoManager` 가 한다.
+    /// 세션에서 캔버스를 직접 부를 길이 없으니 누른 횟수만 올려 두면,
+    /// 캔버스가 자기가 아는 횟수와 달라진 것을 보고 한 번씩 되돌린다.
+    private(set) var undoRequest = 0
+    private(set) var redoRequest = 0
 
     /// 저장할 바이너리.
     var drawingData: Data { drawing.dataRepresentation() }
@@ -86,43 +76,29 @@ final class DrawingSession {
 
     // MARK: - 캔버스 연동
 
-    /// 사용자가 캔버스에 그리거나 지웠을 때 캔버스 쪽에서 호출한다.
+    /// 캔버스의 그림이 바뀔 때마다 캔버스 쪽에서 호출한다.
     ///
-    /// 우리가 캔버스를 갈아끼워서 생긴 변경은 여기로 오지 않는다.
-    /// 캔버스 쪽에서 걸러내므로, 여기 오는 건 모두 사용자가 한 편집이다.
+    /// 사용자가 그은 것이든 되돌리기로 돌아온 것이든, 지금 캔버스에 있는 그대로를 받는다.
+    /// 저장할 때 쓸 사본을 한 벌 들고 있을 뿐, 이 값으로 캔버스를 되돌리지는 않는다.
     func canvasDidChange(drawing: PKDrawing) {
-        undoStack.append(self.drawing)
-        if undoStack.count > Self.historyLimit { undoStack.removeFirst() }
-        // 새로 그은 순간 앞으로 갈 길은 사라진다.
-        redoStack.removeAll()
-
         self.drawing = drawing
-        refreshUndoState()
+    }
+
+    /// 캔버스가 자기 `UndoManager` 사정을 알려 준다. 버튼의 활성 여부가 여기에 달렸다.
+    ///
+    /// 값이 그대로일 때는 넘어간다. 캔버스는 화면이 갱신될 때마다 이 길을 지나는데,
+    /// 같은 값이라도 대입하면 그것이 다시 화면 갱신을 부른다.
+    func updateHistoryState(canUndo: Bool, canRedo: Bool) {
+        if self.canUndo != canUndo { self.canUndo = canUndo }
+        if self.canRedo != canRedo { self.canRedo = canRedo }
     }
 
     func undo() {
-        guard let previous = undoStack.popLast() else { return }
-        redoStack.append(drawing)
-        apply(previous)
+        undoRequest += 1
     }
 
     func redo() {
-        guard let next = redoStack.popLast() else { return }
-        undoStack.append(drawing)
-        apply(next)
-    }
-
-    /// 기록에서 꺼낸 그림을 화면에 되돌려 놓는다.
-    private func apply(_ restored: PKDrawing) {
-        drawing = restored
-        // 캔버스는 이 값이 바뀐 걸 보고 자기 그림을 덮어쓴다.
-        drawingRevision += 1
-        refreshUndoState()
-    }
-
-    private func refreshUndoState() {
-        canUndo = !undoStack.isEmpty
-        canRedo = !redoStack.isEmpty
+        redoRequest += 1
     }
 
     // MARK: - 단계 전환
@@ -140,9 +116,8 @@ final class DrawingSession {
     /// 그림과 시간을 모두 비운다.
     func reset() {
         drawing = PKDrawing()
-        drawingRevision += 1
-        undoStack.removeAll()
-        redoStack.removeAll()
+        undoRequest = 0
+        redoRequest = 0
         canUndo = false
         canRedo = false
         tool = .pen

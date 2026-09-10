@@ -82,6 +82,9 @@ struct PostGridView: View {
     /// 메모지 에셋(687x749)의 가로세로비가 170:186 과 거의 같다.
     /// 예전의 170 은 이보다 납작해서, 위아래가 잘리며 접힌 모서리도 함께 깎여 나갔다.
     private static let cardHeight: CGFloat = 186
+    /// 메모지 에셋(687x749)의 가로세로비.
+    /// 꾹 눌러 뜨는 미리보기를 그리드의 카드와 같은 크기로 맞추는 데 쓴다.
+    private static let cardAspectRatio: CGFloat = 687.0 / 749.0
     /// 카드 사이 가로 간격. 170 + 22 + 170 = 362 로 본문 폭에 딱 맞는다.
     private static let columnSpacing: CGFloat = 22
     /// 스크롤 막대를 본문 오른쪽 끝보다 얼마나 더 바깥으로 내보낼지.
@@ -167,7 +170,51 @@ struct PostGridView: View {
     private func card(for post: Post) -> some View {
         let selected = isSelected(post)
 
-        return paperLayer(.memoFront)
+        return cardFace(for: post)
+            // 고른 카드는 어둡게 덮어서 한눈에 구분되게 한다.
+            // 확인창은 세그먼트 아래에 떠서 이 카드를 가리지 않는다.
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.black.opacity(selected ? 0.4 : 0))
+            }
+            .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
+            .animation(.easeInOut(duration: 0.15), value: selected)
+            .onTapGesture { handleTap(on: post) }
+            .accessibilityAddTraits(selected ? [.isSelected] : [])
+            .contextMenu {
+                cardMenu(for: post)
+            } preview: {
+                // 미리보기를 직접 그린다.
+                //
+                // 그냥 두면 시스템이 카드를 자기 판 위에 얹는다.
+                // 접힌 모서리 자리는 종이가 없어 뒤가 비치는데, 미리보기에서는
+                // 그 판이 비쳐 왼쪽 아래에 회색 모서리가 잠깐 나타난다.
+                // 갤러리와 같은 바탕을 카드 뒤에 깔아 두면 평소와 같아 보인다.
+                // 바탕도 카드와 같은 반경으로 둥글린다.
+                // 네모난 채로 두면 시스템이 그 네모를 따라 그림자를 드리워,
+                // 둥근 카드 뒤로 각진 사각형 그림자가 비어져 나온다.
+                cardFace(for: post)
+                    .frame(
+                        width: Self.cardHeight * Self.cardAspectRatio,
+                        height: Self.cardHeight
+                    )
+                    .background(
+                        Color.doodleBackground,
+                        in: RoundedRectangle(cornerRadius: 12)
+                    )
+                    // 미리보기의 모양을 시스템에 못박는다.
+                    // 알려 주지 않으면 시스템이 뷰를 감싸는 네모를 판으로 삼아,
+                    // 그 네모대로 그림자를 드리우고 그 안에서 카드를 잘라 낸다.
+                    .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 12))
+            }
+    }
+
+    /// 카드의 종이 면. 고름 표시와 그림자를 뺀 알맹이다.
+    ///
+    /// 꾹 눌렀을 때 뜨는 미리보기도 이것을 그대로 쓴다.
+    /// 두 곳이 갈라지면 누르는 순간 카드가 다른 그림으로 바뀐 것처럼 보인다.
+    private func cardFace(for post: Post) -> some View {
+        paperLayer(.memoFront)
             .overlay {
                 // 접힌 모서리 쪽으로 지는 그늘.
                 //
@@ -187,17 +234,6 @@ struct PostGridView: View {
                     .mask { paperLayer(.memoFrontMask) }
             }
             .clipShape(RoundedRectangle(cornerRadius: 12))
-            // 고른 카드는 어둡게 덮어서 한눈에 구분되게 한다.
-            // 확인창은 세그먼트 아래에 떠서 이 카드를 가리지 않는다.
-            .overlay {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.black.opacity(selected ? 0.4 : 0))
-            }
-            .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
-            .animation(.easeInOut(duration: 0.15), value: selected)
-            .onTapGesture { handleTap(on: post) }
-            .accessibilityAddTraits(selected ? [.isSelected] : [])
-            .contextMenu { cardMenu(for: post) }
     }
 
     /// 카드를 꾹 눌렀을 때 뜨는 메뉴.
