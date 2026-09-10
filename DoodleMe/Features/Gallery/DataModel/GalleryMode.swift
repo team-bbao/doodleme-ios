@@ -12,4 +12,19 @@ enum GalleryMode: Equatable {
     case browsing
     /// 한 장을 골라 프로필로 설정한다.
     case choosingProfile
+    /// 여러 장을 골라 한 번에 지운다.
+    ///
+    /// `choosingProfile` 과 나란히 두는 이유는 둘 다 "카드를 고르는 중" 이기 때문이다.
+    /// 다만 고른 결과가 다르다. 저쪽은 한 장을 프로필로 앉히고, 이쪽은 여러 장을 지운다.
+    /// 한 모드에 묶어 두면 카드를 눌렀을 때 무엇을 해야 할지 갈라낼 수 없다.
+    case selecting
+}
+
+extension GalleryMode {
+    /// 카드가 "누르면 크게 보이는 것" 이 아니라 "고르는 대상" 인 상태.
+    ///
+    /// 어두운 막·툴바 숨김처럼 두 고르기 모드가 똑같이 따르는 처리를 한곳에서 판단한다.
+    var isPickingCards: Bool {
+        self != .browsing
+    }
 }
