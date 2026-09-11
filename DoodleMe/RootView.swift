@@ -21,12 +21,12 @@ struct MainTabView: View {
         TabView(selection: $selectedTabIndex) {
             // 자리만 바꾼다. value 는 그대로 두어야 저장 후 갤러리로 돌아가는 코드가 계속 맞는다.
             // Figma `iPhone 17 - 12` 의 `Tab Bar Buttons`(85:380) 는 갤러리를 왼쪽에 둔다.
-            Tab("Tab 1", systemImage: "photo.on.rectangle.fill", value: 0) {
+            Tab("갤러리", systemImage: "photo.on.rectangle.fill", value: 0) {
                 GalleryPage()
                     .tint(Color.doodlePrimary)
             }
 
-            Tab("Tab 2", systemImage: "pencil.and.scribble", value: 1) {
+            Tab("그리기", systemImage: "pencil.and.scribble", value: 1) {
                 DrawingPage(selectedTabIndex: $selectedTabIndex)
                     .tint(Color.doodlePrimary)
             }
