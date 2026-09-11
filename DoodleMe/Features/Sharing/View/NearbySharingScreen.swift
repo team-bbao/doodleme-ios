@@ -504,7 +504,13 @@ struct NearbySharingScreen: View {
         // 넘칠 때만 막대를 보여준다 — 다 보이는데 막대가 있으면 더 있는 줄 안다.
         .scrollIndicators(session.peers.count > Self.visiblePeerLimit ? .visible : .hidden)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
+        // 카드에 위아래 여백을 두지 않는다. 줄이 카드를 그대로 채운다.
+        //
+        // Figma `Frame 14`(카드)와 `Frame 19`(목록)를 견주면 분명하다.
+        // 17-19 는 카드 85 · 목록 85 로 **같고**, 17-20 은 목록 170(85 두 줄),
+        // 17-4 는 목록 255(85 세 줄) 다. 줄 사이도, 목록 위아래도 여백이 0 이다.
+        //
+        // 예전에는 여기 14 를 줘서 줄 수와 상관없이 카드가 늘 28 두꺼웠다.
         .background {
             RoundedRectangle(cornerRadius: 30)
                 .fill(.white)
