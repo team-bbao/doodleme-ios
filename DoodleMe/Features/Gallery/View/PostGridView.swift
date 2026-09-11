@@ -27,8 +27,18 @@ struct PostGridView: View {
     /// 지우려고 확인을 기다리는 그림. 확인창은 화면 가운데에 `GalleryPage` 가 띄운다.
     @Binding var postPendingDelete: Post?
 
+    /// 지우려고 골라 둔 그림들. `selecting` 일 때만 채워진다.
+    ///
+    /// `Post` 자체가 아니라 식별자를 담는다.
+    /// SwiftData 모델은 `Hashable` 이지만 지워지면 내용을 읽는 순간 터진다.
+    /// 식별자만 들고 있으면 지워진 뒤에도 집합을 다루는 것 자체는 안전하다.
+    @Binding var selectedForDeletion: Set<PersistentIdentifier>
+
     /// 카드를 꾹 눌러 고른 동작. 화면 전환은 `GalleryPage` 가 맡는다.
     var onShare: ((Post) -> Void)?
+
+    /// 카드를 꾹 눌러 「선택」 을 고른 경우. 누른 카드가 첫 선택이 된다.
+    var onStartSelecting: ((Post) -> Void)?
 
     /// 보여줘야 할 그림. 값이 들어오면 그 자리로 스크롤하고 도로 비운다.
     ///
@@ -68,8 +78,8 @@ struct PostGridView: View {
     /// 비어 있을 때 보여줄 문구. 무엇을 하는 중인지, 어느 탭인지에 따라 할 일이 다르다.
     private var emptyMessage: String {
         switch (mode, segmentedBar == 1) {
-        case (.choosingProfile, true): "고를 수 있는 내 그림이 없어요"
-        case (.choosingProfile, false): "고를 수 있는 받은 그림이 없어요"
+        case (.choosingProfile, true), (.selecting, true): "고를 수 있는 내 그림이 없어요"
+        case (.choosingProfile, false), (.selecting, false): "고를 수 있는 받은 그림이 없어요"
         case (.browsing, true): "친구의 얼굴을 그려보세요"
         case (.browsing, false): "친구가 그린 그림을 받아보세요"
         }
@@ -97,6 +107,15 @@ struct PostGridView: View {
     private static let bottomInset: CGFloat = 96
     /// 줄 사이 세로 간격. Figma 는 가로보다 좁은 17 을 쓴다 (186 세 줄 + 17 두 칸 = 592).
     private static let rowSpacing: CGFloat = 17
+
+    /// 카드를 눌러 확대할 때의 결. `GalleryPage` 의 닫는 쪽과 같은 값을 쓴다.
+    static let cardTransition: Animation = .spring(response: 0.32, dampingFraction: 0.86)
+
+    /// 고른 카드를 덮는 농도.
+    ///
+    /// 프로필은 한 장만 고르므로 짙게 덮어도 헷갈릴 일이 없었다.
+    /// 여러 장을 고를 때는 골라 둔 그림이 무엇인지도 계속 보여야 해서 그만큼 옅게 둔다.
+    private static let selectedDimming: CGFloat = 0.28
 
     private static let columns = [
         GridItem(.flexible(), spacing: columnSpacing),
@@ -151,6 +170,12 @@ struct PostGridView: View {
             // 표시가 먼저 켜질 수도, 그림이 먼저 들어올 수도 있어 양쪽을 다 본다.
             .onChange(of: showsJustSavedPost, initial: true) { _, _ in revealJustSaved() }
             .onChange(of: postsByMe.first?.id) { _, _ in revealJustSaved() }
+            // 고르고 푸는 순간마다 손끝에 알린다.
+            //
+            // 카드가 옅게 덮이고 동그라미가 채워지는 것은 눈으로만 오는 신호다.
+            // 여러 장을 빠르게 고를 때는 화면을 계속 확인하지 않게 되는데,
+            // 그때 눌린 것이 먹었는지 알 길이 없다.
+            .sensoryFeedback(.selection, trigger: selectedForDeletion)
         }
     }
 
@@ -191,13 +216,41 @@ struct PostGridView: View {
             // 확인창은 세그먼트 아래에 떠서 이 카드를 가리지 않는다.
             .overlay {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(.black.opacity(selected ? 0.4 : 0))
+                    .fill(.black.opacity(selected ? Self.selectedDimming : 0))
+            }
+            // 여러 장을 고를 때는 어둡게 덮는 것만으로 부족하다.
+            //
+            // 한 장만 고르는 프로필과 달리 고른 것과 안 고른 것이 화면에 섞여 있어,
+            // 명암 차이만으로는 어느 쪽이 골라진 것인지 매번 다시 읽어야 한다.
+            // 동그라미를 모든 카드에 띄워 "고를 수 있다" 를 먼저 알리고,
+            // 채워진 동그라미로 "골랐다" 를 말한다.
+            .overlay(alignment: .topTrailing) {
+                if mode == .selecting {
+                    selectionBadge(isOn: selected)
+                        .padding(8)
+                        .transition(.scale.combined(with: .opacity))
+                }
             }
             .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
-            .animation(.easeInOut(duration: 0.15), value: selected)
+            .animation(.spring(response: 0.25, dampingFraction: 0.72), value: selected)
+            .animation(.easeInOut(duration: 0.2), value: mode)
             .onTapGesture { handleTap(on: post) }
             .accessibilityAddTraits(selected ? [.isSelected] : [])
             .contextMenu { cardMenu(for: post) }
+    }
+
+    /// 고르는 중에 카드마다 붙는 동그라미.
+    ///
+    /// 시스템 심볼을 그대로 쓴다. 사진 앱에서 여러 장을 고를 때와 같은 모양이라
+    /// 따로 배우지 않아도 무엇을 하는 자리인지 안다.
+    private func selectionBadge(isOn: Bool) -> some View {
+        Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+            .font(.system(size: 22, weight: isOn ? .semibold : .light))
+            // 켜졌을 때만 색을 준다. 꺼진 동그라미까지 짙으면 그림 위에서 시끄럽다.
+            .foregroundStyle(isOn ? Color.white : Color.white.opacity(0.9),
+                             isOn ? Color.doodlePrimary : Color.clear)
+            // 흰 종이 위에 흰 테두리라 그림자가 없으면 윤곽이 사라진다.
+            .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
     }
 
     /// 카드를 꾹 눌렀을 때 뜨는 메뉴.
@@ -217,6 +270,16 @@ struct PostGridView: View {
                 onShare?(post)
             } label: {
                 Label("그림 공유하기", systemImage: "airplay.audio")
+            }
+
+            // 여러 장을 지우러 가는 문.
+            //
+            // 삭제 바로 위에 둔다. 한 장만 지울 사람은 아래를 누르면 되고,
+            // 누르다 보니 여러 장이더라 하는 사람은 같은 자리에서 갈아탈 수 있다.
+            Button {
+                onStartSelecting?(post)
+            } label: {
+                Label("선택", systemImage: "checkmark.circle")
             }
 
             Button(role: .destructive) {
@@ -261,18 +324,38 @@ struct PostGridView: View {
             false
         case .choosingProfile:
             profileCandidatePost?.persistentModelID == post.persistentModelID
+        case .selecting:
+            selectedForDeletion.contains(post.persistentModelID)
         }
     }
 
     private func handleTap(on post: Post) {
         switch mode {
         case .browsing:
-            selectedPost = post
+            // 여는 쪽에도 애니메이션을 건다.
+            //
+            // 닫을 때만 걸려 있어서 확대는 툭 튀어나오고 닫힘만 부드러웠다.
+            // 같은 동작의 앞뒤가 다르게 움직이면 화면이 미끄러지다 걸리는 것처럼 느껴진다.
+            withAnimation(Self.cardTransition) {
+                selectedPost = post
+            }
 
         case .choosingProfile:
             // 한 장만 고른다. 확인창은 GalleryPage 가 띄운다.
             // 카드를 꾹 눌러 「프로필 사진 설정」으로 들어온 길과 같은 곳으로 모인다.
             withAnimation(.spring()) { profileCandidatePost = post }
+
+        case .selecting:
+            // 같은 카드를 다시 누르면 선택이 풀린다.
+            // 지우는 일이라 되돌릴 길을 눌렀던 그 자리에 둔다.
+            let id = post.persistentModelID
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.72)) {
+                if selectedForDeletion.contains(id) {
+                    selectedForDeletion.remove(id)
+                } else {
+                    selectedForDeletion.insert(id)
+                }
+            }
         }
     }
 }
@@ -285,6 +368,7 @@ struct PostGridView: View {
         selectedPost: .constant(nil),
         profileCandidatePost: .constant(nil),
         postPendingDelete: .constant(nil),
+        selectedForDeletion: .constant([]),
         postToShow: .constant(nil)
     )
     .modelContainer(LocalDataStore.makePreviewContainer())

@@ -24,8 +24,12 @@ struct GalleryPage: View {
     @AppStorage("userName") private var inputName = ""
 
     @State private var mode: GalleryMode = .browsing
-    /// 지우려고 확인 팝업을 띄운 그림. 한 번에 한 장만 지운다.
+    /// 지우려고 확인 팝업을 띄운 그림. 카드를 꾹 눌러 곧장 한 장을 지우는 길이다.
     @State private var postPendingDelete: Post?
+    /// 여러 장을 골라 지우려고 표시해 둔 것들.
+    @State private var selectedForDeletion: Set<PersistentIdentifier> = []
+    /// 골라 둔 것들을 정말 지울지 묻는 중인지.
+    @State private var isConfirmingBulkDelete = false
     @State private var selectedPost: Post?
     @State private var profileCandidatePost: Post?
     @State private var showSharingScreen = false
@@ -38,6 +42,7 @@ struct GalleryPage: View {
     @State private var confettiTrigger = 0
 
     private var isChoosingProfile: Bool { mode == .choosingProfile }
+    private var isSelecting: Bool { mode == .selecting }
 
     /// 저장소에 남은 숫자를 뜻이 있는 값으로 풀어 준다.
     /// 모르는 값이 들어 있으면 처음 열었을 때의 순서로 돌아간다.
@@ -88,6 +93,10 @@ struct GalleryPage: View {
     private static let confirmPopupTop: CGFloat = 390
 
     /// 프로필 고르기에는 취소 버튼이 없다. 카드가 아닌 빈 곳을 누르면 빠져나온다.
+    ///
+    /// 여러 장 고르기는 여기 걸지 않는다.
+    /// 아래에 「취소」가 서 있고, 카드 사이 빈 자리를 스치듯 눌렀다고
+    /// 골라 둔 것이 통째로 날아가면 다시 처음부터 골라야 한다.
     private var emptyAreaTapAction: (() -> Void)? {
         isChoosingProfile ? { exitSelection() } : nil
     }
@@ -97,7 +106,7 @@ struct GalleryPage: View {
     /// `alert` 는 스스로 화면을 덮으므로 여기 넣지 않는다.
     /// 넣어 두면 확인창이 뜰 때마다 탭바가 사라졌다 돌아오며 화면이 흔들린다.
     private var isOverlayShowing: Bool {
-        selectedPost != nil || isPickingProfile
+        selectedPost != nil || isPickingProfile || isSelecting
     }
 
     var body: some View {
@@ -176,7 +185,9 @@ struct GalleryPage: View {
                         selectedPost: $selectedPost,
                         profileCandidatePost: $profileCandidatePost,
                         postPendingDelete: $postPendingDelete,
+                        selectedForDeletion: $selectedForDeletion,
                         onShare: { sharingPost = $0 },
+                        onStartSelecting: { startSelecting(with: $0) },
                         postToShow: $postToShow,
                         onEmptyAreaTap: emptyAreaTapAction
                     )
@@ -217,13 +228,29 @@ struct GalleryPage: View {
                             .fill(.regularMaterial)
                             .ignoresSafeArea()
                             .onTapGesture {
-                                withAnimation { self.selectedPost = nil }
+                                withAnimation(PostGridView.cardTransition) { self.selectedPost = nil }
                             }
 
                         PostDetailView(post: selectedPost) {
-                            withAnimation { self.selectedPost = nil }
+                            withAnimation(PostGridView.cardTransition) { self.selectedPost = nil }
                         }
                     }
+                    // 카드가 있던 자리에서 살짝 커지며 올라온다.
+                    //
+                    // 투명도만 바꾸면 화면이 통째로 덮이는 느낌이라
+                    // 「카드를 확대한다」는 동작과 결이 어긋난다.
+                    // 조금 작은 데서 시작해 제 크기로 붙어야 커졌다는 것이 읽힌다.
+                    .transition(.opacity.combined(with: .scale(scale: 0.94)))
+                }
+
+                // 여러 장을 고르는 동안 탭바 자리에 서는 막대.
+                //
+                // 탭바가 물러난 그 자리를 그대로 쓴다.
+                // 다른 자리에 띄우면 화면 아래에 눌러야 할 것이 두 층으로 겹쳐 보인다.
+                if isSelecting {
+                    selectionBar
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             // 삭제 중에는 탭바 자리를 선택 바가 대신 쓴다.
@@ -264,8 +291,65 @@ struct GalleryPage: View {
             } message: { _ in
                 Text("삭제한 그림은 되돌릴 수 없어요.")
             }
+            // 여러 장을 한꺼번에 지울 때의 확인. 한 장짜리와 같은 이유로 `alert` 을 쓴다.
+            //
+            // 몇 장인지 제목에 넣는다.
+            // 고른 것이 화면 밖에 있을 수 있어, 되돌릴 수 없는 일 앞에서
+            // "무엇을 지우는지" 를 숫자로라도 다시 확인시켜 준다.
+            .alert(
+                "\(selectedForDeletion.count)장의 그림을 삭제할까요?",
+                isPresented: $isConfirmingBulkDelete
+            ) {
+                Button("삭제", role: .destructive) { deleteSelected() }
+                Button("취소", role: .cancel) {}
+            } message: {
+                Text("삭제한 그림은 되돌릴 수 없어요.")
+            }
         }
     }
+
+    // MARK: - 선택 바
+
+    /// 여러 장을 고르는 동안 화면 아래에 서는 막대.
+    private var selectionBar: some View {
+        HStack {
+            Button("취소") { exitSelection() }
+                .foregroundStyle(Color.doodlePrimary)
+
+            Spacer()
+
+            // 몇 장 골랐는지 가운데에서 계속 알려준다.
+            // 카드가 화면 밖으로 밀려나도 고른 개수는 여기 남는다.
+            Text(selectedForDeletion.isEmpty
+                 ? "그림을 선택하세요"
+                 : "\(selectedForDeletion.count)장 선택됨")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(Color.doodleDetail)
+
+            Spacer()
+
+            // 한 장도 고르지 않았으면 지울 것이 없다.
+            //
+            // 색을 직접 지정하면 시스템이 비활성일 때 걸어 주는 흐림이 덮인다.
+            // 눌리지도 않으면서 빨갛게 서 있어, 눌러 보고 나서야 안 된다는 걸 알게 된다.
+            // 그래서 흐림도 직접 준다.
+            Button("삭제") { isConfirmingBulkDelete = true }
+                .foregroundStyle(selectedForDeletion.isEmpty ? Color.doodleMuted : .red)
+                .disabled(selectedForDeletion.isEmpty)
+        }
+        .font(.system(size: 17, weight: .semibold))
+        .padding(.horizontal, 24)
+        .frame(height: DoodleMetrics.buttonSide + 12)
+        // 탭바와 같은 흰 캡슐. 이 화면의 떠 있는 것들이 모두 쓰는 재질이다.
+        .background(.white.opacity(0.95), in: Capsule())
+        .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
+        .padding(.horizontal, Self.contentInset)
+        .padding(.bottom, Self.selectionBarBottomInset)
+    }
+
+    /// 선택 바가 화면 아래에서 떨어져 있는 정도.
+    /// 탭바가 서 있던 자리와 같은 높이라 홈 인디케이터를 피한다.
+    private static let selectionBarBottomInset: CGFloat = 34
 
     // MARK: - 상단
 
@@ -430,16 +514,46 @@ struct GalleryPage: View {
         }
     }
 
+    /// 카드를 꾹 눌러 「선택」으로 들어온다. 누른 그 카드가 첫 선택이 된다.
+    ///
+    /// 빈손으로 시작하면 방금 고른 카드를 한 번 더 눌러야 한다.
+    /// 지우려고 고른 카드가 이미 눈앞에 있는데 다시 겨누게 할 이유가 없다.
+    private func startSelecting(with post: Post) {
+        withAnimation(.spring(response: 0.35)) {
+            selectedForDeletion = [post.persistentModelID]
+            mode = .selecting
+        }
+    }
+
     private func exitSelection() {
         withAnimation(.spring()) {
             mode = .browsing
             profileCandidatePost = nil
+            selectedForDeletion = []
         }
     }
 
     private func delete(_ post: Post) {
         modelContext.delete(post)
         postPendingDelete = nil
+    }
+
+    /// 골라 둔 그림을 한꺼번에 지운다.
+    ///
+    /// 식별자로 들고 있으므로 모델을 다시 찾아와 지운다.
+    /// 찾지 못한 것은 그냥 넘긴다 — 고르는 사이에 다른 경로로 이미 지워졌다는 뜻이라
+    /// 여기서 할 일이 남아 있지 않다.
+    ///
+    /// 한 장씩 지울 때와 달리 여기서 바로 저장한다.
+    /// 여러 장이 한 번에 빠지는 큰 변화라, 자동 저장을 기다리는 사이 앱이 꺼지면
+    /// 지운 줄 알았던 그림이 통째로 돌아와 있다.
+    private func deleteSelected() {
+        for id in selectedForDeletion {
+            guard let post = modelContext.registeredModel(for: id) as Post? else { continue }
+            modelContext.delete(post)
+        }
+        try? modelContext.save()
+        exitSelection()
     }
 }
 
