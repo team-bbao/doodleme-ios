@@ -27,7 +27,11 @@ final class DrawingSession {
                 // 저장된 획을 뜯어보니 force 가 0 이었다. 손가락 터치에는 힘 값이 없다.
                 // 3D Touch 가 사라진 뒤로 아이폰은 손가락 압력을 재지 않는다.
                 // 애플펜슬로 그리면 이 잉크도 굵기가 변한다.
-                PKInkingTool(.pen, color: .black, width: Self.penWidth)
+                // 긋는 동안 보이는 획은 `LiveStrokeView` 가 대신 그린다.
+                // PencilKit 잉크까지 제 굵기로 함께 그려지면 두 겹이 어긋나 보이므로,
+                // 실오라기만큼 얇게 두어 미리보기 밑에 숨긴다.
+                // 굵기는 손을 뗀 뒤 점마다 다시 매겨지므로 이 값이 그림에 남지 않는다.
+                PKInkingTool(.pen, color: .black, width: 0.1)
             case .eraser:
                 // 예전 지우개와 같이 닿은 획을 통째로 지운다. 픽셀 단위로 지우려면 .bitmap.
                 PKEraserTool(.vector)
