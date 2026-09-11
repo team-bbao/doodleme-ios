@@ -22,9 +22,11 @@ struct ProfileNameView: View {
             Text(profileName.isEmpty ? "이름" : profileName)
                 // Figma `iPhone 17 - 1` 의 이름 스타일
                 // Figma 는 Semibold 이지만 화면에서 얇아 보여 한 단계 올렸다.
-                .font(.system(size: 25, weight: .bold))
+                .font(.system(size: 20, weight: .bold))
                 .foregroundStyle(profileName.isEmpty ? Color.gray : .doodlePrimary)
-                .padding(.top, 17)
+                // 프로필 원 아래로 띄우는 간격. Figma 는 원 밑변에서 이름 상자까지 7.5.
+                // 원이 `offset(y: 5)` 로 내려가 있으므로 그만큼 더한다.
+                .padding(.top, 12.5)
         }
         .buttonStyle(.plain)
         .alert("프로필 이름", isPresented: $showingEditor) {

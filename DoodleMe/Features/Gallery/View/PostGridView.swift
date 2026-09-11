@@ -132,7 +132,10 @@ struct PostGridView: View {
                 .font(.system(size: 20))
                 .opacity(0.4)
                 .multilineTextAlignment(.center)
-                .padding(.bottom, 100)
+                // 아래 여백으로 글을 위로 밀어 올린다.
+                // 그리드가 349 부터 화면 끝까지 차지하므로, 이 값이 클수록 글이 올라간다.
+                // Figma 는 이 문구의 가운데를 522.5 에 둔다.
+                .padding(.bottom, 178)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .contentShape(Rectangle())
                 .onTapGesture { onEmptyAreaTap?() }
