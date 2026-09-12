@@ -8,6 +8,9 @@ import SwiftUI
 struct ProfileNameView: View {
     @Binding var profileName: String
 
+    /// 넓은 화면에서 얼마나 키울지. 아이폰에서는 1 이라 지금까지와 같다.
+    var scale: CGFloat = 1
+
     /// 이름 최대 글자 수. 세그먼트 위에 한 줄로 들어가야 해서 너무 길면 곤란하다.
     private static let nameLimit = 15
 
@@ -22,11 +25,11 @@ struct ProfileNameView: View {
             Text(profileName.isEmpty ? "이름" : profileName)
                 // Figma `iPhone 17 - 1` 의 이름 스타일
                 // Figma 는 Semibold 이지만 화면에서 얇아 보여 한 단계 올렸다.
-                .font(.system(size: 20, weight: .bold))
+                .font(.system(size: 20 * scale, weight: .bold))
                 .foregroundStyle(profileName.isEmpty ? Color.gray : .doodlePrimary)
                 // 프로필 원 아래로 띄우는 간격. Figma 는 원 밑변에서 이름 상자까지 7.5.
                 // 원이 `offset(y: 5)` 로 내려가 있으므로 그만큼 더한다.
-                .padding(.top, 12.5)
+                .padding(.top, 12.5 * scale)
         }
         .buttonStyle(.plain)
         .alert("프로필 이름", isPresented: $showingEditor) {

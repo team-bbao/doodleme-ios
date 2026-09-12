@@ -16,6 +16,9 @@ struct GallerySegmentedControl: View {
 
     @Binding var selection: Int
 
+    /// 넓은 화면에서 얼마나 키울지. 아이폰에서는 1 이라 지금까지와 같다.
+    var scale: CGFloat = 1
+
     /// Figma `222:1199` 의 높이. 시스템 기본값보다 조금 높다.
     private static let trackHeight: CGFloat = 35
 
@@ -32,7 +35,8 @@ struct GallerySegmentedControl: View {
             }
         }
         .pickerStyle(.segmented)
-        .frame(height: Self.trackHeight)
+        // 막대만 아이폰 높이로 남으면 넓은 화면에서 유독 납작해 보인다.
+        .frame(height: Self.trackHeight * scale)
         .padding(.horizontal, Self.extraInset)
     }
 }

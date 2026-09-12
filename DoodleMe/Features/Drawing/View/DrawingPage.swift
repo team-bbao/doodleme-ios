@@ -25,6 +25,8 @@ struct DrawingPage: View {
     @FocusState private var focusedField: DrawingFocusField?
     /// 키보드가 가리기 시작하는 높이. 키보드가 없으면 화면 맨 아래와 같다.
     @State private var keyboardTop: CGFloat = 0
+    /// 화면(또는 창)의 크기. 도구 막대를 얼마나 내려 붙일지 정하는 데 쓴다.
+    @State private var screenSize: CGSize = .zero
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
@@ -55,18 +57,124 @@ struct DrawingPage: View {
     /// 아래쪽 도구 막대와 탭바가 앉을 자리를 남기려고 위로 당겨 둔다.
     private static let canvasCenterOffset: CGFloat = -10
 
+    /// 아이폰(402×874)에서 잰 세로 구성. 넓은 화면은 이 구성을 통째로 비례해 키운다.
+    ///
+    /// ```
+    ///   0 ┬ 화면 꼭대기
+    /// 112 ┼ 타이머 시작 ─┐
+    /// 232 ┼ 종이 윗변    │ 120  ← timerToCanvas
+    /// 622 ┼ 종이 밑변 ───┘ 510  ← compositionHeight
+    /// 874 ┴ 화면 바닥
+    /// ```
+    ///
+    /// 위 112 : 아래 252 = 112/364. 이 비율을 지키면 어느 화면에서나 같은 그림이 나온다.
+    private static let compositionHeight: CGFloat = 510
+    private static let timerToCanvas: CGFloat = 120
+    private static let topShare: CGFloat = 112 / 364
+
+    /// 타이머 위로 반드시 남길 자리.
+    ///
+    /// 아이패드는 탭 바가 **위에** 있다(`sidebarAdaptable`). 알약 밑변이 약 73 이라
+    /// 그 아래로 숨 쉴 자리를 두고 100 으로 잡는다.
+    /// 아이폰 비율(위 112 : 아래 252)을 그대로 쓰면 가로에서 위가 79 까지 좁아져
+    /// 숫자가 탭 바에 3pt 까지 붙었다 — 아이폰은 탭 바가 아래에 있어 생기지 않던 일이다.
+    private static let minTopMargin: CGFloat = 100
+
+    /// 종이 밑변부터 화면 바닥까지 비워 둘 자리.
+    ///
+    /// 도구 막대(높이 약 52)와 그 아래 여백 40, 홈 인디케이터 20,
+    /// 그리고 종이와 막대 사이 틈 45 를 더한 값이다.
+    /// 아이폰은 배율이 1 로 고정이라 이 값이 쓰이지 않는다.
+    private static let toolPickerReserve: CGFloat = 157
+
+    /// 도구 막대를 화면 바닥에서 얼마나 띄울지.
+    ///
+    /// 아이폰은 90 그대로다. 넓은 화면에서는 아래에 탭 바가 없어
+    /// 90 을 그대로 두면 막대 밑에 140 가까운 빈 자리가 남고, 그만큼 종이가 못 큰다.
+    private static func toolPickerBottomInset(in size: CGSize) -> CGFloat {
+        size.width >= 600 ? 40 : 90
+    }
+
     /// 카드와 키보드 사이에 남길 틈.
     private static let keyboardGap: CGFloat = 12
+
+    private static let canvasSizeWidth = DoodleMetrics.canvasSize.width
+    private static let canvasSizeHeight = DoodleMetrics.canvasSize.height
+
+    /// 아이폰 구성을 몇 배로 키워 보여줄지.
+    ///
+    /// 화면 높이만 보면 된다 — 아이폰 구성이 세로 874 를 기준으로 짜여 있으므로
+    /// 그 비율이 곧 배율이다. 이러면 타이머·간격·종이가 한 덩어리로 함께 커져
+    /// 어느 기기, 어느 방향에서나 같은 화면을 보게 된다.
+    ///
+    /// 아이폰에서는 874/874 = 1 이라 지금까지와 한 점도 다르지 않다.
+    private static func canvasScale(in size: CGSize) -> CGFloat {
+        // 아이폰은 손대지 않는다.
+        //
+        // 가장 넓은 아이폰도 세로로 세우면 440 을 넘지 않는다.
+        // 문턱을 600 에 두면 아이폰에서는 늘 1 이 나와, 지금까지의 화면이 그대로 남는다.
+        guard size.width >= 600, size.height > 0 else { return 1 }
+
+        // 좌우가 모자라면 그쪽에 맞춘다. 실제로는 아이패드에서 걸리는 일이 없다.
+        let byWidth = (size.width - 40) / canvasSizeWidth
+
+        // 예전에는 `높이 / 874` 를 썼다. 그런데 가로로 눕히면 높이가 834 로 874 보다
+        // 짧아져 배율이 1 에서 멈췄다 — 위아래가 텅 빈 채로 종이만 아이폰 크기였다.
+        // 874 는 아이폰 화면 높이일 뿐, 종이가 쓸 수 있는 자리와는 상관이 없다.
+        //
+        // 그래서 「무엇이 꼭 있어야 하는지」로 바꿔 잡는다.
+        // 위로는 제목이 앉을 자리, 아래로는 도구 막대가 앉을 자리를 남기고 나머지를 종이에 준다.
+        let byHeight = (size.height - minTopMargin - toolPickerReserve) / compositionHeight
+
+        // 아래로 1 — 아이패드가 아이폰보다 작아 보이는 일은 없어야 한다.
+        // (11인치를 가로로 눕히면 높이 834 로 아이폰보다 짧다.)
+        // 위로 1.6 — 더 키우면 손이 종이 끝까지 닿지 않는다.
+        return min(1.6, max(1, min(byWidth, byHeight)))
+    }
+
+    /// 타이머를 화면 꼭대기에서 얼마나 내려 붙일지.
+    ///
+    /// 남는 자리를 아이폰과 같은 비율(위 112 : 아래 252)로 나눠 갖는다.
+    private static func countdownTop(in size: CGSize) -> CGFloat {
+        guard size.width >= 600 else { return countdownTopInset }
+        // 남는 자리를 아이폰과 같은 비율로 나눠 갖되, 위쪽은 `minTopMargin` 아래로 내려가지 않는다.
+        let byShare = (size.height - compositionHeight * canvasScale(in: size)) * topShare
+        return max(minTopMargin, byShare)
+    }
+
+    /// 종이를 화면 정중앙에서 얼마나 올릴지.
+    ///
+    /// 타이머 자리에서 아래로 `timerToCanvas` 만큼 내려간 곳이 종이 윗변이다.
+    /// 그 중심을 화면 중심과 견주어 차이만큼 민다.
+    private static func canvasOffset(in size: CGSize) -> CGFloat {
+        guard size.width >= 600 else { return canvasCenterOffset }
+        let scale = canvasScale(in: size)
+        let canvasCenter = countdownTop(in: size) + (timerToCanvas + canvasSizeHeight / 2) * scale
+        return canvasCenter - size.height / 2
+    }
 
     /// 키보드에 가리지 않도록 카드를 위로 밀 거리.
     ///
     /// 화면 기준으로 못박아 둔 카드라 SwiftUI 의 자동 회피가 닿지 않는다.
     /// 자동 회피에 맡기면 남는 자리 한가운데로 다시 앉느라 필요 이상으로 올라가
     /// 이번에는 위쪽 툴바에 가렸다. 그래서 모자란 만큼만 직접 민다.
-    private func keyboardLift(screenHeight: CGFloat) -> CGFloat {
-        guard keyboardTop > 0, screenHeight > 0 else { return 0 }
-        let cardBottom = screenHeight / 2 + Self.canvasCenterOffset + DoodleMetrics.canvasSize.height / 2
-        return max(0, cardBottom - (keyboardTop - Self.keyboardGap))
+    private func keyboardLift(in size: CGSize) -> CGFloat {
+        guard keyboardTop > 0, size.height > 0 else { return 0 }
+        let scale = Self.canvasScale(in: size)
+        let half = DoodleMetrics.canvasSize.height * scale / 2
+        let center = size.height / 2 + Self.canvasOffset(in: size)
+        let needed = max(0, center + half - (keyboardTop - Self.keyboardGap))
+
+        // 밀어 올릴 자리가 없으면 밀지 않는다.
+        //
+        // 넓은 화면에서는 종이가 커진 만큼 위로 갈 자리가 줄어든다.
+        // 아이패드를 눕히면 높이 834 에 키보드가 450 가까이 올라와,
+        // 제한이 없을 때는 종이가 69 만큼 화면 위로 빠져나가 「To.」 줄이 잘렸다.
+        //
+        // 아이폰은 제한을 두지 않는다 — 지금까지의 움직임을 그대로 남긴다.
+        guard size.width >= 600 else { return needed }
+        let room = max(0, center - half - Self.minTopMargin)
+        return min(needed, room)
     }
 
     var body: some View {
@@ -95,16 +203,18 @@ struct DrawingPage: View {
                         .ignoresSafeArea()
                 }
 
-                countdown
-                    .padding(.top, Self.countdownTopInset)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .ignoresSafeArea()
+                GeometryReader { proxy in
+                    countdown(scale: Self.canvasScale(in: proxy.size))
+                        .padding(.top, Self.countdownTop(in: proxy.size))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                }
+                .ignoresSafeArea()
 
                 VStack {
                     Spacer()
                     if session.phase == .drawing {
                         DrawingToolPicker(session: session)
-                            .padding(.bottom, 90)
+                            .padding(.bottom, Self.toolPickerBottomInset(in: screenSize))
                     }
                 }
                 .safeAreaPadding(.all)
@@ -117,12 +227,25 @@ struct DrawingPage: View {
                         proxy.frame(in: .global).maxY
                     } action: { keyboardTop = $0 }
 
+                // 툴바 바깥에서도 화면 크기를 알아야 해서 따로 재 둔다.
+                GeometryReader { proxy in
+                    Color.clear
+                        .onGeometryChange(for: CGSize.self) { $0.size } action: { screenSize = $0 }
+                }
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
                 // 캔버스도 화면 한가운데에 못박는다.
                 // 단계마다 툴바와 탭바가 생겼다 사라지면서 안전영역이 달라지는데,
                 // 그때마다 캔버스가 따라 움직여 초기화를 누르면 자리가 어긋났다.
                 GeometryReader { proxy in
                     memoCard
-                        .offset(x: shakeAmount, y: Self.canvasCenterOffset - keyboardLift(screenHeight: proxy.size.height))
+                        // 넓은 화면에서는 종이를 키워 보여준다.
+                        //
+                        // `canvasSize`(350x390) 는 **저장된 획의 좌표계**라 건드리면 안 된다.
+                        // 그래서 크기 자체가 아니라 배율만 올린다 — 안에서 오가는 좌표는 그대로다.
+                        .scaleEffect(Self.canvasScale(in: proxy.size))
+                        .offset(x: shakeAmount, y: Self.canvasOffset(in: proxy.size) - keyboardLift(in: proxy.size))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .ignoresSafeArea()
@@ -158,25 +281,26 @@ struct DrawingPage: View {
     // MARK: - 남은 시간
 
     @ViewBuilder
-    private var countdown: some View {
-        if session.phase != .memo {
+    private func countdown(scale: CGFloat) -> some View {
+        Group { if session.phase != .memo {
             // 숫자와 게이지가 붙어 있으면 한 덩어리로 뭉쳐 보인다.
             // 사이를 벌려야 남은 초를 읽는 눈과 줄어드는 막대를 보는 눈이 서로 방해하지 않는다.
-            VStack(spacing: 16) {
+            VStack(spacing: 16 * scale) {
                 Text("\(Int(session.remaining))")
-                    .font(.system(size: 25, weight: .semibold))
+                    .font(.system(size: 25 * scale, weight: .semibold))
                     .contentTransition(.numericText(countsDown: true))
                     .animation(.default, value: Int(session.remaining))
 
                 // 예전에는 Slider 였는데, 썸을 숨겨도 트랙 드래그로 시간을 되감을 수 있었다.
                 // ProgressView 는 표시 전용이라 그런 조작이 불가능하다.
                 ProgressView(value: session.remaining, total: DrawingSession.duration)
-                    .progressViewStyle(ThickBarProgressStyle(height: 15))
+                    .progressViewStyle(ThickBarProgressStyle(height: 15 * scale))
                     // 게이지 양 끝을 아래 캔버스의 좌우 끝과 맞춘다.
                     // 여백을 따로 주면 캔버스 크기가 바뀔 때마다 어긋나므로 같은 값을 쓴다.
-                    .frame(width: DoodleMetrics.canvasSize.width)
-                    .padding(.top, 20)
-                    .padding(.bottom, 40)
+                    // 캔버스와 같은 배율로 늘린다. 캔버스만 키우면 막대만 짧게 남는다.
+                    .frame(width: DoodleMetrics.canvasSize.width * scale)
+                    .padding(.top, 20 * scale)
+                    .padding(.bottom, 40 * scale)
                     .accessibilityLabel("남은 시간")
                     .accessibilityValue("\(Int(session.remaining))초")
             }
@@ -184,7 +308,7 @@ struct DrawingPage: View {
             // 숫자와 게이지를 함께 흐리게 두어, 지금은 세는 중이 아님을 알린다.
             .opacity(session.phase == .drawing ? 1 : 0.35)
             .animation(.easeOut(duration: 0.25), value: session.phase)
-        }
+        } }
     }
 
     // MARK: - 메모지

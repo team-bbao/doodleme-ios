@@ -41,6 +41,34 @@ struct GalleryPage: View {
     @State private var postToShow: Post.ID?
     @State private var confettiTrigger = 0
 
+    /// 화면이 실제로 준 폭. 넓은 화면에서 헤더를 키우는 데 쓴다.
+    /// 처음 한 번은 아이폰 본문 폭으로 두어, 재기 전에도 엉뚱한 크기가 스치지 않게 한다.
+    @State private var contentWidth: CGFloat = DoodleLayout.baseContentWidth
+    /// 화면 높이. 가로로 눕혔을 때 세로값을 덜 키우는 데 쓴다.
+    @State private var contentHeight: CGFloat = DoodleLayout.baseHeight
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    /// 아이폰 기준값을 지금 화면에 맞게 환산한다. 아이폰에서는 늘 1 배다.
+    private var layoutScale: CGFloat {
+        DoodleLayout.scale(forWidth: contentWidth, sizeClass: horizontalSizeClass)
+    }
+
+    /// 세로로 놓이는 값에 쓰는 배율. 가로로 누우면 높이가 모자라 덜 키운다.
+    /// 머리말(프로필·이름·세그먼트)이 쓰는 배율.
+    ///
+    /// 머리말은 **세로 공간을 먹는다.** 그래서 가로 폭이 아니라 세로 높이를 봐야 한다.
+    ///
+    /// 폭으로 재면 방향이 거꾸로 간다 — 11인치를 눕히면 폭 1210 이라 배율이 1.7 로 오르는데,
+    /// 정작 그때가 세로 834 로 가장 짧다. 세로가 제일 모자란 곳에서 머리말이 제일 커져,
+    /// 카드(411)가 남은 자리(396)보다 커지고 첫 줄 세 장이 모두 아래가 잘렸다.
+    private var headerScale: CGFloat { verticalScale }
+
+    private var verticalScale: CGFloat {
+        DoodleLayout.verticalScale(forWidth: contentWidth,
+                                   height: contentHeight,
+                                   sizeClass: horizontalSizeClass)
+    }
+
     private var isChoosingProfile: Bool { mode == .choosingProfile }
     private var isSelecting: Bool { mode == .selecting }
 
@@ -140,11 +168,11 @@ struct GalleryPage: View {
                 // 이 화면은 ZStack 이 안전영역을 무시하며 자리를 직접 잡고 있어,
                 // 네비게이션 바가 끼어들면 프로필 원부터 아래가 통째로 밀린다.
                 Text("갤러리")
-                    .font(.system(size: 34, weight: .bold))
+                    .font(.system(size: 34 * layoutScale, weight: .bold))
                     .kerning(0.4)
                     .foregroundStyle(Color.doodleTitle)
                     .padding(.leading, Self.contentInset)
-                    .padding(.top, Self.titleTopInset)
+                    .padding(.top, Self.titleTopInset * verticalScale)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .allowsHitTesting(false)
 
@@ -156,7 +184,7 @@ struct GalleryPage: View {
                         sortMenu
                         receiveButton
                     }
-                    .padding(.top, Self.titleTopInset)
+                    .padding(.top, Self.titleTopInset * verticalScale)
                     .padding(.trailing, Self.contentInset)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
@@ -164,7 +192,9 @@ struct GalleryPage: View {
                 // 프로필 원과 이름. 고르는 중에도 밝게 남지만 누를 수는 없다.
                 // 지금 고르는 대상은 카드이고, 프로필은 그 결과가 놓일 자리일 뿐이다.
                 profileBlock
-                    .padding(.top, Self.headerTopInset)
+                    // 넓은 화면에서는 헤더도 함께 내려온다.
+                    // 위치만 그대로 두면 커진 프로필이 화면 위에 바짝 붙는다.
+                    .padding(.top, Self.headerTopInset * verticalScale)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
                     .padding(.horizontal, Self.contentInset)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -178,8 +208,8 @@ struct GalleryPage: View {
                 VStack(spacing: 0) {
                     // Figma `iPhone 17 - 12` 의 막대.
                     // 트랙이 불투명한 흰색이라, 뒤에 어두운 막이 깔려도 배어 나오지 않는다.
-                    GallerySegmentedControl(selection: $segmentedBar)
-                        .padding(.bottom, 20)
+                    GallerySegmentedControl(selection: $segmentedBar, scale: headerScale)
+                        .padding(.bottom, 20 * headerScale)
 
                     PostGridView(
                         mode: mode,
@@ -198,6 +228,11 @@ struct GalleryPage: View {
                 .padding(.horizontal, Self.contentInset)
                 .padding(.top, headerHeight)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                // 본문이 실제로 받은 폭을 재 둔다. 헤더 크기를 여기서 끌어낸다.
+                .onGeometryChange(for: CGSize.self) { $0.size } action: {
+                    contentWidth = $0.width
+                    contentHeight = $0.height
+                }
 
                 // 프로필로 앉힐지 묻는 확인창. Figma `iPhone 17 - 16`.
                 //
@@ -371,21 +406,22 @@ struct GalleryPage: View {
                 } else {
                     DefaultDoodleImage()
                         // 원을 꽉 채우지 않고 지름의 80% 크기로 가운데 놓는다.
-                        .frame(width: Self.profileDiameter * 0.8,
-                               height: Self.profileDiameter * 0.8)
+                        .frame(width: Self.profileDiameter * 0.8 * headerScale,
+                               height: Self.profileDiameter * 0.8 * headerScale)
                 }
             }
-            .frame(width: Self.profileDiameter, height: Self.profileDiameter)
+            .frame(width: Self.profileDiameter * headerScale,
+                   height: Self.profileDiameter * headerScale)
             .clipShape(Circle())
             .shadow(color: .black.opacity(0.1), radius: 3, x: 2, y: 2)
             .overlay(alignment: .bottomTrailing) { profileEditBadge }
             .overlay { ConfettiBurst(trigger: confettiTrigger) }
             .offset(y: 5)
 
-            ProfileNameView(profileName: $inputName)
+            ProfileNameView(profileName: $inputName, scale: headerScale)
                 // 이 여백이 곧 세그먼트가 놓이는 높이를 정한다.
                 // 124(시작) + 97(원) + 12.5(이름 위) + 24(이름) + 36.5 = 294 — Figma `222:1199` 의 y.
-                .padding(.bottom, 36.5)
+                .padding(.bottom, 36.5 * headerScale)
         }
     }
 
@@ -408,10 +444,12 @@ struct GalleryPage: View {
             Image(systemName: "pencil")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white)
-                .frame(width: Self.profileBadgeDiameter, height: Self.profileBadgeDiameter)
+                .frame(width: Self.profileBadgeDiameter * headerScale,
+                       height: Self.profileBadgeDiameter * headerScale)
                 .background(Circle().fill(Color.doodlePrimary))
                 .shadow(color: .black.opacity(0.2), radius: 2, y: 3)
-                .frame(width: Self.profileBadgeTapDiameter, height: Self.profileBadgeTapDiameter)
+                .frame(width: Self.profileBadgeTapDiameter * headerScale,
+                       height: Self.profileBadgeTapDiameter * headerScale)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
