@@ -47,6 +47,37 @@ struct PostDetailView: View {
     /// 내보낼 카드를 먼저 보여 주는 화면이 떠 있는지.
     @State private var showExportPreview = false
 
+    /// 화면이 실제로 준 크기. 넓은 화면에서 카드를 키우는 데 쓴다.
+    @State private var screenSize = CGSize(width: DoodleLayout.baseContentWidth,
+                                           height: DoodleLayout.baseHeight)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    /// 카드 덩이를 지금 화면에 맞게 키우는 배율. 아이폰에서는 늘 1 배다.
+    ///
+    /// 카드가 362x396 에 못박혀 있어 아이폰(402 폭)에서는 90% 를 채우지만
+    /// 아이패드(820)에서는 44% 밖에 안 돼, 작은 카드 하나가 위쪽에 떠 있고 아래가 텅 빈다.
+    ///
+    /// 가로 폭은 `DoodleLayout` 이 정하고, 거기서 **세로가 감당할 만큼**으로 한 번 더 깎는다.
+    /// 눕히면 높이가 모자라기 때문이다 — 11인치를 눕히면 폭은 1180 이지만 높이는 820 이다.
+    private var cardScale: CGFloat {
+        let byWidth = DoodleLayout.scale(forWidth: screenSize.width,
+                                         sizeClass: horizontalSizeClass)
+        guard byWidth > 1, screenSize.height > 0 else { return 1 }
+        let room = screenSize.height - Self.verticalChrome
+        return max(1, min(byWidth, room / Self.baseBlockHeight))
+    }
+
+    /// 카드 덩이가 쓸 수 없는 세로 몫.
+    ///
+    /// 안전영역(위 24 · 아래 21)과 바깥 여백을 뺀다.
+    /// 빼지 않으면 눕혔을 때 덩이가 화면 높이를 꽉 채워 툴바가 위로 잘려 나간다 —
+    /// 실제로 그렇게 나왔다.
+    private static let verticalChrome: CGFloat = 120
+
+    /// 카드 덩이에서 **배율을 먹는 부분**이 쓰는 세로 길이.
+    /// 툴바 48 + 사이 24 + 카드 396 = 468. 아래 여백 80 은 키우지 않으므로 뺀다.
+    private static let baseBlockHeight: CGFloat = 468
+
     /// 갤러리 머리말이 쓰는 것과 같은 이름. 내보내기 카드의 제목에 들어간다.
     @AppStorage("userName") private var userName = ""
     @State private var showSaveAlert = false
@@ -80,6 +111,7 @@ struct PostDetailView: View {
                 )
             }
         }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { screenSize = $0 }
         .fullScreenCover(isPresented: $showSharingScreen) {
             NearbySharingScreen(post: post) { showSharingScreen = false }
         }
@@ -122,7 +154,7 @@ struct PostDetailView: View {
     }
 
     private var card: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 24 * cardScale) {
 
             // Figma `iPhone 17 - 17`(평소) · `iPhone 17 - 14`(눌림) 의 `Group 4`.
             // 원래 흰색 80% 알약 136x48 안에 60 폭 버튼 둘이었고, 내보내기가 늘어 셋이 되었다.
@@ -168,7 +200,7 @@ struct PostDetailView: View {
                 .accessibilityLabel("카드로 공유")
             }
             .padding(.horizontal, Self.toolbarInset)
-            .frame(width: Self.toolbarWidth(buttons: 3), height: 48)
+            .frame(width: Self.toolbarWidth(buttons: 3) * cardScale, height: 48 * cardScale)
             // 흰 알약 대신 유리. 갤러리 하단 선택 바와 같은 재질이다.
             // 안에 누를 것이 셋 들어 있으므로 HIG 대로 `interactive` 를 건다.
             .glassEffect(.regular.interactive(), in: .capsule)
@@ -183,7 +215,7 @@ struct PostDetailView: View {
                 // 반경은 그리던 캔버스와 같은 값이라 그림이 잘린 모양과 정확히 맞물린다.
                 // 색도 에셋에서 뽑은 값이라 두 상태를 오갈 때 본체 색이 흔들리지 않는다.
                 paperFace
-                    .frame(width: Self.cardSize.width, height: Self.cardSize.height)
+                    .frame(width: Self.cardSize.width * cardScale, height: Self.cardSize.height * cardScale)
                 .shadow(color: .black.opacity(0.25), radius: 10)
                 .overlay {
                     DoodleImageView(drawingData: post.drawingData)
@@ -201,12 +233,15 @@ struct PostDetailView: View {
                 // 좌우를 뒤집어 두어 접힌 모서리가 오른쪽 아래에 온다.
                 paperFace
                     .scaleEffect(x: -1, y: 1)
-                    .frame(width: Self.cardSize.width, height: Self.cardSize.height)
+                    .frame(width: Self.cardSize.width * cardScale, height: Self.cardSize.height * cardScale)
                 .shadow(color: .black.opacity(0.25), radius: 10)
                 .overlay { backFaceContent }
                 .opacity(isFlipped ? 1 : 0)
                 .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
             }
+            // 아래 여백은 키우지 않는다.
+            // 카드를 화면 한가운데보다 조금 위에 두려고 넣은 값인데,
+            // 배율을 먹이면 아이패드에서 120 이 되어 덩이가 위로 치우친다.
             .padding(.bottom, 80)
             .rotation3DEffect(.degrees(isFlipped ? 180 : 0), axis: (x: 0, y: 1, z: 0))
             .animation(.easeInOut(duration: 0.5), value: isFlipped)
@@ -230,7 +265,7 @@ struct PostDetailView: View {
     }
 
     /// 지금 접힌 정도. 0 이면 펴진 상태.
-    private var foldDepth: CGFloat { showFold ? Self.foldSize : 0 }
+    private var foldDepth: CGFloat { (showFold ? Self.foldSize : 0) * cardScale }
 
     /// 접혔다 펴지는 종이 한 장.
     ///
@@ -244,7 +279,7 @@ struct PostDetailView: View {
         ZStack {
             // 모서리가 접혔다 펴지므로 그림이 아니라 도형으로 그린다.
             // 색은 그리드 카드와 같은 그라디언트를 본다.
-            FoldedPaperShape(depth: foldDepth, cornerRadius: DoodleMetrics.canvasCornerRadius)
+            FoldedPaperShape(depth: foldDepth, cornerRadius: DoodleMetrics.canvasCornerRadius * cardScale)
                 .fill(LinearGradient.doodlePaperFace)
 
             FoldFlapShape(depth: foldDepth)
@@ -254,7 +289,7 @@ struct PostDetailView: View {
 
     /// 앞면의 그림을 가릴 마스크. 접힌 정사각형 자리에는 그림이 얹히지 않는다.
     private var frontMask: some View {
-        PaperBodyShape(depth: foldDepth, cornerRadius: DoodleMetrics.canvasCornerRadius)
+        PaperBodyShape(depth: foldDepth, cornerRadius: DoodleMetrics.canvasCornerRadius * cardScale)
     }
 
     // MARK: - 뒷면
@@ -274,11 +309,11 @@ struct PostDetailView: View {
             // SwiftUI `Text` 로는 잡히지 않는다. 자세한 사정은 `FixedLineHeightText` 에 있다.
             FixedLineHeightText(
                 text: post.text.isEmpty ? "(텍스트 없음)" : post.text,
-                font: .doodleHandwriting(size: Self.messageFontSize),
-                lineHeight: Self.messageLineHeight,
+                font: .doodleHandwriting(size: Self.messageFontSize * cardScale),
+                lineHeight: Self.messageLineHeight * cardScale,
                 color: UIColor(Color.doodlePrimary)
             )
-            .frame(width: 253)
+            .frame(width: 253 * cardScale)
 
             VStack(spacing: 0) {
             if !counterpartName.isEmpty {
