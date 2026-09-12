@@ -166,7 +166,7 @@ struct GalleryPage: View {
                 if !isOverlayShowing {
                     HStack(spacing: Self.topButtonSpacing) {
                         if canExport { exportButton }
-                        sortMenu
+                        moreMenu
                         receiveButton
                     }
                     .padding(.top, Self.titleTopInset)
@@ -536,7 +536,7 @@ struct GalleryPage: View {
     /// 리퀴드 글래스도, 고른 줄을 짚어 주는 회색 바탕도, 체크 표시도 시스템이 붙여 준다.
     /// Figma 의 `Frame 41`(198x90 · 흰색 80% · 45 짜리 두 줄 · 선택줄 `#DEDEDE` 80%)이
     /// 그리고 있는 것이 바로 그 시스템 메뉴다. 베껴 그리면 겉만 닮고 동작이 어긋난다.
-    private var sortMenu: some View {
+    private var moreMenu: some View {
         Menu {
             ForEach(GallerySortOrder.allCases, id: \.rawValue) { order in
                 Button {
@@ -550,9 +550,33 @@ struct GalleryPage: View {
                     }
                 }
             }
+
+            // 카드를 꾹 눌러야만 들어갈 수 있던 길을 주 화면에도 낸다.
+            //
+            // 애플 HIG 「Context menus」 —
+            // *Always make context menu items available in the main interface, too.*
+            // 내보내기는 􀈂 로 나와 있는데 지우기만 꾹 누르기에 숨어 있어 짝이 맞지 않았다.
+            Divider()
+
+            Button {
+                startDeleteSelection()
+            } label: {
+                Label("선택", systemImage: "checkmark.circle")
+            }
         } label: {
-            // Figma 글리프 상자가 26x24. 공유받기와 같은 20 으로 둔다.
-            Image(systemName: "list.bullet")
+            // 글리프를 `list.bullet`(정렬) 에서 `ellipsis`(더 보기) 로 바꿨다.
+            //
+            // 애플 HIG 「Toolbars」 —
+            // *Add a More menu to contain additional actions. Prioritize **less important**
+            // actions for inclusion in the More menu.*
+            // 정렬도 선택도 자주 쓰는 것이 아니라 이 메뉴의 조건에 맞는다.
+            //
+            // 버튼을 하나 더 세우지 않는 이유도 같은 문서에 있다 —
+            // *Choose items deliberately to avoid overcrowding.*
+            // 􀈂 내보내기와 􀝎 받기는 이 화면의 주된 두 동작이라 밖에 남는다.
+            //
+            // 원 크기·재질은 Figma `Frame 41` 그대로다. 바뀐 것은 안의 글리프뿐이다.
+            Image(systemName: "ellipsis")
                 .font(.system(size: 20, weight: .medium))
                 .foregroundStyle(Color.doodlePrimary)
                 .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
@@ -560,7 +584,7 @@ struct GalleryPage: View {
                 .background(.white.opacity(0.8), in: Circle())
                 .shadow(color: .black.opacity(0.05), radius: 7.5, y: 4)
         }
-        .accessibilityLabel("정렬 방법")
+        .accessibilityLabel("더 보기")
     }
 
     /// 그림을 받으러 가는 버튼. Figma `iPhone 17 - 13` 의 `Frame 25`(92:612):
@@ -664,6 +688,17 @@ struct GalleryPage: View {
     private func startSelecting(with post: Post) {
         withAnimation(.spring(response: 0.35)) {
             selectedPosts = [post.persistentModelID]
+            selectionPurpose = .delete
+            mode = .selecting
+        }
+    }
+
+    /// 더 보기 메뉴의 「선택」 으로 들어온다. 지울 그림을 고르는 자리다.
+    ///
+    /// 카드를 꾹 눌러 들어오는 쪽과 달리 빈손으로 시작한다 — 누른 카드가 없기 때문이다.
+    private func startDeleteSelection() {
+        withAnimation(.spring(response: 0.35)) {
+            selectedPosts = []
             selectionPurpose = .delete
             mode = .selecting
         }
