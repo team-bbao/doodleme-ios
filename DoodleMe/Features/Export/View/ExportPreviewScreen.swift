@@ -36,6 +36,11 @@ struct ExportPreviewScreen: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var files: [URL] = []
     @State private var current = 0
+    /// 어느 자리에 올릴 판인지. 스토리로 시작한다 — 원래 이 화면이 만들어진 규격이다.
+    @State private var ratio: ExportRatio = .story
+
+    /// 고른 판형의 카드 크기.
+    private var layout: ExportCardLayout { ExportCardLayout(ratio: ratio) }
 
     var body: some View {
         GeometryReader { proxy in
@@ -59,6 +64,8 @@ struct ExportPreviewScreen: View {
             // 점 색도 칠하지 않는다. HIG: *Avoid coloring indicator images… let the system
             // automatically color the indicators.*
             .tabViewStyle(.page)
+            // 카드들이 저마다 폭을 알아야 한다. 한 군데서 내리면 안쪽이 전부 따라온다.
+            .environment(\.exportRatio, ratio)
             // 버튼을 **카드 폭에 맞춰** 얹는다. 안전영역은 여기서만 지킨다.
             //
             // 바깥에 두면 화면 폭을 차지해, 카드가 9:16 이라 좌우가 남는
@@ -66,7 +73,7 @@ struct ExportPreviewScreen: View {
             // 카드와 관계없는 것처럼 보이고 1180 폭에서는 손도 닿지 않는다.
             .overlay(alignment: .top) {
                 topBar
-                    .frame(maxWidth: Self.slideWidth(columns: columns(in: proxy.size))
+                    .frame(maxWidth: slideWidth(columns: cardsOnCurrentSlide(in: proxy.size))
                            * fit(in: proxy.size))
                     .padding(.top, topInset(in: proxy))
             }
@@ -77,7 +84,8 @@ struct ExportPreviewScreen: View {
         // 돌려준다. 그러면 배율이 0.897 로 떨어져 카드가 화면 한가운데 작게 뜬다.
         // `PaperBackground` 주석에 적힌 것과 같은 함정이다.
         .ignoresSafeArea()
-        .task { bake() }
+        // 판을 바꾸면 다시 굽는다. 공유 시트에는 지금 보고 있는 판만 나가야 한다.
+        .task(id: ratio) { bake() }
     }
 
     /// 카드 한 장을 화면에 꽉 채워 놓는다.
@@ -142,9 +150,20 @@ struct ExportPreviewScreen: View {
         pages.chunked(by: columns(in: size))
     }
 
+    /// 지금 보고 있는 슬라이드에 **실제로** 놓인 장수.
+    ///
+    /// 마지막 슬라이드는 `columns` 보다 적을 수 있다 — 5쪽을 두 장씩 넘기면 마지막은 한 장이다.
+    /// 버튼 줄을 늘 `columns` 기준으로 재면, 그 한 장짜리 슬라이드에서 닫기·공유가
+    /// 카드에서 멀찍이 떨어진 검은 여백 끝에 붙는다. 눕힌 아이패드에서 실제로 그랬다.
+    private func cardsOnCurrentSlide(in size: CGSize) -> Int {
+        let all = slides(in: size)
+        guard all.indices.contains(current) else { return columns(in: size) }
+        return all[current].count
+    }
+
     /// 슬라이드 하나가 원래 좌표계에서 차지하는 폭.
-    private static func slideWidth(columns: Int) -> CGFloat {
-        ExportCardLayout.size.width * CGFloat(columns) + slideGap * CGFloat(columns - 1)
+    private func slideWidth(columns: Int) -> CGFloat {
+        layout.size.width * CGFloat(columns) + Self.slideGap * CGFloat(columns - 1)
     }
 
     /// 나란히 놓인 카드 사이.
@@ -152,15 +171,25 @@ struct ExportPreviewScreen: View {
 
     /// 버튼 줄이 화면 위에서 떨어져 있는 정도.
     ///
-    /// 두 가지를 함께 지킨다.
-    /// - 안전영역 아래로 `topGap` 만큼 더 내려온다.
-    ///   가로에서는 안전영역이 24 밖에 안 돼 그대로 두면 버튼이 화면 맨 위에 붙는다.
-    /// - 카드 윗변보다 `topGap` 만큼 아래에 온다. 좌우를 `sideInset` 만큼 띄운 것과 짝이 맞는다.
+    /// **카드 위에 자리가 있으면 카드 밖에 선다.**
+    /// 판이 넓어질수록 카드는 낮아져 위아래 빈 바탕이 넓어진다 —
+    /// 1:1 은 아이폰에서 위로 236 이 남는다. 그 자리를 두고 카드 안으로 들어가면
+    /// 세그먼트가 제목(「○○가 그린」)을 덮는다. 실제로 덮였다.
     ///
-    /// 세로에서는 카드가 아래쪽 규칙에, 가로에서는 안전영역 규칙에 걸린다.
+    /// 자리가 모자라면 예전대로 카드 윗변 안쪽으로 들어간다.
+    /// 9:16 을 아이폰에 띄우면 카드가 화면을 거의 채워 위에 20 밖에 안 남는데,
+    /// 거기서는 제목 위 여백(106)이 넉넉해 겹치지 않는다.
+    ///
+    /// 어느 쪽이든 안전영역 아래로 `topGap` 만큼은 내려온다.
+    /// 가로에서는 안전영역이 24 밖에 안 돼 그대로 두면 버튼이 화면 맨 위에 붙는다.
     private func topInset(in proxy: GeometryProxy) -> CGFloat {
-        let cardTop = (proxy.size.height - ExportCardLayout.size.height * fit(in: proxy.size)) / 2
-        return max(proxy.safeAreaInsets.top, cardTop) + Self.topGap
+        let cardTop = (proxy.size.height - layout.size.height * fit(in: proxy.size)) / 2
+        let safeTop = proxy.safeAreaInsets.top
+
+        let aboveCard = cardTop - Self.topGap - Self.barHeight
+        if aboveCard >= safeTop + Self.topGap { return aboveCard }
+
+        return max(safeTop, cardTop) + Self.topGap
     }
 
     /// 카드를 화면에 들어가게 맞추는 배율. 잘리지 않게 짧은 쪽에 맞춘다.
@@ -171,17 +200,29 @@ struct ExportPreviewScreen: View {
     /// 남는 자리는 닫기·공유 버튼이 앉아 종이를 가리지 않게 된다.
     private func fit(in size: CGSize) -> CGFloat {
         guard size.width > 0, size.height > 0 else { return 1 }
-        return min(size.width / Self.slideWidth(columns: columns(in: size)),
-                   size.height / ExportCardLayout.size.height)
+
+        // 여러 장이면 아래쪽에 페이지 점이 설 자리를 비운다.
+        //
+        // 비우지 않으면 카드가 화면 높이를 꽉 채우는 곳에서 점이 **종이 위에** 얹힌다 —
+        // 아이패드 세로의 9:16 이 정확히 그랬고, 점이 「@doodle.me」 바로 아래에 찍혀
+        // 내보낸 그림에 들어가는 것처럼 보였다.
+        // 위아래를 같이 비워야 카드가 계속 한가운데에 선다.
+        let room = pages.count > 1 ? Self.indexRoom * 2 : 0
+        return min(size.width / slideWidth(columns: columns(in: size)),
+                   max(size.height - room, 1) / layout.size.height)
     }
 
     private func bake() {
+        // 판형을 파일 이름에 남긴다. 사진 앱에 여러 판을 저장해 두었을 때
+        // 어느 것이 스토리용이고 어느 것이 게시물용인지 열어 보지 않고 가린다.
         files = pages.compactMap {
-            ExportRenderer.temporaryFile($0.card, name: "\(fileName)-\($0.id + 1)")
+            ExportRenderer.temporaryFile($0.card,
+                                         ratio: ratio,
+                                         name: "\(fileName)-\(ratio.fileTag)-\($0.id + 1)")
         }
     }
 
-    /// 카드 위에 떠 있는 버튼 두 개.
+    /// 카드 위에 떠 있는 줄. 양 끝에 버튼, 가운데에 판형 세그먼트.
     private var topBar: some View {
         HStack {
             Button(action: onClose) { buttonFace("xmark") }
@@ -205,6 +246,33 @@ struct ExportPreviewScreen: View {
         // `.glass` 가 기본으로 주는 모양은 캡슐이라 44 짜리 글리프에 좌우 여백이 붙어
         // 알약처럼 늘어난다. 갤러리 상단 버튼들과 같은 원으로 맞춘다.
         .buttonBorderShape(.circle)
+        // 세그먼트를 **겹쳐서** 가운데에 둔다.
+        //
+        // 같은 `HStack` 에 넣으면 공유 버튼이 아직 안 나왔을 때(굽는 중) 한쪽으로 쏠린다.
+        // 겹쳐 두면 버튼이 있든 없든 늘 화면 한가운데 선다.
+        .overlay { ratioPicker }
+    }
+
+    /// 어느 자리에 올릴지 고르는 세그먼트.
+    ///
+    /// 애플 기본 `.segmented` 그대로다. HIG 「Segmented controls」 —
+    /// *Use a segmented control to offer closely related choices that affect an object,
+    /// state, or view* — 같은 그림을 어느 판으로 내보낼지가 꼭 그 자리다.
+    ///
+    /// 고르면 미리보기가 바로 그 판으로 바뀐다. 나가기 전에 무엇이 나갈지 보게 하는 것이
+    /// 이 화면의 일이라, 굽는 순간에 묻는 메뉴보다 여기가 맞다.
+    private var ratioPicker: some View {
+        Picker("판형", selection: $ratio) {
+            ForEach(ExportRatio.allCases) { ratio in
+                Text(ratio.label)
+                    .accessibilityLabel(ratio.accessibilityLabel)
+                    .tag(ratio)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        // 좌우 버튼(각 44)과 부딪히지 않는 폭이다. 가장 좁은 아이폰에서도 60 씩 남는다.
+        .frame(maxWidth: Self.ratioPickerWidth)
     }
 
     /// 버튼 알맹이. 바탕은 `.glass` 버튼 스타일이 깔아 준다.
@@ -227,6 +295,12 @@ struct ExportPreviewScreen: View {
     }
 
     private static var sideInset: CGFloat { 18 }
+    /// 판형 세그먼트의 최대 폭.
+    private static let ratioPickerWidth: CGFloat = 220
+    /// 버튼 줄의 높이. 글리프 하나가 44 니 줄도 44 다.
+    private static let barHeight: CGFloat = 44
+    /// 카드 아래에 비워 두는 페이지 점 자리.
+    private static let indexRoom: CGFloat = 44
     /// 버튼이 안전영역·카드 윗변에서 떨어지는 정도. 좌우 여백과 같은 값이다.
     private static let topGap: CGFloat = 18
 

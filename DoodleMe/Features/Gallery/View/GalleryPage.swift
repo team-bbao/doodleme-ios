@@ -236,6 +236,16 @@ struct GalleryPage: View {
                     // Figma `iPhone 17 - 12` 의 막대.
                     // 트랙이 불투명한 흰색이라, 뒤에 어두운 막이 깔려도 배어 나오지 않는다.
                     GallerySegmentedControl(selection: $segmentedBar, scale: headerScale)
+                        // 묶음을 옮기면 골라 둔 것을 놓는다.
+                        //
+                        // 고르기는 **보고 있는 묶음 안에서만** 뜻이 있다.
+                        // 그대로 들고 넘어가면 「1장 선택됨」 이라고 하면서 체크된 카드는 한 장도
+                        // 안 보이고, 그 상태로 내보내면 「케빈이 그린 / 사람들의 첫인상」 아래에
+                        // 남이 그려 준 그림이 섞여 들어간다 — 구워서 확인했다.
+                        // 지우기도 마찬가지로 안 보이는 그림을 지우게 된다.
+                        .onChange(of: segmentedBar) { _, _ in
+                            selectedPosts = []
+                        }
                         .padding(.bottom, 20 * headerScale)
 
                     PostGridView(
@@ -392,42 +402,14 @@ struct GalleryPage: View {
         }
     }
 
-    /// 고른 그림으로 만들 카드들.
-    ///
-    /// **한 장이면 26번, 두 장부터 27번·28번이다.**
-    /// 한 장을 격자에 덩그러니 놓으면 다섯 칸이 비고, 제목도 「사람들이 그린」 이라
-    /// 한 사람이 그린 것에는 말이 맞지 않는다.
-    ///
-    /// 여러 장이면 그림 격자를 앞에, 한마디 말풍선을 뒤에 놓는다.
-    /// 넘치면 버리지 않고 페이지를 늘린다 —
-    /// 인스타그램 캐러셀이 한 게시물에 20장까지 받으므로 그대로 올릴 수 있고,
-    /// 한 장에 우겨넣어 그림이 알아볼 수 없게 작아지는 것보다 낫다.
+    /// 고른 그림으로 만들 카드들. 짜는 규칙은 `ExportComposer` 에 있다.
     private var exportPages: [ExportPage] {
         let posts = selectedPosts
             .compactMap { modelContext.registeredModel(for: $0) as Post? }
             .sorted { $0.createdAt > $1.createdAt }
-        let name = inputName.isEmpty ? "나" : inputName
-        let mine = isShowingMine
-
-        guard posts.count > 1 else {
-            guard let only = posts.first else { return [] }
-            return [ExportPage(id: 0) { ExportSinglePostCard(post: only, myName: name) }]
-        }
-
-        var pages: [ExportPage] = []
-        for slice in posts.chunked(by: ExportDrawingsCard.perPage) {
-            pages.append(ExportPage(id: pages.count) {
-                ExportDrawingsCard(posts: slice, myName: name, mine: mine)
-            })
-        }
-        // 그림 뒤에 한마디를 붙인다. 한마디가 하나도 없으면 `paginate` 가 빈 배열을 주므로
-        // 말풍선 장 자체가 생기지 않는다.
-        for slice in ExportQuotesCard.paginate(posts) {
-            pages.append(ExportPage(id: pages.count) {
-                ExportQuotesCard(posts: slice, myName: name, mine: mine)
-            })
-        }
-        return pages
+        return ExportComposer.pages(for: posts,
+                                    myName: inputName.isEmpty ? "나" : inputName,
+                                    mine: isShowingMine)
     }
 
     // MARK: - 선택 바

@@ -276,34 +276,33 @@ struct NearbySharingScreen: View {
         .disabled(arrived == nil)
     }
 
+    /// 눕힌 아이패드처럼 **넓고 낮은** 화면인지.
+    ///
+    /// 이런 화면에서는 그림과 상대 목록을 위아래로 쌓지 않고 나란히 편다.
+    /// 상세 화면이 가로에서 앞장·뒷장을 나란히 펴는 것과 같은 규칙이다.
+    private var isSpread: Bool {
+        DoodleLayout.isWide(screenSize.width, sizeClass: horizontalSizeClass)
+            && screenSize.width > screenSize.height
+    }
+
     /// 주변을 찾는 동안 보이는 화면.
     private var searchingScreen: some View {
         VStack(spacing: 15 * contentScale) {
             titleGroup
 
-            // 기다리는 동안 낙서가 계속 그려진다. 아직 찾고 있다는 뜻이다.
-            // 못 찾고 끝났으면 그리기도 멈춘다. 계속 움직이면 아직 찾는 중처럼 보인다.
-            DoodleStrokeAnimation(
-                strokes: animatedStrokes,
-                isAnimating: session?.searchTimedOut != true
-            )
-            // 자리를 꽉 채우면 그림이 답답하고 가장자리 획이 잘려 보인다.
-            // 보낼 그림이든 기본 낙서든 같은 여백을 둔다.
-            .padding(30 * contentScale)
-            // Figma `Frame 11`. 17-19 와 17-24 가 같은 324x353 을 쓴다.
-            .frame(width: Self.drawingWidth * contentScale,
-                   height: Self.drawingHeight * contentScale)
-
-            status
-
-            // 찾은 사람은 상태 문구 바로 아래에 쌓인다.
-            //
-            // Figma `iPhone 17 - 19/20/4` 가 이 카드를 y572 에 고정해 두고
-            // 사람이 늘수록 아래로 늘린다 (85 → 170 → 255).
-            // `Spacer` 뒤에 두면 카드가 화면 아래에 붙어, 한 명 늘 때마다
-            // 먼저 있던 사람이 위로 밀려 올라간다 — 새로 온 사람이 아래에서 솟는 꼴이다.
-            if post != nil, let session, !session.peers.isEmpty {
-                peerCard(session: session)
+            if isSpread {
+                // 넓고 낮은 화면에서는 그림 옆에 목록을 세운다.
+                //
+                // 위아래로 쌓으면 세로가 모자란다 — 눕힌 아이패드(820)에서 세 명을 찾으면
+                // 제목이 위로 밀려 사라지고 마지막 사람은 화면 밖으로 나갔다.
+                // 옆으로 펴면 남아도는 가로를 쓰게 되고 세로는 그림 높이만 있으면 된다.
+                HStack(alignment: .center, spacing: Self.spreadGap * contentScale) {
+                    doodleArea
+                    statusColumn
+                }
+            } else {
+                doodleArea
+                statusColumn
             }
 
             Spacer(minLength: 0)
@@ -321,6 +320,52 @@ struct NearbySharingScreen: View {
         .frame(maxWidth: .infinity)
         .padding(.top, Self.contentTop * contentScale)
     }
+
+    /// 기다리는 동안 낙서가 계속 그려진다. 아직 찾고 있다는 뜻이다.
+    /// 못 찾고 끝났으면 그리기도 멈춘다. 계속 움직이면 아직 찾는 중처럼 보인다.
+    private var doodleArea: some View {
+        DoodleStrokeAnimation(
+            strokes: animatedStrokes,
+            isAnimating: session?.searchTimedOut != true
+        )
+        // 자리를 꽉 채우면 그림이 답답하고 가장자리 획이 잘려 보인다.
+        // 보낼 그림이든 기본 낙서든 같은 여백을 둔다.
+        .padding(30 * contentScale)
+        // Figma `Frame 11`. 17-19 와 17-24 가 같은 324x353 을 쓴다.
+        .frame(width: Self.drawingWidth * contentScale,
+               height: Self.drawingHeight * contentScale)
+    }
+
+    /// 상태 문구와 찾은 사람 목록. 세로로 쌓을 때는 그림 아래, 펼 때는 그림 옆에 선다.
+    ///
+    /// Figma `iPhone 17 - 19/20/4` 가 목록 카드를 y572 에 고정해 두고
+    /// 사람이 늘수록 아래로 늘린다 (85 → 170 → 255).
+    /// `Spacer` 뒤에 두면 카드가 화면 아래에 붙어, 한 명 늘 때마다
+    /// 먼저 있던 사람이 위로 밀려 올라간다 — 새로 온 사람이 아래에서 솟는 꼴이다.
+    @ViewBuilder
+    private var statusColumn: some View {
+        let column = VStack(alignment: post == nil ? .center : .leading,
+                            spacing: 15 * contentScale) {
+            status
+
+            if post != nil, let session, !session.peers.isEmpty {
+                peerCard(session: session)
+            }
+        }
+
+        if isSpread {
+            // 펼 때는 목록이 그림과 같은 폭을 넘지 않게 잡아 둔다.
+            // 그러지 않으면 카드가 남은 가로를 다 먹어 화면 끝까지 늘어난다.
+            column.frame(width: Self.spreadColumnWidth * contentScale, alignment: .leading)
+        } else {
+            column
+        }
+    }
+
+    /// 펼쳤을 때 그림과 목록 사이.
+    private static let spreadGap: CGFloat = 28
+    /// 펼쳤을 때 목록 쪽이 쓰는 폭.
+    private static let spreadColumnWidth: CGFloat = 360
 
     /// 제목과 이름줄. Figma `iPhone 17 - 19` 의 `Frame 45`(149:524).
     ///
