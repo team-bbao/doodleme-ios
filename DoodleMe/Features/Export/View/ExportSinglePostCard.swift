@@ -80,7 +80,16 @@ struct ExportSinglePostCard: View {
     ///
     /// 따옴표는 `Crimson Text` Bold 80 이다. 손글씨체에는 쓸 만한 따옴표 글리프가 없어 따로 들였다.
     /// 닫는 따옴표는 여는 것을 180도 돌린 것이다 — Figma 도 같은 글자를 뒤집어 쓴다.
+    @ViewBuilder
     private var quote: some View {
+        // 한마디가 없으면 따옴표도 그리지 않는다.
+        // 빈 자리에 여는 따옴표와 닫는 따옴표만 남으면 무언가 지워진 것처럼 보인다.
+        if !post.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            quoteBody
+        }
+    }
+
+    private var quoteBody: some View {
         ZStack(alignment: .topLeading) {
             // 폭을 넘기면 줄을 나눈다.
             // 폭을 주지 않으면 한 줄에 우겨넣다가 「...」로 잘린다.

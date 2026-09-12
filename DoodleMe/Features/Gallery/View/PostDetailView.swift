@@ -28,9 +28,13 @@ struct PostDetailView: View {
     private static let toolbarInset: CGFloat = 5
     private static let toolbarButtonSpacing: CGFloat = 6
 
-    /// 알약 폭. 60 폭 버튼 셋 + 사이 6 둘 + 좌우 여백 5 둘.
-    /// 버튼이 둘일 때는 136 이었다.
-    private static let toolbarWidth: CGFloat = 60 * 3 + 6 * 2 + 5 * 2
+    /// 알약 폭. 60 폭 버튼 `n` 개 + 사이 6 + 좌우 여백 5 둘.
+    ///
+    /// 내가 그린 것에는 「카드로 공유」 가 빠져 둘이 되므로 개수를 받아 잰다.
+    /// 셋이면 192, 둘이면 136 — Figma `Group 4` 의 원래 값이다.
+    private static func toolbarWidth(buttons: Int) -> CGFloat {
+        60 * CGFloat(buttons) + toolbarButtonSpacing * CGFloat(buttons - 1) + 5 * 2
+    }
 
     /// 다 접혔을 때 접힌 정사각형 한 변의 길이.
     /// memoFront 에셋의 접힌 자리를 캔버스 크기로 환산한 값이다.
@@ -151,17 +155,27 @@ struct PostDetailView: View {
 
                 // 내보내기 카드를 먼저 보여 주고, 거기서 시스템 공유 시트로 넘긴다.
                 // 사진 저장·인스타그램·AirDrop 이 모두 그 시트 안에 들어 있다.
-                Button {
-                    showExportPreview = true
-                } label: {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.title2)
+                //
+                // **남이 나를 그려 준 것에만 낸다.**
+                // 카드 제목이 「**에리카**가 그린 / **케빈**의 첫인상」 이라
+                // 그린 사람과 그려진 사람이 따로 있어야 말이 된다.
+                // 내가 그린 것에 붙이면 보낸 사람 이름이 없어
+                // 「doodle.me 사용자가 그린 / 케빈의 첫인상」 이라는 엉뚱한 제목이 나온다 —
+                // 내가 그렸는데 낯선 사람이 그린 것처럼 읽힌다.
+                // 갤러리의 27·28번도 같은 이유로 「나를 그린」 에서만 낸다.
+                if !post.isMine {
+                    Button {
+                        showExportPreview = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.title2)
+                    }
+                    .buttonStyle(CardToolbarButtonStyle())
+                    .accessibilityLabel("카드로 공유")
                 }
-                .buttonStyle(CardToolbarButtonStyle())
-                .accessibilityLabel("카드로 공유")
             }
             .padding(.horizontal, Self.toolbarInset)
-            .frame(width: Self.toolbarWidth, height: 48)
+            .frame(width: Self.toolbarWidth(buttons: post.isMine ? 2 : 3), height: 48)
             // 흰 알약 대신 유리. 갤러리 하단 선택 바와 같은 재질이다.
             // 안에 누를 것이 셋 들어 있으므로 HIG 대로 `interactive` 를 건다.
             .glassEffect(.regular.interactive(), in: .capsule)
