@@ -28,6 +28,10 @@ struct PostDetailView: View {
     private static let toolbarInset: CGFloat = 5
     private static let toolbarButtonSpacing: CGFloat = 6
 
+    /// 알약 폭. 60 폭 버튼 셋 + 사이 6 둘 + 좌우 여백 5 둘.
+    /// 버튼이 둘일 때는 136 이었다.
+    private static let toolbarWidth: CGFloat = 60 * 3 + 6 * 2 + 5 * 2
+
     /// 다 접혔을 때 접힌 정사각형 한 변의 길이.
     /// memoFront 에셋의 접힌 자리를 캔버스 크기로 환산한 값이다.
     private static let foldSize: CGFloat = 100
@@ -36,6 +40,11 @@ struct PostDetailView: View {
     /// 두 상태를 오갈 때 걸리는 시간. 주기에 비해 길면 계속 움직이는 느낌이 든다.
     private static let foldFade: TimeInterval = 0.35
     @State private var showSharingScreen = false
+    /// 내보낼 카드를 먼저 보여 주는 화면이 떠 있는지.
+    @State private var showExportPreview = false
+
+    /// 갤러리 머리말이 쓰는 것과 같은 이름. 내보내기 카드의 제목에 들어간다.
+    @AppStorage("userName") private var userName = ""
     @State private var showSaveAlert = false
     @State private var saveMessage = ""
 
@@ -70,6 +79,21 @@ struct PostDetailView: View {
         .fullScreenCover(isPresented: $showSharingScreen) {
             NearbySharingScreen(post: post) { showSharingScreen = false }
         }
+        .fullScreenCover(isPresented: $showExportPreview) {
+            ExportPreviewScreen(
+                pages: [ExportPage(id: 0) { ExportSinglePostCard(post: post, myName: myName) }],
+                fileName: "doodleme-\(post.persistentModelID.hashValue.magnitude)"
+            ) {
+                showExportPreview = false
+            }
+        }
+    }
+
+    /// 제목의 「○○의 첫인상」 자리에 들어갈 내 이름.
+    ///
+    /// 갤러리 머리말에서 고친 이름과 같은 값을 본다.
+    private var myName: String {
+        userName.isEmpty ? "나" : userName
     }
 
     /// Figma `iPhone 17 - 14` 의 `Frame 6`: 화면 좌상단 (18, 72) 에 44x44.
@@ -94,7 +118,7 @@ struct PostDetailView: View {
         VStack(spacing: 24) {
 
             // Figma `iPhone 17 - 17`(평소) · `iPhone 17 - 14`(눌림) 의 `Group 4`.
-            // 흰색 80% 알약 136x48 안에 60 폭 버튼 둘.
+            // 원래 흰색 80% 알약 136x48 안에 60 폭 버튼 둘이었고, 내보내기가 늘어 셋이 되었다.
             HStack(spacing: Self.toolbarButtonSpacing) {
                 Button {
                     showSharingScreen = true
@@ -106,6 +130,13 @@ struct PostDetailView: View {
                 .buttonStyle(CardToolbarButtonStyle())
                 .accessibilityLabel("가까운 친구에게 보내기")
 
+                // 사진 앱에 **그림만** 남긴다. 흰 바탕에 획뿐이고 종이도 제목도 없다 —
+                // `snapshotData()` 에 그 뜻이 적혀 있다: 「사진첩에 남는 건 그림이지 종이가 아니다」.
+                //
+                // 옆의 공유 버튼과 겹치지 않는다.
+                // 애플 HIG 「Activity views」 가 금하는 것은 **액티비티 뷰에 이미 있는 동작**을
+                // 따로 만드는 것인데, 공유 시트가 넘기는 것은 종이·제목·꼬리말이 붙은 **카드**다.
+                // 남는 결과물이 서로 달라 중복이 아니다.
                 Button {
                     Task { await saveDrawingToGallery() }
                 } label: {
@@ -113,10 +144,21 @@ struct PostDetailView: View {
                         .font(.title2)
                 }
                 .buttonStyle(CardToolbarButtonStyle())
-                .accessibilityLabel("사진에 저장")
+                .accessibilityLabel("그림만 사진에 저장")
+
+                // 내보내기 카드를 먼저 보여 주고, 거기서 시스템 공유 시트로 넘긴다.
+                // 사진 저장·인스타그램·AirDrop 이 모두 그 시트 안에 들어 있다.
+                Button {
+                    showExportPreview = true
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.title2)
+                }
+                .buttonStyle(CardToolbarButtonStyle())
+                .accessibilityLabel("카드로 공유")
             }
             .padding(.horizontal, Self.toolbarInset)
-            .frame(width: 136, height: 48)
+            .frame(width: Self.toolbarWidth, height: 48)
             .background(.white.opacity(0.8), in: Capsule())
             .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
             .padding(.bottom, 10)
