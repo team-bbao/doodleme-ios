@@ -66,7 +66,7 @@ struct ExportPreviewScreen: View {
             .overlay(alignment: .top) {
                 topBar
                     .frame(maxWidth: ExportCardLayout.size.width * fit(in: proxy.size))
-                    .padding(.top, proxy.safeAreaInsets.top)
+                    .padding(.top, topInset(in: proxy))
             }
         }
         // `.ignoresSafeArea()` 는 `GeometryReader` **자신**에게 걸어야 한다.
@@ -108,6 +108,19 @@ struct ExportPreviewScreen: View {
             .clipped()
             .offset(y: proxy.frame(in: .global).minY - inner.frame(in: .global).minY)
         }
+    }
+
+    /// 버튼 줄이 화면 위에서 떨어져 있는 정도.
+    ///
+    /// 두 가지를 함께 지킨다.
+    /// - 안전영역 아래로 `topGap` 만큼 더 내려온다.
+    ///   가로에서는 안전영역이 24 밖에 안 돼 그대로 두면 버튼이 화면 맨 위에 붙는다.
+    /// - 카드 윗변보다 `topGap` 만큼 아래에 온다. 좌우를 `sideInset` 만큼 띄운 것과 짝이 맞는다.
+    ///
+    /// 세로에서는 카드가 아래쪽 규칙에, 가로에서는 안전영역 규칙에 걸린다.
+    private func topInset(in proxy: GeometryProxy) -> CGFloat {
+        let cardTop = (proxy.size.height - ExportCardLayout.size.height * fit(in: proxy.size)) / 2
+        return max(proxy.safeAreaInsets.top, cardTop) + Self.topGap
     }
 
     /// 카드를 화면에 들어가게 맞추는 배율. 잘리지 않게 짧은 쪽에 맞춘다.
@@ -174,6 +187,8 @@ struct ExportPreviewScreen: View {
     }
 
     private static var sideInset: CGFloat { 18 }
+    /// 버튼이 안전영역·카드 윗변에서 떨어지는 정도. 좌우 여백과 같은 값이다.
+    private static let topGap: CGFloat = 18
 
     /// 카드 뒤에 까는 바탕.
     ///
