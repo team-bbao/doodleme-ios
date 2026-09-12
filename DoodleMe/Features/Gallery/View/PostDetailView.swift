@@ -64,8 +64,19 @@ struct PostDetailView: View {
                                          sizeClass: horizontalSizeClass)
         guard byWidth > 1, screenSize.height > 0 else { return 1 }
         let room = screenSize.height - Self.verticalChrome
-        return max(1, min(byWidth, room / Self.baseBlockHeight))
+        let byHeight = room / Self.baseBlockHeight
+
+        // 펼쳐 놓으면 카드가 **두 장** 나란히 서므로 폭도 따로 본다.
+        // 이것 없이 세로 기준만 쓰면 눕혔을 때 두 장이 화면 좌우로 넘쳐 잘린다 — 실제로 그랬다.
+        let byPairWidth = isSpread
+            ? (screenSize.width - Self.horizontalChrome) / (Self.cardSize.width * 2 + 24)
+            : .greatestFiniteMagnitude
+
+        return max(1, min(byWidth, byHeight, byPairWidth))
     }
+
+    /// 펼쳤을 때 좌우로 비워 두는 몫. 바깥 여백과 그림자 자리다.
+    private static let horizontalChrome: CGFloat = 140
 
     /// 카드 덩이가 쓸 수 없는 세로 몫.
     ///
@@ -206,47 +217,35 @@ struct PostDetailView: View {
             .glassEffect(.regular.interactive(), in: .capsule)
             .padding(.bottom, 10)
 
-            ZStack {
-                // 앞면: 그림
-                //
-                // 접힌 모서리와 접힘 없는 둥근 사각형을 번갈아 보여준다.
-                // 뒤집을 수 있는 카드라는 걸 가만히 알려주는 신호다.
-                //
-                // 반경은 그리던 캔버스와 같은 값이라 그림이 잘린 모양과 정확히 맞물린다.
-                // 색도 에셋에서 뽑은 값이라 두 상태를 오갈 때 본체 색이 흔들리지 않는다.
-                paperFace
-                    .frame(width: Self.cardSize.width * cardScale, height: Self.cardSize.height * cardScale)
-                .shadow(color: .black.opacity(0.25), radius: 10)
-                .overlay {
-                    DoodleImageView(drawingData: post.drawingData)
-                        .mask { frontMask }
+            // 넓고 낮은 화면(아이패드 가로)에서는 앞뒤를 나란히 편다.
+            //
+            // 좌우가 크게 남는데 카드 하나만 가운데 서 있으면 그 자리가 버려진다.
+            // 펼쳐 놓으면 그림과 한마디를 한눈에 본다 — 뒤집을 필요가 없어지므로
+            // 그 화면에서는 뒤집기도 끄고 접힘 신호도 내지 않는다.
+            if isSpread {
+                HStack(spacing: 24 * cardScale) {
+                    frontFace
+                    backFace
                 }
-                .opacity(isFlipped ? 0 : 1)
+                .padding(.bottom, 80)
+            } else {
+                ZStack {
+                    frontFace
+                        .opacity(isFlipped ? 0 : 1)
 
-                // 뒷면: 정보
-                //
-                // 앞면과 같은 주기로 접혔다 펴진다. 뒷면은 글씨가 가운데에 모여 있어
-                // 접힌 모서리와 겹치지 않는다.
-                //
-                // memoBack 에셋에는 좌하단이 어두워지는 그라디언트가 들어 있어
-                // 뒤집는 순간 앞면에 없던 음영이 생긴다. 그래서 앞면용 에셋을 쓴다.
-                // 좌우를 뒤집어 두어 접힌 모서리가 오른쪽 아래에 온다.
-                paperFace
-                    .scaleEffect(x: -1, y: 1)
-                    .frame(width: Self.cardSize.width * cardScale, height: Self.cardSize.height * cardScale)
-                .shadow(color: .black.opacity(0.25), radius: 10)
-                .overlay { backFaceContent }
-                .opacity(isFlipped ? 1 : 0)
-                .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
-            }
-            // 아래 여백은 키우지 않는다.
-            // 카드를 화면 한가운데보다 조금 위에 두려고 넣은 값인데,
-            // 배율을 먹이면 아이패드에서 120 이 되어 덩이가 위로 치우친다.
-            .padding(.bottom, 80)
-            .rotation3DEffect(.degrees(isFlipped ? 180 : 0), axis: (x: 0, y: 1, z: 0))
-            .animation(.easeInOut(duration: 0.5), value: isFlipped)
-            .onTapGesture {
-                isFlipped.toggle()
+                    backFace
+                        .opacity(isFlipped ? 1 : 0)
+                        .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
+                }
+                // 아래 여백은 키우지 않는다.
+                // 카드를 화면 한가운데보다 조금 위에 두려고 넣은 값인데,
+                // 배율을 먹이면 아이패드에서 120 이 되어 덩이가 위로 치우친다.
+                .padding(.bottom, 80)
+                .rotation3DEffect(.degrees(isFlipped ? 180 : 0), axis: (x: 0, y: 1, z: 0))
+                .animation(.easeInOut(duration: 0.5), value: isFlipped)
+                .onTapGesture {
+                    isFlipped.toggle()
+                }
             }
         }
         .padding()
@@ -264,8 +263,51 @@ struct PostDetailView: View {
         }
     }
 
+    /// 앞면: 그림.
+    ///
+    /// 접힌 모서리와 접힘 없는 둥근 사각형을 번갈아 보여준다.
+    /// 뒤집을 수 있는 카드라는 걸 가만히 알려주는 신호다.
+    ///
+    /// 반경은 그리던 캔버스와 같은 값이라 그림이 잘린 모양과 정확히 맞물린다.
+    private var frontFace: some View {
+        paperFace
+            .frame(width: Self.cardSize.width * cardScale,
+                   height: Self.cardSize.height * cardScale)
+            .shadow(color: .black.opacity(0.25), radius: 10)
+            .overlay {
+                DoodleImageView(drawingData: post.drawingData)
+                    .mask { frontMask }
+            }
+    }
+
+    /// 뒷면: 보낸 사람과 한마디.
+    ///
+    /// memoBack 에셋에는 좌하단이 어두워지는 그라디언트가 들어 있어
+    /// 뒤집는 순간 앞면에 없던 음영이 생긴다. 그래서 앞면용 에셋을 쓴다.
+    /// 좌우를 뒤집어 두어 접힌 모서리가 오른쪽 아래에 온다.
+    private var backFace: some View {
+        paperFace
+            .scaleEffect(x: -1, y: 1)
+            .frame(width: Self.cardSize.width * cardScale,
+                   height: Self.cardSize.height * cardScale)
+            .shadow(color: .black.opacity(0.25), radius: 10)
+            .overlay { backFaceContent }
+    }
+
+    /// 앞뒤를 나란히 펼칠지.
+    ///
+    /// 넓고 **낮은** 화면에서만 편다 — 아이패드를 눕혔을 때다.
+    /// 세로로 세우면 좌우가 남지 않아 나란히 놓을 자리가 없고, 아이폰은 어느 방향이든 좁다.
+    private var isSpread: Bool {
+        DoodleLayout.isWide(screenSize.width, sizeClass: horizontalSizeClass)
+            && screenSize.width > screenSize.height
+    }
+
     /// 지금 접힌 정도. 0 이면 펴진 상태.
-    private var foldDepth: CGFloat { (showFold ? Self.foldSize : 0) * cardScale }
+    ///
+    /// 펼쳐 놓았으면 접지 않는다. 접힘은 「뒤집을 수 있다」 는 신호인데
+    /// 이미 뒤가 보이는 자리에서는 알릴 것이 없다.
+    private var foldDepth: CGFloat { (showFold && !isSpread ? Self.foldSize : 0) * cardScale }
 
     /// 접혔다 펴지는 종이 한 장.
     ///
