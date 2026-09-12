@@ -241,6 +241,11 @@ open DoodleMe.xcodeproj
 | 에셋 | 출처 | 조건 |
 | --- | --- | --- |
 | `RF대충쓴준우체v3` (`DoodleMe/Resources/Fonts/RFjunwooo.ttf`) | RixFont | 출처를 밝히면 상업적 사용 가능 |
+| `Crimson Text` Bold (`DoodleMe/Resources/Fonts/CrimsonText-Bold.ttf`) | [Google Fonts](https://github.com/google/fonts/tree/main/ofl/crimsontext) · Sebastian Kosch | **SIL Open Font License 1.1** — 상업적 사용·수정·재배포 자유. 글꼴 자체를 파는 것만 금지 |
+
+> **Crimson Text** — 내보내기 카드의 큰 따옴표(`“`)에 쓴다.
+> 손글씨체에는 어울리는 따옴표 글리프가 없어 세리프체를 따로 들였다.
+> `Copyright 2010 The Crimson Text Project Authors`. OFL 전문은 위 링크의 `OFL.txt` 참고.
 
 > 글꼴 출처를 **사용자가 볼 수 있는 자리**에 적어야 한다.
 > 아직 그럴 화면(정보·라이선스)이 없으므로, 배포 전에 앱스토어 설명이나 정보 화면에 넣을 것.
