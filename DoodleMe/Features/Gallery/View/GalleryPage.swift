@@ -221,8 +221,19 @@ struct GalleryPage: View {
                         title: "프로필 사진으로 설정하시겠습니까?",
                         cancelTitle: "아니오",
                         confirmTitle: "예",
+                        // 「취소」 는 확인창만 닫는 것이 아니라 **갤러리로 돌아간다.**
+                        //
+                        // 예전에는 확인창만 닫혀 고르기 모드에 그대로 남았다.
+                        // 그런데 이 모드에는 무엇을 하라는 말도, 나가는 길도 보이지 않는다 —
+                        // 빈 곳을 눌러야 빠져나가는데 그건 눈에 띄지 않는 길이다.
+                        // 「취소」 가 나가는 길을 겸하면 막대를 따로 세우지 않아도 된다.
+                        //
+                        // 다른 그림으로 바꾸려면 ✎ 를 한 번 더 누르면 된다.
                         onCancel: {
-                            withAnimation(.spring(response: 0.3)) { profileCandidatePost = nil }
+                            withAnimation(.spring(response: 0.3)) {
+                                profileCandidatePost = nil
+                                mode = .browsing
+                            }
                         },
                         onConfirm: {
                             confirmProfile()
