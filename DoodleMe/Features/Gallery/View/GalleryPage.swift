@@ -18,6 +18,20 @@ struct GalleryPage: View {
     @Query(filter: #Predicate<Post> { !$0.isMine },
            sort: \Post.createdAt, order: .reverse) private var receivedPosts: [Post]
 
+    /// 내가 남을 그려 준 것들. 「내가 그린」 묶음과 같은 조건이다.
+    @Query(filter: #Predicate<Post> { $0.isMine && !$0.isProfile },
+           sort: \Post.createdAt, order: .reverse) private var myPosts: [Post]
+
+    /// 지금 보고 있는 묶음. 내보내기가 이것을 통째로 가져간다.
+    private var postsInSection: [Post] {
+        GallerySection(rawValue: segmentedBar) == .receivedFromOthers ? receivedPosts : myPosts
+    }
+
+    /// 지금 보고 있는 것이 내가 그린 것인지. 카드 제목의 두 이름이 자리를 바꾼다.
+    private var isShowingMine: Bool {
+        GallerySection(rawValue: segmentedBar) != .receivedFromOthers
+    }
+
     private var profilePost: Post? { profilePosts.first }
 
     @Environment(\.modelContext) private var modelContext
@@ -393,6 +407,7 @@ struct GalleryPage: View {
             .compactMap { modelContext.registeredModel(for: $0) as Post? }
             .sorted { $0.createdAt > $1.createdAt }
         let name = inputName.isEmpty ? "나" : inputName
+        let mine = isShowingMine
 
         guard posts.count > 1 else {
             guard let only = posts.first else { return [] }
@@ -402,14 +417,14 @@ struct GalleryPage: View {
         var pages: [ExportPage] = []
         for slice in posts.chunked(by: ExportDrawingsCard.perPage) {
             pages.append(ExportPage(id: pages.count) {
-                ExportDrawingsCard(posts: slice, myName: name)
+                ExportDrawingsCard(posts: slice, myName: name, mine: mine)
             })
         }
         // 그림 뒤에 한마디를 붙인다. 한마디가 하나도 없으면 `paginate` 가 빈 배열을 주므로
         // 말풍선 장 자체가 생기지 않는다.
         for slice in ExportQuotesCard.paginate(posts) {
             pages.append(ExportPage(id: pages.count) {
-                ExportQuotesCard(posts: slice, myName: name)
+                ExportQuotesCard(posts: slice, myName: name, mine: mine)
             })
         }
         return pages
@@ -680,16 +695,16 @@ struct GalleryPage: View {
                 .shadow(color: .black.opacity(0.05), radius: 7.5, y: 4)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("받은 그림 내보내기")
+        .accessibilityLabel("그림 내보내기")
     }
 
     /// 내보낼 것이 있는지.
     ///
-    /// 「나를 그린」 에서만 낸다. Figma `iPhone 17 - 27 / 28` 의 제목이
-    /// 「**사람들이** 그린 / ○○의 첫인상」 이라 남이 나를 그려 준 것에만 뜻이 맞는다.
-    /// 한 장도 없으면 눌러도 빈 종이만 나오므로 버튼 자체를 내지 않는다.
+    /// 두 묶음 모두 낸다. 카드 제목의 두 이름이 자리를 바꿀 뿐이다 —
+    /// 「**사람들**이 그린 / **케빈**의 첫인상」 · 「**케빈**이 그린 / **사람들**의 첫인상」.
+    /// 한 장도 없으면 눌러도 빈 종이만 나오므로 그때는 버튼을 내지 않는다.
     private var canExport: Bool {
-        GallerySection(rawValue: segmentedBar) == .receivedFromOthers && !receivedPosts.isEmpty
+        !postsInSection.isEmpty
     }
 
     // MARK: - 동작
