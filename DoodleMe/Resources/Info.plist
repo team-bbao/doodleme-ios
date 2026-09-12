@@ -5,6 +5,7 @@
 	<key>UIAppFonts</key>
 	<array>
 		<string>CallifontDaynoteJellypen-Medium.ttf</string>
+		<string>CrimsonText-Bold.ttf</string>
 	</array>
 	<key>NSBonjourServices</key>
 	<array>

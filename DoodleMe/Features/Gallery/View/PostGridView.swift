@@ -32,7 +32,7 @@ struct PostGridView: View {
     /// `Post` 자체가 아니라 식별자를 담는다.
     /// SwiftData 모델은 `Hashable` 이지만 지워지면 내용을 읽는 순간 터진다.
     /// 식별자만 들고 있으면 지워진 뒤에도 집합을 다루는 것 자체는 안전하다.
-    @Binding var selectedForDeletion: Set<PersistentIdentifier>
+    @Binding var selectedPosts: Set<PersistentIdentifier>
 
     /// 카드를 꾹 눌러 고른 동작. 화면 전환은 `GalleryPage` 가 맡는다.
     var onShare: ((Post) -> Void)?
@@ -178,7 +178,7 @@ struct PostGridView: View {
             // 카드가 옅게 덮이고 동그라미가 채워지는 것은 눈으로만 오는 신호다.
             // 여러 장을 빠르게 고를 때는 화면을 계속 확인하지 않게 되는데,
             // 그때 눌린 것이 먹었는지 알 길이 없다.
-            .sensoryFeedback(.selection, trigger: selectedForDeletion)
+            .sensoryFeedback(.selection, trigger: selectedPosts)
         }
     }
 
@@ -328,7 +328,7 @@ struct PostGridView: View {
         case .choosingProfile:
             profileCandidatePost?.persistentModelID == post.persistentModelID
         case .selecting:
-            selectedForDeletion.contains(post.persistentModelID)
+            selectedPosts.contains(post.persistentModelID)
         }
     }
 
@@ -353,10 +353,10 @@ struct PostGridView: View {
             // 지우는 일이라 되돌릴 길을 눌렀던 그 자리에 둔다.
             let id = post.persistentModelID
             withAnimation(.spring(response: 0.25, dampingFraction: 0.72)) {
-                if selectedForDeletion.contains(id) {
-                    selectedForDeletion.remove(id)
+                if selectedPosts.contains(id) {
+                    selectedPosts.remove(id)
                 } else {
-                    selectedForDeletion.insert(id)
+                    selectedPosts.insert(id)
                 }
             }
         }
@@ -371,7 +371,7 @@ struct PostGridView: View {
         selectedPost: .constant(nil),
         profileCandidatePost: .constant(nil),
         postPendingDelete: .constant(nil),
-        selectedForDeletion: .constant([]),
+        selectedPosts: .constant([]),
         postToShow: .constant(nil)
     )
     .modelContainer(LocalDataStore.makePreviewContainer())
