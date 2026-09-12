@@ -24,10 +24,16 @@ struct ExportCard<Content: View>: View {
     let title: ExportCardTitle
     @ViewBuilder var content: Content
 
+    /// 지금 굽는 판형. 좌우 폭만 여기에 달렸고 세로는 어느 판이든 같다.
+    @Environment(\.exportRatio) private var ratio
+
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        let layout = ExportCardLayout(ratio: ratio)
+
+        return ZStack(alignment: .topLeading) {
             // 종이가 카드 전체를 덮는다. Figma 도 프레임(402)보다 넓게 x -70 에서 544 폭으로
             // 깔아 두었다 — 9:16 으로 넓힌 490 이 그 안에 들어간다.
+            // 1:1(871)은 그보다 넓지만 종이는 늘어나는 무늬라 이어 붙여도 티가 나지 않는다.
             //
             // 화면용 `PaperBackground` 를 쓰지 않는다.
             // 그건 `GeometryReader` + `.ignoresSafeArea()` 라 **화면**을 채우도록 만든 것이라,
@@ -36,12 +42,12 @@ struct ExportCard<Content: View>: View {
             Image(.papertype1)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
-                .frame(width: ExportCardLayout.size.width, height: ExportCardLayout.size.height)
+                .frame(width: layout.size.width, height: layout.size.height)
                 .clipped()
                 .accessibilityHidden(true)
 
             // Figma 의 402 폭 구성은 **좌표를 하나도 건드리지 않고** 가운데에 놓는다.
-            // 9:16 을 만드느라 넓힌 좌우(각 44)는 종이만 이어진다.
+            // 판형을 만드느라 넓힌 좌우(9:16 은 각 44, 4:5 는 147, 1:1 은 235)는 종이만 이어진다.
             ZStack(alignment: .topLeading) {
                 title
                     .frame(width: ExportCardLayout.contentWidth, alignment: .center)
@@ -54,11 +60,11 @@ struct ExportCard<Content: View>: View {
                     .offset(y: ExportCardLayout.footerTop)
             }
             .frame(width: ExportCardLayout.contentWidth,
-                   height: ExportCardLayout.size.height,
+                   height: layout.size.height,
                    alignment: .topLeading)
-            .offset(x: ExportCardLayout.contentLeft)
+            .offset(x: layout.contentLeft)
         }
-        .frame(width: ExportCardLayout.size.width, height: ExportCardLayout.size.height)
+        .frame(width: layout.size.width, height: layout.size.height)
         .clipped()
     }
 
@@ -79,26 +85,39 @@ struct ExportCard<Content: View>: View {
 ///
 /// 제네릭인 `ExportCard` 안에는 `static let` 을 둘 수 없어 따로 뺐다.
 /// 덕분에 `ExportCard<EmptyView>.size` 같은 군더더기 없이 어디서나 곧바로 가져다 쓴다.
-enum ExportCardLayout {
+///
+/// **판형마다 폭만 달라진다.** 세로와 안쪽 좌표는 어느 판이든 같으므로
+/// `titleTop` 처럼 세로에 매인 값은 그대로 `static` 이고,
+/// 폭에 매인 `size`·`contentLeft` 만 판형을 받아 계산한다.
+struct ExportCardLayout {
 
-    /// 카드 한 장의 크기. **인스타그램 스토리 규격인 9:16** 이다.
+    /// 어느 자리에 올릴 판인지.
+    let ratio: ExportRatio
+
+    /// 카드 한 장의 크기.
     ///
     /// Figma 프레임은 402x871(1 : 2.167)이라 인스타그램이 그대로 받지 못한다.
     /// 피드는 4:5 까지, 스토리는 9:16 이라 올리면 위아래가 잘리거나 양옆에 검은 띠가 남는다.
     /// 실제로 구워 보니 피드에서 **위아래 각 21.2%** 가 날아가 제목과 「@doodle.me」 가 사라졌다.
     ///
-    /// 그래서 세로는 Figma 그대로 두고 **좌우만 넓혀** 9:16 을 만든다.
-    /// 안쪽 구성은 402 좌표계에 그대로 있고 넓힌 자리는 종이만 이어지므로,
-    /// Figma 초안이 한 군데도 바뀌지 않는다.
-    static let size = CGSize(width: contentHeight * 9 / 16, height: contentHeight)
+    /// 그래서 세로는 Figma 그대로 두고 **좌우만 넓힌다.**
+    /// 쓰는 판형 셋이 모두 Figma 원본보다 가로로 넓어(0.5625 · 0.8 · 1 > 0.4616)
+    /// 같은 방법으로 셋 다 만들어진다 — 안쪽 구성은 402 좌표계에 그대로 있고
+    /// 넓힌 자리는 종이만 이어지므로, Figma 초안이 한 군데도 바뀌지 않는다.
+    ///
+    /// 높이가 셋 다 871 로 같아서 구운 파일이 딱 떨어진다 —
+    /// 1080x1920 · 1080x1350 · 1080x1080.
+    var size: CGSize {
+        CGSize(width: Self.contentHeight * ratio.value, height: Self.contentHeight)
+    }
+
+    /// 넓힌 카드 안에서 Figma 구성이 시작하는 x. 좌우로 똑같이 나눠 가진다.
+    var contentLeft: CGFloat { (size.width - Self.contentWidth) / 2 }
 
     /// Figma 프레임의 폭. 안쪽 구성이 쓰는 좌표계다.
     static let contentWidth: CGFloat = 402
     /// Figma 프레임의 높이. 카드 높이가 곧 이것이다.
     private static let contentHeight: CGFloat = 871
-
-    /// 넓힌 카드 안에서 Figma 구성이 시작하는 x. 좌우로 똑같이 나눠 가진다.
-    static let contentLeft = (size.width - contentWidth) / 2
 
     /// 제목 윗변. Figma `222:1799` 의 y.
     static let titleTop: CGFloat = 112
@@ -143,8 +162,9 @@ struct ExportCardTitle: View {
     /// 손글씨체에 Bold 가 없어 쓴 수법이다. 한 번만 그리면 눈에 띄게 가늘어져 같게 맞춘다.
     /// 겹치는 쪽은 화면 낭독기에 숨겨 같은 글을 두 번 읽지 않게 한다.
     private func line(name: String, tail: String) -> some View {
+        let shown = Self.fitted(name, tail: tail)
         let glyphs = HStack(spacing: 0) {
-            Text(name)
+            Text(shown)
             Text(tail)
         }
         .font(.doodleHandwriting(size: Self.fontSize))
@@ -157,7 +177,7 @@ struct ExportCardTitle: View {
                     .accessibilityHidden(true)
             }
             .frame(height: Self.lineHeight)
-            .overlay(alignment: .topLeading) { underline(under: name) }
+            .overlay(alignment: .topLeading) { underline(under: shown) }
     }
 
     /// 이름 밑줄.
@@ -178,6 +198,33 @@ struct ExportCardTitle: View {
             .fill(Self.underlineColor)
             .frame(width: width, height: Self.underlineThickness)
             .offset(y: Self.underlineTop)
+    }
+
+    /// 한 줄에 들어가도록 줄인 이름.
+    ///
+    /// **글자와 밑줄이 같은 것을 보게 하려고 여기서 한 번만 자른다.**
+    /// 그냥 두면 `Text` 가 알아서 말줄임으로 자르는데 밑줄은 자르기 **전** 폭으로 그어진다 —
+    /// 이름은 15자까지 쓸 수 있어 한글로 채우면 재 본 폭이 700 을 넘고,
+    /// 자른 글자 밑에만 있어야 할 선이 「의 첫인상」 을 지나 카드 밖까지 뻗었다.
+    /// 열다섯 자짜리 이름으로 구워서 확인했다.
+    private static func fitted(_ name: String, tail: String) -> String {
+        let font = UIFont.doodleHandwriting(size: fontSize)
+        let tailWidth = (tail as NSString).size(withAttributes: [.font: font]).width
+        let available = max(ExportCardLayout.contentWidth - tailWidth, 0)
+
+        guard (name as NSString).size(withAttributes: [.font: font]).width > available else {
+            return name
+        }
+
+        var body = name
+        while !body.isEmpty {
+            let candidate = body + "…"
+            if (candidate as NSString).size(withAttributes: [.font: font]).width <= available {
+                return candidate
+            }
+            body.removeLast()
+        }
+        return ""
     }
 
     private static let fontSize: CGFloat = 40

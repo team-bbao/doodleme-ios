@@ -20,6 +20,16 @@ struct ExportDrawingsCard: View {
     /// 남들이 나를 그린 것은 「사람들이 그린 / **케빈**의 첫인상」,
     /// 내가 남들을 그린 것은 「**케빈**이 그린 / 사람들의 첫인상」.
     let mine: Bool
+    /// 이번 내보내기에서 **한 쪽에 가장 많이 들어가는 장수.** 칸 크기를 이걸로 정한다.
+    ///
+    /// 이 장에 실린 장수로 칸을 정하면 같은 내보내기 안에서 쪽마다 그림 크기가 달라진다 —
+    /// 열 장을 고르면 1쪽은 여섯 장이라 칸이 작고 2쪽은 네 장이라 칸이 커져,
+    /// 재 보니 **3.2배** 차이가 났다. 두 장을 나란히 넘겨 보면 대번에 어긋나 보인다.
+    /// 그래서 칸 크기는 쪽이 아니라 **내보내기 전체**가 정한다.
+    let gridBasis: Int
+
+    /// 지금 굽는 판형. 여섯 장이 안 될 때 격자가 쓰는 폭이 여기에 달렸다.
+    @Environment(\.exportRatio) private var ratio
 
     /// 제목. 이름에만 밑줄이 그어지므로 이름이 어느 줄에 오는지에 따라 자리가 바뀐다.
     private var cardTitle: ExportCardTitle {
@@ -51,7 +61,7 @@ struct ExportDrawingsCard: View {
     /// 열 중심 134 / 265(간격 131), 행 중심 338 / 479 / 620(간격 141).
     private var grid: some View {
         let shown = Array(posts.prefix(Self.perPage))
-        let layout = Self.layout(for: shown.count)
+        let layout = Self.layout(for: shown.count, basis: gridBasis, ratio: ratio)
 
         return ZStack(alignment: .topLeading) {
             ForEach(Array(shown.enumerated()), id: \.offset) { index, post in
@@ -118,19 +128,27 @@ struct ExportDrawingsCard: View {
         }
     }
 
-    /// 장수에 맞춰 격자를 짠다.
+    /// 장수와 판형에 맞춰 격자를 짠다.
     ///
-    /// **여섯 장이면 Figma 그대로다.** 디자이너가 잡아 둔 자리가 있으니 건드리지 않는다 —
+    /// **9:16 여섯 장은 Figma 그대로다.** 디자이너가 잡아 둔 자리가 있으니 건드리지 않는다 —
     /// 열 중심 134 / 265, 행 중심 338 / 479 / 620.
     ///
-    /// 그보다 적으면 남는 줄을 없애고 **칸을 키운다.**
-    /// 여섯 칸 자리를 그대로 두면 세 장일 때 아래 한 줄이 통째로 비고 그림은 칸을 제대로 못 채운다 —
-    /// 인스타그램에서 작게 보면 뭘 그렸는지 알아볼 수 없다.
-    /// 넓어진 카드 폭(9:16 으로 490)까지 함께 쓰므로 세 장이면 칸이 **1.6배** 커진다.
+    /// 그 밖에는 **칸이 가장 커지는 열 수**를 고른다.
+    /// 2열에 못박아 두면 카드가 넓어져도 격자는 402 폭에 갇혀 가운데로 몰린다 —
+    /// 1:1 로 여섯 장을 구우면 격자가 카드 폭의 **29%** 밖에 안 썼다.
+    /// 6 = 2x3 = 3x2 이므로 카드가 가로로 길어지면 격자도 눕히면 된다(73%, 칸은 1.6배).
+    ///
+    /// 바꾸는 기준을 **1.1배**로 둔 것은 9:16 을 지키기 위해서다.
+    /// 거기서는 3열이 2열보다 1.5% 밖에 안 커서 저절로 Figma 배치가 남는다 —
+    /// 판형을 손으로 가려내지 않아도 규칙 하나로 갈린다.
     ///
     /// 마지막 줄이 한 칸만 남으면 가운데로 모은다. 왼쪽에 붙여 두면 오른쪽이 휑하다.
-    private static func layout(for count: Int) -> GridLayout {
-        guard count < perPage else {
+    private static func layout(for count: Int, basis: Int, ratio: ExportRatio) -> GridLayout {
+        let area = adaptiveArea(ratio: ratio)
+        let columns = columnCount(for: basis, in: area)
+
+        // 9:16 에서 여섯 장이 다 찬 쪽. Figma 자리를 그대로 쓴다.
+        if count >= perPage, columns == figmaColumnCenters.count {
             return GridLayout(
                 cell: figmaCell,
                 centers: figmaRowCenters.flatMap { y in
@@ -139,47 +157,83 @@ struct ExportDrawingsCard: View {
             )
         }
 
+        // 칸 크기는 이 장의 장수가 아니라 `basis` 가 정한다.
+        // 이 장의 장수로 잡으면 아홉 장을 5·4 로 나눴을 때 1쪽은 세 줄, 2쪽은 두 줄이 되어
+        // 칸이 271 과 416 으로 벌어진다 — 쪽을 고르게 나눠 놓고도 크기가 어긋난다.
+        let cell = cellSize(for: basis, columns: columns, in: area)
+
         let n = max(count, 1)
-        let columns = min(n, 2)
-        let rows = (n + columns - 1) / columns
-
-        let byWidth = (adaptiveArea.width - CGFloat(columns - 1) * gap) / CGFloat(columns)
-        let byHeight = (adaptiveArea.height - CGFloat(rows - 1) * gap) / CGFloat(rows)
-            * DoodleMetrics.canvasSize.width / DoodleMetrics.canvasSize.height
-        let width = min(byWidth, byHeight)
-        let cell = CGSize(
-            width: width,
-            height: width * DoodleMetrics.canvasSize.height / DoodleMetrics.canvasSize.width
-        )
-
+        let inLine = min(columns, n)
+        let rows = (n + inLine - 1) / inLine
         let gridHeight = CGFloat(rows) * cell.height + CGFloat(rows - 1) * gap
-        let firstRowY = adaptiveArea.midY - gridHeight / 2 + cell.height / 2
+        let firstRowY = area.midY - gridHeight / 2 + cell.height / 2
 
         var centers: [CGPoint] = []
         for index in 0 ..< n {
-            let row = index / columns
-            let inRow = index % columns
-            let inThisRow = min(columns, n - row * columns)
+            let row = index / inLine
+            let inRow = index % inLine
+            let inThisRow = min(inLine, n - row * inLine)
             let rowWidth = CGFloat(inThisRow) * cell.width + CGFloat(inThisRow - 1) * gap
             centers.append(CGPoint(
-                x: adaptiveArea.midX - rowWidth / 2 + CGFloat(inRow) * (cell.width + gap) + cell.width / 2,
+                x: area.midX - rowWidth / 2 + CGFloat(inRow) * (cell.width + gap) + cell.width / 2,
                 y: firstRowY + CGFloat(row) * (cell.height + gap)
             ))
         }
         return GridLayout(cell: cell, centers: centers)
     }
 
+    /// `basis` 장을 가장 크게 담는 열 수.
+    ///
+    /// 예전 규칙(2열)을 기준으로 삼고, 그보다 `columnGain` 배 넘게 커질 때만 바꾼다.
+    /// 조금 커지는 정도로 열 수를 흔들면 장수가 하나 달라질 때마다 배치가 튄다.
+    private static func columnCount(for basis: Int, in area: CGRect) -> Int {
+        let items = max(basis, 1)
+        let baseline = min(items, 2)
+        let baselineWidth = cellSize(for: items, columns: baseline, in: area).width
+
+        var best = baseline
+        var bestWidth = baselineWidth
+        for columns in 1 ... items where columns != baseline {
+            let width = cellSize(for: items, columns: columns, in: area).width
+            if width > bestWidth { best = columns; bestWidth = width }
+        }
+        return bestWidth > baselineWidth * columnGain ? best : baseline
+    }
+
+    /// `items` 장을 `columns` 열로 놓을 때 칸 하나의 크기. 캔버스 비율(350:390)을 지킨다.
+    private static func cellSize(for items: Int, columns: Int, in area: CGRect) -> CGSize {
+        let columns = max(columns, 1)
+        let rows = (max(items, 1) + columns - 1) / columns
+        let byWidth = (area.width - CGFloat(columns - 1) * gap) / CGFloat(columns)
+        let byHeight = (area.height - CGFloat(rows - 1) * gap) / CGFloat(rows)
+            * DoodleMetrics.canvasSize.width / DoodleMetrics.canvasSize.height
+        let width = max(min(byWidth, byHeight), 1)
+        return CGSize(
+            width: width,
+            height: width * DoodleMetrics.canvasSize.height / DoodleMetrics.canvasSize.width
+        )
+    }
+
+    /// 열 수를 바꾸려면 칸이 이만큼은 커져야 한다.
+    private static let columnGain: CGFloat = 1.1
+
     /// 여섯 장이 안 될 때 격자가 쓸 수 있는 자리.
     ///
     /// 가로는 **카드 전체 폭**(9:16 으로 넓힌 490)에서 좌우 30 씩 남긴 만큼이다.
     /// `content` 좌표계는 402 라 왼쪽으로 넘어가므로 x 가 음수로 시작한다.
     /// 세로는 제목 아래(268)에서 꼬리말 위(740)까지 — Figma 가 쓰던 690 보다 50 더 내려간다.
-    private static let adaptiveArea = CGRect(
-        x: -ExportCardLayout.contentLeft + sideMargin,
-        y: 268,
-        width: ExportCardLayout.size.width - sideMargin * 2,
-        height: 740 - 268
-    )
+    ///
+    /// 판형이 넓어지면 이 자리도 같이 넓어진다. 두 장을 1:1 로 구우면
+    /// 칸이 9:16 의 두 배 가까이 커져 정사각형 판을 제대로 채운다.
+    private static func adaptiveArea(ratio: ExportRatio) -> CGRect {
+        let layout = ExportCardLayout(ratio: ratio)
+        return CGRect(
+            x: -layout.contentLeft + sideMargin,
+            y: 268,
+            width: layout.size.width - sideMargin * 2,
+            height: 740 - 268
+        )
+    }
 
     /// Figma `iPhone 17 - 27` 의 열·행 중심.
     private static let figmaColumnCenters: [CGFloat] = [134, 265]

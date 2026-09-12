@@ -109,22 +109,48 @@ struct ExportSinglePostCard: View {
     }
 
     private var quoteBody: some View {
-        ZStack(alignment: .topLeading) {
+        let top = quoteTop
+        let lastLine = top + CGFloat(quoteLines - 1) * Self.quoteLineHeight
+
+        return ZStack(alignment: .topLeading) {
             // 폭을 넘기면 줄을 나눈다.
             // 폭을 주지 않으면 한 줄에 우겨넣다가 「...」로 잘린다.
             BakedLineHeightText(
                 post.text,
                 font: .doodleHandwriting(size: 30),
-                lineHeight: 44,
+                lineHeight: Self.quoteLineHeight,
                 color: .doodlePrimary,
-                width: Self.quoteTextSize.width
+                width: Self.quoteTextSize.width,
+                maxLines: Self.maxQuoteLines
             )
             .frame(width: Self.quoteTextSize.width)
-            .offset(x: Self.quoteTextOrigin.x, y: Self.quoteTextOrigin.y)
+            .offset(x: Self.quoteTextOrigin.x, y: top)
 
-            mark(at: Self.openQuoteOrigin, flipped: false)
-            mark(at: Self.closeQuoteOrigin, flipped: true)
+            // 따옴표는 글과 함께 움직인다. 여는 쪽은 첫 줄, 닫는 쪽은 **마지막 줄**에 선다 —
+            // Figma 도 두 줄짜리 예시에서 닫는 따옴표를 둘째 줄에 두었다(644 + 44 = 688).
+            mark(at: CGPoint(x: Self.openQuoteOrigin.x, y: top), flipped: false)
+            mark(at: CGPoint(x: Self.closeQuoteOrigin.x, y: lastLine), flipped: true)
         }
+    }
+
+    /// 한마디가 차지하는 줄 수. 넘치면 `maxQuoteLines` 에서 끊긴다.
+    private var quoteLines: Int {
+        let counted = BakedLineHeightText.lineCount(
+            post.text,
+            font: .doodleHandwriting(size: 30),
+            width: Self.quoteTextSize.width
+        )
+        return min(max(counted, 1), Self.maxQuoteLines)
+    }
+
+    /// 한마디 첫 줄의 윗변.
+    ///
+    /// 두 줄까지는 Figma 자리(644) 그대로다. 그보다 길어지면 **위로 밀어 올린다** —
+    /// 그러지 않으면 꼬리말(812) 자리로 흘러내린다. 네 줄짜리 한마디를 구워 보니
+    /// 마지막 줄이 「너도 친구의 첫인상을 그려봐.」 에 닿았다.
+    private var quoteTop: CGFloat {
+        let height = CGFloat(quoteLines) * Self.quoteLineHeight
+        return min(Self.quoteTextOrigin.y, Self.quoteBandBottom - height)
     }
 
     /// 따옴표 한 개.
@@ -151,11 +177,24 @@ struct ExportSinglePostCard: View {
     private static let markOrigin = CGPoint(x: 37, y: 248)
     private static let markSide: CGFloat = 67
 
+    /// 한마디 글상자. Figma 는 x 89 에서 폭 270 인데, 그러면 오른쪽 끝이 닫는 따옴표(354~396)와
+    /// 겹친다. 따옴표 사이에 꼭 맞게 좁힌다 — 여는 쪽 끝(82)과 닫는 쪽 시작(354) 사이다.
     private static let quoteTextOrigin = CGPoint(x: 89, y: 644)
-    private static let quoteTextSize = CGSize(width: 270, height: 88)
+    private static let quoteTextSize = CGSize(width: 258, height: 88)
     private static let openQuoteOrigin = CGPoint(x: 40, y: 644)
     private static let closeQuoteOrigin = CGPoint(x: 354, y: 688)
     private static let quoteSize = CGSize(width: 42, height: 34)
+
+    private static let quoteLineHeight: CGFloat = 44
+    /// 한마디 띠의 아랫변. 꼬리말(812) 위로 16 을 남긴다.
+    private static let quoteBandBottom: CGFloat = 796
+    /// 한마디 띠의 윗변. 메모지 아랫변(238 + 379 = 617)에서 3 을 띄운다.
+    private static let quoteBandTop: CGFloat = 620
+    /// 담을 수 있는 최대 줄 수. 띠 높이를 행높이로 나눈 값이라 넷이다.
+    /// 그보다 길면 말줄임표로 끊는다 — 꼬리말을 덮는 것보다 낫다.
+    private static var maxQuoteLines: Int {
+        Int((quoteBandBottom - quoteBandTop) / quoteLineHeight)
+    }
 
     /// PostScript 이름. 파일은 `Resources/Fonts/CrimsonText-Bold.ttf`, `Info.plist` 의 `UIAppFonts` 에 등록돼 있다.
     private static let quoteFontName = "CrimsonText-Bold"

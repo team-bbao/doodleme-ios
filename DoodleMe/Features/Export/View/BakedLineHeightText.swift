@@ -24,22 +24,49 @@ struct BakedLineHeightText: View {
     let lineHeight: CGFloat
     let color: Color
 
-    /// - Parameter width: 이 폭에서 넘치면 줄을 나눈다. `nil` 이면 `\n` 에서만 나눈다.
+    /// - Parameters:
+    ///   - width: 이 폭에서 넘치면 줄을 나눈다. `nil` 이면 `\n` 에서만 나눈다.
+    ///   - maxLines: 여기서 끊고 말줄임표를 붙인다. `nil` 이면 줄 수를 제한하지 않는다.
     init(_ text: String,
          font: UIFont,
          lineHeight: CGFloat,
          color: Color,
-         width: CGFloat? = nil) {
+         width: CGFloat? = nil,
+         maxLines: Int? = nil) {
         self.uiFont = font
         self.lineHeight = lineHeight
         self.color = color
 
         let paragraphs = text.components(separatedBy: "\n")
+        let all: [String]
         if let width {
-            self.lines = paragraphs.flatMap { Self.wrapped($0, font: font, width: width) }
+            all = paragraphs.flatMap { Self.wrapped($0, font: font, width: width) }
         } else {
-            self.lines = paragraphs
+            all = paragraphs
         }
+
+        if let maxLines, all.count > maxLines, maxLines > 0 {
+            var kept = Array(all.prefix(maxLines))
+            kept[maxLines - 1] = Self.elided(kept[maxLines - 1], font: font, width: width)
+            self.lines = kept
+        } else {
+            self.lines = all
+        }
+    }
+
+    /// 마지막 줄 끝에 말줄임표를 붙인다. 폭을 넘기면 글자를 하나씩 덜어낸다.
+    private static func elided(_ line: String, font: UIFont, width: CGFloat?) -> String {
+        let ellipsis = "…"
+        guard let width else { return line + ellipsis }
+
+        var body = line
+        while !body.isEmpty {
+            let candidate = body + ellipsis
+            let size = (candidate as NSString).size(withAttributes: [.font: font])
+            if size.width <= width { return candidate }
+            body.removeLast()
+        }
+        return ellipsis
     }
 
     var body: some View {

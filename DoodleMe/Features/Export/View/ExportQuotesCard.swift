@@ -22,6 +22,9 @@ struct ExportQuotesCard: View {
     /// 내가 남들을 그린 것은 「**케빈**이 말하는 / 사람들의 첫인상」.
     let mine: Bool
 
+    /// 지금 굽는 판형. 말풍선 폭이 여기에 달렸다.
+    @Environment(\.exportRatio) private var ratio
+
     /// 제목. 이름에만 밑줄이 그어지므로 이름이 어느 줄에 오는지에 따라 자리가 바뀐다.
     private var cardTitle: ExportCardTitle {
         mine
@@ -47,14 +50,17 @@ struct ExportQuotesCard: View {
         ZStack(alignment: .topLeading) {
             ForEach(Array(laidOut.enumerated()), id: \.offset) { index, item in
                 bubble(item.post, height: item.height, tailOnLeft: item.tailOnLeft)
-                    .offset(x: Self.bodyLeft, y: item.top)
+                    .offset(x: Self.bodyLeft(for: ratio), y: item.top)
             }
         }
     }
 
     /// 말풍선 한 개. 몸통·글·따옴표가 한 덩이로 움직인다.
     private func bubble(_ post: Post, height: CGFloat, tailOnLeft: Bool) -> some View {
-        ZStack(alignment: .topLeading) {
+        let bodyWidth = Self.bodyWidth(for: ratio)
+        let textWidth = Self.textWidth(for: ratio)
+
+        return ZStack(alignment: .topLeading) {
             // 꼬리를 먼저 깔고 몸통을 위에 얹는다. Figma SVG 도 둘을 따로 두고 각각 그림자를 건다.
             // 한 Path 로 합치면 겹친 자리가 도로 뚫린다 — `SpeechBubbleTail` 주석 참고.
             //
@@ -62,12 +68,12 @@ struct ExportQuotesCard: View {
             // SwiftUI 반경은 CSS blur 의 절반이라 stdDeviation 과 같은 값이 된다.
             SpeechBubbleTail(tailOnLeft: tailOnLeft)
                 .fill(.white)
-                .frame(width: Self.bodyWidth, height: height)
+                .frame(width: bodyWidth, height: height)
                 .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
 
             RoundedRectangle(cornerRadius: SpeechBubbleTail.cornerRadius)
                 .fill(.white)
-                .frame(width: Self.bodyWidth, height: height)
+                .frame(width: bodyWidth, height: height)
                 .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
 
             BakedLineHeightText(
@@ -75,12 +81,12 @@ struct ExportQuotesCard: View {
                 font: .doodleHandwriting(size: Self.textSize),
                 lineHeight: Self.lineHeight,
                 color: .doodlePrimary,
-                width: Self.textWidth
+                width: textWidth
             )
-            .frame(width: Self.textWidth, height: height - Self.padding * 2)
-            .offset(x: (Self.bodyWidth - Self.textWidth) / 2, y: Self.padding)
+            .frame(width: textWidth, height: height - Self.padding * 2)
+            .offset(x: (bodyWidth - textWidth) / 2, y: Self.padding)
 
-            quoteMark(height: height, tailOnLeft: tailOnLeft)
+            quoteMark(height: height, tailOnLeft: tailOnLeft, in: bodyWidth)
         }
     }
 
@@ -90,7 +96,7 @@ struct ExportQuotesCard: View {
     /// 말이 시작하고 끝나는 자리를 꼬리가 가리키는 쪽과 맞춘 것이다 — Figma 셋 다 그렇다.
     ///
     /// 닫는 쪽은 **좌우로 뒤집는다.** `ExportSinglePostCard` 에 같은 기록이 있다.
-    private func quoteMark(height: CGFloat, tailOnLeft: Bool) -> some View {
+    private func quoteMark(height: CGFloat, tailOnLeft: Bool, in bodyWidth: CGFloat) -> some View {
         Text("\u{201C}")
             .font(.custom(Self.quoteFontName, size: Self.quoteFontSize))
             .foregroundStyle(Self.quoteColor)
@@ -98,7 +104,7 @@ struct ExportQuotesCard: View {
             .scaleEffect(x: tailOnLeft ? 1 : -1, y: 1)
             .offset(x: tailOnLeft
                     ? Self.quoteInset
-                    : Self.bodyWidth - Self.quoteSize.width - Self.quoteInset,
+                    : bodyWidth - Self.quoteSize.width - Self.quoteInset,
                     y: tailOnLeft
                     ? Self.quoteTopInset
                     : height - Self.quoteSize.height - Self.quoteBottomInset)
@@ -116,11 +122,18 @@ struct ExportQuotesCard: View {
     }
 
     /// 위에서부터 차례로 쌓는다. 높이가 제각각이라 자리를 미리 계산해 둔다.
+    ///
+    /// **덜 찬 쪽은 세로 가운데로 모은다.**
+    /// 마지막 쪽은 말풍선이 둘뿐일 때가 많은데, 그대로 위에 붙여 두면
+    /// 종이 아래 절반이 통째로 빈다 — 열 장을 골라 구워 보니 그런 장이 넉 장 중 둘이었다.
+    /// 27번 격자가 「마지막 줄이 한 칸만 남으면 가운데로 모은다」 고 한 것과 같다.
+    ///
+    /// 가득 찬 쪽(`maxPerPage`)은 Figma 자리(227)를 그대로 쓴다.
     private var laidOut: [Placed] {
         var result: [Placed] = []
-        var y = Self.contentTop
+        var y = Self.contentTop + topSlack
         for (index, post) in posts.enumerated() {
-            let height = Self.bodyHeight(for: post)
+            let height = Self.bodyHeight(for: post, ratio: ratio)
             result.append(Placed(post: post, top: y, height: height,
                                  tailOnLeft: index.isMultiple(of: 2)))
             y += height + SpeechBubbleTail.tailDrop + Self.gap
@@ -128,15 +141,24 @@ struct ExportQuotesCard: View {
         return result
     }
 
+    /// 덜 찬 쪽에서 위로 더 내려오는 만큼. 가득 찬 쪽에서는 0 이다.
+    private var topSlack: CGFloat {
+        guard posts.count < Self.maxPerPage else { return 0 }
+        let stack = posts.reduce(CGFloat.zero) { $0 + Self.bodyHeight(for: $1, ratio: ratio) }
+            + CGFloat(posts.count) * SpeechBubbleTail.tailDrop
+            + CGFloat(max(posts.count - 1, 0)) * Self.gap
+        return max((Self.available - stack) / 2, 0)
+    }
+
     /// 글에 맞춘 몸통 높이.
     ///
     /// Figma 의 129.669(두 줄) · 187(세 줄)은 손으로 잡은 값이라 위아래 여백이 20.8 과 27.5 로
     /// 서로 다르다. 두 줄짜리 쪽을 따라 21 로 맞춘다 — 129.669 와 0.3 차이다.
-    static func bodyHeight(for post: Post) -> CGFloat {
+    static func bodyHeight(for post: Post, ratio: ExportRatio = .story) -> CGFloat {
         let lines = BakedLineHeightText.lineCount(
             post.text,
             font: .doodleHandwriting(size: textSize),
-            width: textWidth
+            width: textWidth(for: ratio)
         )
         return CGFloat(max(lines, 1)) * lineHeight + padding * 2
     }
@@ -149,6 +171,9 @@ struct ExportQuotesCard: View {
     ///
     /// 한 장에 세 개까지다(Figma 가 셋). 다만 긴 한마디가 겹치면 셋이 안 들어가므로
     /// 높이를 더해 보고 넘치면 거기서 끊는다.
+    /// **쪽 나눔은 9:16 을 기준으로 잰다.**
+    /// 판형마다 다르게 나누면 세그먼트를 건드릴 때마다 쪽수가 달라져 보던 자리를 잃는다.
+    /// 넓은 판은 말풍선이 더 넓어 줄이 줄어들 뿐이라, 9:16 에서 들어간 것은 어디서나 들어간다.
     static func paginate(_ posts: [Post]) -> [[Post]] {
         let speaking = posts.filter {
             !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -172,6 +197,16 @@ struct ExportQuotesCard: View {
             page.append(post)
         }
         if !page.isEmpty { pages.append(page) }
+
+        // 마지막 쪽에 하나만 남으면 앞 쪽에서 하나를 넘겨 준다.
+        //
+        // 열 개면 3·3·3·1 이 되어 마지막 장이 말풍선 하나만 띄운 텅 빈 종이가 된다.
+        // 27번 격자가 「마지막 줄이 한 칸만 남으면 가운데로 모은다」 고 한 것과 같은 이유다.
+        if pages.count >= 2, pages[pages.count - 1].count == 1,
+           pages[pages.count - 2].count >= 2 {
+            let moved = pages[pages.count - 2].removeLast()
+            pages[pages.count - 1].insert(moved, at: 0)
+        }
         return pages
     }
 
@@ -187,12 +222,37 @@ struct ExportQuotesCard: View {
     /// 꼬리 끝까지 넣어 쓸 수 있는 세로 길이. 꼬리말(812) 앞에서 멈춘다.
     private static let available: CGFloat = 568
 
-    /// Figma `Rectangle 4` 의 폭. 프레임(402) 가운데에 선다.
-    private static let bodyWidth: CGFloat = 342
-    private static let bodyLeft: CGFloat = (ExportCardLayout.contentWidth - bodyWidth) / 2
+    /// 말풍선 몸통의 폭.
+    ///
+    /// Figma `Rectangle 4` 는 342 다 — 9:16 카드(490)의 70% 라 알맞게 찬다.
+    /// 그런데 판형이 넓어져도 342 로 두면 1:1(871)에서는 **39%** 만 써서 좌우가 텅 빈다.
+    /// 그래서 카드 폭에 비례해 넓히되 `maxBodyWidth` 에서 멈춘다 —
+    /// 끝까지 늘리면 한 줄이 600 을 넘어, 손글씨로 읽기에 너무 긴 줄이 된다.
+    static func bodyWidth(for ratio: ExportRatio) -> CGFloat {
+        let card = ExportCardLayout(ratio: ratio).size.width
+        let story = ExportCardLayout(ratio: .story).size.width
+        return min(figmaBodyWidth * card / story, maxBodyWidth)
+    }
 
-    /// 글이 들어갈 폭. Figma `222:1906` 이 302 — 좌우 20 씩 남긴 값이다.
-    private static let textWidth: CGFloat = 302
+    private static func bodyLeft(for ratio: ExportRatio) -> CGFloat {
+        (ExportCardLayout.contentWidth - bodyWidth(for: ratio)) / 2
+    }
+
+    /// Figma `Rectangle 4` 의 폭.
+    private static let figmaBodyWidth: CGFloat = 342
+    /// 넓은 판에서 말풍선이 커지는 한계. 4:5 와 1:1 은 둘 다 여기서 멈춘다.
+    private static let maxBodyWidth: CGFloat = 480
+
+    /// 글이 들어갈 폭. 몸통에서 좌우 모서리의 따옴표 자리를 뺀 만큼이다.
+    ///
+    /// Figma 는 302(좌우 20 씩)를 쓰지만 그러면 **따옴표가 글자 위에 얹힌다.**
+    /// 따옴표는 모서리에 붙어 x 10..52 와 290..332 를 차지하는데 302 짜리 글상자는 20..322 라
+    /// 양쪽 32 씩이 겹친다. Figma 예시 글이 짧아 드러나지 않았을 뿐, 한 줄이 폭을 채우면
+    /// 「같」 위에 닫는 따옴표가 그대로 포개진다 — 구워서 확인했다.
+    /// 그래서 모서리를 비켜 간다.
+    static func textWidth(for ratio: ExportRatio) -> CGFloat {
+        bodyWidth(for: ratio) - (quoteInset + quoteSize.width) * 2
+    }
     private static let textSize: CGFloat = 30
     private static let lineHeight: CGFloat = 44
     private static let padding: CGFloat = 21
