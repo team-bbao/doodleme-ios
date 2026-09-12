@@ -421,9 +421,21 @@ struct GalleryPage: View {
         // HIG: *for custom controls or containers with interactive elements, add the
         // interactive modifier to the glass effect.*
         .glassEffect(.regular.interactive(), in: .capsule)
+        // 넓은 화면에서 끝까지 늘어나지 않게 막는다.
+        //
+        // 아이패드 가로(1180)에서 화면 폭을 꽉 채우면 「취소」 가 맨 왼쪽,
+        // 「삭제」·「내보내기」 가 맨 오른쪽에 붙어 손이 닿지 않고 가운데만 휑하다.
+        // 탭바가 서 있던 자리를 물려받는 막대이므로 탭바처럼 가운데에 모아 둔다.
+        // 아이폰(402)에서는 이 값에 닿지 않아 지금과 똑같다.
+        .frame(maxWidth: Self.selectionBarMaxWidth)
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, Self.contentInset)
         .padding(.bottom, Self.selectionBarBottomInset)
     }
+
+    /// 선택 바가 아무리 넓어도 이보다 넓어지지 않는다.
+    /// 아이폰(402 - 좌우 20)보다 조금 여유를 둔 값이다.
+    private static let selectionBarMaxWidth: CGFloat = 440
 
     /// 선택 바가 화면 아래에서 떨어져 있는 정도.
     /// 탭바가 서 있던 자리와 같은 높이라 홈 인디케이터를 피한다.

@@ -102,13 +102,16 @@ struct PostDetailView: View {
     /// 눌러야 할 곳이 보이지 않으면 처음 온 사람은 빠져나갈 방법을 찾지 못한다.
     private var backButton: some View {
         Button(action: onClose) {
+            // 흰 원을 직접 그리지 않는다. 그림 위에 떠 있는 조작부라 유리가 맞는 자리다 —
+            // 애플 HIG 「Materials」: *Liquid Glass forms a distinct functional layer for
+            // controls and navigation elements … that floats above the content layer.*
+            // 내보내기 미리보기의 닫기 버튼과 같은 재질이어야 한다.
             Image(systemName: "chevron.backward")
                 .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(Color.doodlePrimary)
                 .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
-                .background(.white, in: Circle())
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
         }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
         .padding(.leading, 18)
         .padding(.top, 72)
         .accessibilityLabel("뒤로")
@@ -159,8 +162,9 @@ struct PostDetailView: View {
             }
             .padding(.horizontal, Self.toolbarInset)
             .frame(width: Self.toolbarWidth, height: 48)
-            .background(.white.opacity(0.8), in: Capsule())
-            .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
+            // 흰 알약 대신 유리. 갤러리 하단 선택 바와 같은 재질이다.
+            // 안에 누를 것이 셋 들어 있으므로 HIG 대로 `interactive` 를 건다.
+            .glassEffect(.regular.interactive(), in: .capsule)
             .padding(.bottom, 10)
 
             ZStack {

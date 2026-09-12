@@ -58,6 +58,16 @@ struct ExportPreviewScreen: View {
             // 점 색도 칠하지 않는다. HIG: *Avoid coloring indicator images… let the system
             // automatically color the indicators.*
             .tabViewStyle(.page)
+            // 버튼을 **카드 폭에 맞춰** 얹는다. 안전영역은 여기서만 지킨다.
+            //
+            // 바깥에 두면 화면 폭을 차지해, 카드가 9:16 이라 좌우가 남는
+            // 아이패드 가로에서 버튼만 검은 여백 맨 끝에 붙는다.
+            // 카드와 관계없는 것처럼 보이고 1180 폭에서는 손도 닿지 않는다.
+            .overlay(alignment: .top) {
+                topBar
+                    .frame(maxWidth: ExportCardLayout.size.width * fit(in: proxy.size))
+                    .padding(.top, proxy.safeAreaInsets.top)
+            }
         }
         // `.ignoresSafeArea()` 는 `GeometryReader` **자신**에게 걸어야 한다.
         //
@@ -65,7 +75,6 @@ struct ExportPreviewScreen: View {
         // 돌려준다. 그러면 배율이 0.897 로 떨어져 카드가 화면 한가운데 작게 뜬다.
         // `PaperBackground` 주석에 적힌 것과 같은 함정이다.
         .ignoresSafeArea()
-        .overlay(alignment: .top) { topBar }
         .task { bake() }
     }
 
@@ -119,7 +128,7 @@ struct ExportPreviewScreen: View {
         }
     }
 
-    /// 카드 위에 떠 있는 버튼 두 개. 안전영역은 여기서만 지킨다.
+    /// 카드 위에 떠 있는 버튼 두 개.
     private var topBar: some View {
         HStack {
             Button(action: onClose) { buttonFace("xmark") }
