@@ -240,15 +240,36 @@ open DoodleMe.xcodeproj
 
 | 에셋 | 출처 | 조건 |
 | --- | --- | --- |
-| `RF대충쓴준우체v3` (`DoodleMe/Resources/Fonts/RFjunwooo.ttf`) | RixFont | 출처를 밝히면 상업적 사용 가능 |
+| `캘리폰트 하루일기 젤리펜` (`DoodleMe/Resources/Fonts/CallifontDaynoteJellypen-Medium.ttf`) | Callifont | **확인 필요** — 아래 참고 |
 | `Crimson Text` Bold (`DoodleMe/Resources/Fonts/CrimsonText-Bold.ttf`) | [Google Fonts](https://github.com/google/fonts/tree/main/ofl/crimsontext) · Sebastian Kosch | **SIL Open Font License 1.1** — 상업적 사용·수정·재배포 자유. 글꼴 자체를 파는 것만 금지 |
 
 > **Crimson Text** — 내보내기 카드의 큰 따옴표(`“`)에 쓴다.
 > 손글씨체에는 어울리는 따옴표 글리프가 없어 세리프체를 따로 들였다.
 > `Copyright 2010 The Crimson Text Project Authors`. OFL 전문은 위 링크의 `OFL.txt` 참고.
 
-> 글꼴 출처를 **사용자가 볼 수 있는 자리**에 적어야 한다.
-> 아직 그럴 화면(정보·라이선스)이 없으므로, 배포 전에 앱스토어 설명이나 정보 화면에 넣을 것.
+### 손글씨체 배포 조건 — 확인이 필요하다
+
+**아직 확인하지 못한 채로 앱이 App Store 에 나가 있다.**
+
+글꼴 파일이 스스로 밝히고 있는 것은 이것뿐이다.
+
+| | |
+| --- | --- |
+| 저작권 | `Copyright 2026. Callifont.com all rights reserved.` |
+| 라이선스 | `Callifont` |
+| 라이선스 URL | `Callifont.com` |
+| PostScript 이름 | `CallifontDaynoteJellypen-Medium` |
+
+허용 범위가 파일 어디에도 적혀 있지 않다. 확인할 것 두 가지다.
+
+1. **상업적 사용이 되는가.** 앱은 무료지만 App Store 에 배포된 상태다.
+2. **출처를 밝혀야 하는가.** 밝혀야 한다면 어디에, 어떤 문구로 적어야 하는지.
+
+출처 표기가 필요하다면 **앱에는 아직 정보·라이선스 화면이 없다.**
+새로 만들거나, 앱스토어 설명란에 적는 것으로 갈음할 수 있는지 함께 확인한다.
+
+> 이 글꼴은 `d049cda` 에서 이전 글꼴(RealFont `RF대충쓴준우체v3`)을 대신해 들어왔다.
+> 그때 이 표가 함께 갱신되지 않아, 한동안 **쓰지도 않는 글꼴**의 조건이 적혀 있었다.
 
 ## 팀
 
