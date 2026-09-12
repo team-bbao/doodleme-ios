@@ -14,24 +14,31 @@ struct ExportDrawingsCard: View {
 
     /// 이 페이지에 실을 그림들. `perPage` 장을 넘겨 주지 않는다.
     let posts: [Post]
-    /// 그림을 받은 사람. 보통 앱을 쓰는 나다.
+    /// 앱을 쓰는 나.
     let myName: String
+    /// 내가 그린 것인지. 제목의 두 이름이 자리를 바꾼다 —
+    /// 남들이 나를 그린 것은 「사람들이 그린 / **케빈**의 첫인상」,
+    /// 내가 남들을 그린 것은 「**케빈**이 그린 / 사람들의 첫인상」.
+    let mine: Bool
+
+    /// 제목. 이름에만 밑줄이 그어지므로 이름이 어느 줄에 오는지에 따라 자리가 바뀐다.
+    private var cardTitle: ExportCardTitle {
+        mine
+            ? ExportCardTitle(firstName: myName,
+                              firstTail: "\(myName.subjectParticle) 그린",
+                              secondName: "",
+                              secondTail: "사람들의 첫인상")
+            : ExportCardTitle(firstName: "",
+                              firstTail: "사람들이 그린",
+                              secondName: myName,
+                              secondTail: "의 첫인상")
+    }
 
     /// 한 장에 들어가는 최대 장수. Figma 가 2열 x 3행으로 여섯 칸을 둔다.
     static let perPage = 6
 
     var body: some View {
-        ExportCard(
-            title: ExportCardTitle(
-                // 첫 줄에는 밑줄이 없다. Figma 렌더를 보면 밑줄 벡터가 둘째 줄 이름 아래에만 있다.
-                // 26번은 첫 줄이 「**에리카**가 그린」 — 그린 사람 이름이라 밑줄이 붙지만,
-                // 여기는 「사람들」 이라 가리키는 사람이 없다. 28번도 같다.
-                firstName: "",
-                firstTail: "사람들이 그린",
-                secondName: myName,
-                secondTail: "의 첫인상"
-            )
-        ) {
+        ExportCard(title: cardTitle) {
             grid
         }
     }
