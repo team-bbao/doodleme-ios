@@ -130,11 +130,26 @@ final class MultipeerSession {
     static let searchWindow: Duration = .seconds(10)
 
     func start() {
-        guard advertiser == nil, browser == nil else { return }
+        // 시간이 다 돼 찾기만 멈춘 상태(알리기는 살아 있음)에서도 다시 찾을 수 있어야 한다.
+        guard browser == nil else { return }
 
         searchTimedOut = false
         localNetworkBlocked = false
 
+        // 알리기가 이미 돌고 있으면 그대로 쓴다. 껐다 켜면 상대 목록에서 잠깐 사라진다.
+        if advertiser == nil {
+            startAdvertising()
+        }
+
+        let browser = MCNearbyServiceBrowser(peer: peerID, serviceType: Self.serviceType)
+        browser.delegate = delegateAdapter
+        browser.startBrowsingForPeers()
+        self.browser = browser
+
+        scheduleSearchTimeout()
+    }
+
+    private func startAdvertising() {
         let advertiser = MCNearbyServiceAdvertiser(
             peer: peerID,
             discoveryInfo: nil,
@@ -143,29 +158,40 @@ final class MultipeerSession {
         advertiser.delegate = delegateAdapter
         advertiser.startAdvertisingPeer()
         self.advertiser = advertiser
+    }
 
-        let browser = MCNearbyServiceBrowser(peer: peerID, serviceType: Self.serviceType)
-        browser.delegate = delegateAdapter
-        browser.startBrowsingForPeers()
-        self.browser = browser
-
+    private func scheduleSearchTimeout() {
         // 아무도 없는데 계속 찾으면 배터리만 쓰고 화면은 영영 "찾는중" 에 머문다.
         // 정해진 시간까지만 찾아보고 결과를 알려준다.
         searchTask?.cancel()
         searchTask = Task { [weak self] in
             try? await Task.sleep(for: Self.searchWindow)
             guard !Task.isCancelled, let self, self.peers.isEmpty else { return }
-            self.stopSearching()
+            self.stopBrowsing()
             self.searchTimedOut = true
         }
     }
 
-    /// 찾기만 멈춘다. 이미 맺은 연결과 목록은 그대로 둔다.
+    /// 찾기만 멈춘다. **알리기는 그대로 둔다.**
+    ///
+    /// 둘 다 멈추면 두 사람이 **같은 10초 안에** 화면을 열어야만 만난다.
+    /// 먼저 연 쪽이 시간을 다 쓰고 조용해진 뒤에 상대가 열면, 상대 눈에는 아무도 없다.
+    /// 서로 「다시 찾기」 를 누르는 순간이 겹치기를 기다리게 되는데 그럴 이유가 없다 —
+    /// 실제로 시험해 보니 이것 때문에 몇 번을 돌려도 서로를 못 찾았다.
+    ///
+    /// 알리기는 남겨 둔다. 늦게 연 쪽이 나를 찾아 초대하면 그대로 연결되고,
+    /// 받는 화면은 「받으시겠어요?」 로 넘어간다.
+    /// 둘 중 배터리를 쓰는 쪽은 쉬지 않고 훑는 찾기이지 가만히 이름을 내거는 알리기가 아니다.
+    private func stopBrowsing() {
+        browser?.stopBrowsingForPeers()
+        browser = nil
+    }
+
+    /// 찾기와 알리기를 모두 멈춘다. 이미 맺은 연결과 목록은 그대로 둔다.
     private func stopSearching() {
         advertiser?.stopAdvertisingPeer()
         advertiser = nil
-        browser?.stopBrowsingForPeers()
-        browser = nil
+        stopBrowsing()
     }
 
     /// 못 찾고 끝난 뒤 다시 찾아본다.
