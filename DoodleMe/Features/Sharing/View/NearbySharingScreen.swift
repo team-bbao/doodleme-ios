@@ -38,6 +38,32 @@ struct NearbySharingScreen: View {
     /// 가운데에서 되살릴 획. 원본이 바뀔 때만 다시 푼다.
     @State private var animatedStrokes: [[CGPoint]] = DefaultDoodle.strokes
 
+    /// 화면이 실제로 준 크기. 넓은 화면에서 배치를 키우는 데 쓴다.
+    /// 처음 한 번은 아이폰 값으로 두어, 재기 전에도 엉뚱한 크기가 스치지 않게 한다.
+    @State private var screenSize = CGSize(width: DoodleLayout.baseContentWidth,
+                                           height: DoodleLayout.baseHeight)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    /// 아이폰 기준값을 지금 화면에 맞게 환산한다. 아이폰에서는 늘 1 배다.
+    ///
+    /// 가로 폭은 `DoodleLayout.scale` 이 정하고, 거기서 **세로가 감당할 만큼**으로 한 번 더 깎는다.
+    /// 갤러리의 `verticalScale` 을 그대로 쓰지 않는 이유가 있다 —
+    /// 그쪽은 화면 높이(874)와 견주는데, 이 화면의 본문은 638 밖에 안 써서
+    /// 가로로 눕혀도 아직 자리가 남는다. 화면이 아니라 **본문이 쓰는 높이**와 견줘야
+    /// 눕혔을 때도 1.2 배쯤 커진다.
+    private var contentScale: CGFloat {
+        let byWidth = DoodleLayout.scale(forWidth: screenSize.width,
+                                         sizeClass: horizontalSizeClass)
+        guard byWidth > 1, screenSize.height > 0 else { return 1 }
+        return max(1, min(byWidth, screenSize.height / Self.baseContentHeight))
+    }
+
+    /// 아이폰에서 이 화면의 본문이 실제로 쓰는 세로 길이.
+    ///
+    /// 위에서부터 13(본문 시작) + 77(제목 덩이) + 15 + 353(그림) + 15 + 50(상태)
+    /// + 15 + 100(다시 찾기·설정 열기) 을 더한 값이다.
+    private static let baseContentHeight: CGFloat = 638
+
     // Figma 색상 스펙 (공용 값은 Color+Doodle 참고)
     private static let primary = Color.doodlePrimary
     private static let muted = Color.doodleMuted
@@ -51,7 +77,7 @@ struct NearbySharingScreen: View {
     /// Figma: Large Title/Emphasized — SF Pro Bold 34 / `#1A1A1A` / 자간 0.4.
     private func largeTitle(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 34, weight: .bold))
+            .font(.system(size: 34 * contentScale, weight: .bold))
             .kerning(0.4)
             .foregroundStyle(Color.doodleTitle)
     }
@@ -113,11 +139,12 @@ struct NearbySharingScreen: View {
             // 이 화면의 다른 것들은 안전영역을 기준으로 놓이지만(이름줄이 그 아래 41),
             // 갤러리는 화면 맨 위를 기준으로 삼기 때문에 같은 기준을 써야 자리가 맞는다.
             closeButton
-                .padding(.top, Self.closeButtonTop)
-                .padding(.trailing, Self.closeButtonTrailing)
+                .padding(.top, Self.closeButtonTop * contentScale)
+                .padding(.trailing, Self.closeButtonTrailing * contentScale)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 .ignoresSafeArea(edges: .top)
         }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { screenSize = $0 }
         .task {
             // 상대에게 보일 이름은 프로필 이름을 그대로 쓴다.
             let newSession = MultipeerSession(displayName: userName)
@@ -175,7 +202,7 @@ struct NearbySharingScreen: View {
     private func foundScreen(senderName: String) -> some View {
         VStack(spacing: 15) {
             // Figma `Frame 46`(149:625): 제목 아래 9 를 띄우고 보낸 사람.
-            VStack(alignment: .leading, spacing: Self.senderSpacing) {
+            VStack(alignment: .leading, spacing: Self.senderSpacing * contentScale) {
                 largeTitle("그림 받기")
 
                 HStack(spacing: 6) {
@@ -189,7 +216,7 @@ struct NearbySharingScreen: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, Self.titleLeading)
+            .padding(.leading, Self.titleLeading * contentScale)
 
             // Figma `Frame 11`(149:626): 324x353.
             // 기다리는 화면의 낙서가 있던 자리를 그대로 물려받는다.
@@ -202,13 +229,13 @@ struct NearbySharingScreen: View {
                     DoodleStrokeAnimation(strokes: animatedStrokes, isAnimating: true)
                 }
             }
-            .padding(30)
-            .frame(width: 324, height: 353)
+            .padding(30 * contentScale)
+            .frame(width: 324 * contentScale, height: 353 * contentScale)
 
             // Figma `Frame 20`(149:629): 제목과 안내 사이 22.
             VStack(spacing: 22) {
                 Text("그림을 받으시겠어요?")
-                    .font(.system(size: 25, weight: .semibold))
+                    .font(.system(size: 25 * contentScale, weight: .semibold))
                     .foregroundStyle(Self.primary)
 
                 Text("확인을 누르면 해당 그림 갤러리 탭으로\n넘어가져요.")
@@ -225,7 +252,7 @@ struct NearbySharingScreen: View {
                 .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, Self.contentTop)
+        .padding(.top, Self.contentTop * contentScale)
     }
 
     /// 다 봤으니 갤러리로 데려다 달라는 버튼. Figma `Frame 21`(149:578): 168x48.
@@ -239,9 +266,9 @@ struct NearbySharingScreen: View {
             onClose()
         } label: {
             Text("확인")
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 17 * contentScale, weight: .semibold))
                 .foregroundStyle(.white)
-                .frame(width: 168, height: 48)
+                .frame(width: 168 * contentScale, height: 48 * contentScale)
                 .background(arrived == nil ? Self.muted : Self.primary, in: Capsule())
                 .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
         }
@@ -251,7 +278,7 @@ struct NearbySharingScreen: View {
 
     /// 주변을 찾는 동안 보이는 화면.
     private var searchingScreen: some View {
-        VStack(spacing: 15) {
+        VStack(spacing: 15 * contentScale) {
             titleGroup
 
             // 기다리는 동안 낙서가 계속 그려진다. 아직 찾고 있다는 뜻이다.
@@ -262,9 +289,10 @@ struct NearbySharingScreen: View {
             )
             // 자리를 꽉 채우면 그림이 답답하고 가장자리 획이 잘려 보인다.
             // 보낼 그림이든 기본 낙서든 같은 여백을 둔다.
-            .padding(30)
+            .padding(30 * contentScale)
             // Figma `Frame 11`. 17-19 와 17-24 가 같은 324x353 을 쓴다.
-            .frame(width: Self.drawingWidth, height: Self.drawingHeight)
+            .frame(width: Self.drawingWidth * contentScale,
+                   height: Self.drawingHeight * contentScale)
 
             status
 
@@ -291,7 +319,7 @@ struct NearbySharingScreen: View {
         }
         // 화면 폭을 다 쓰게 해야 안쪽 요소가 가운데로 온다.
         .frame(maxWidth: .infinity)
-        .padding(.top, Self.contentTop)
+        .padding(.top, Self.contentTop * contentScale)
     }
 
     /// 제목과 이름줄. Figma `iPhone 17 - 19` 의 `Frame 45`(149:524).
@@ -303,12 +331,12 @@ struct NearbySharingScreen: View {
     /// 가운데 정렬이 아니라 왼쪽에 붙는다.
     /// 갤러리의 「갤러리」와 같은 라지 타이틀이라, 두 화면의 제목이 같은 자리에서 시작한다.
     private var titleGroup: some View {
-        VStack(alignment: .leading, spacing: Self.titleSpacing) {
+        VStack(alignment: .leading, spacing: Self.titleSpacing * contentScale) {
             largeTitle(post == nil ? "그림 받기" : "그림 공유하기")
             nameRow
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.leading, Self.titleLeading)
+        .padding(.leading, Self.titleLeading * contentScale)
     }
 
     /// Figma `iPhone 17 - 9` 의 `Frame 12`(68:386): 20 / `#424242` / 사이 6.
@@ -320,11 +348,11 @@ struct NearbySharingScreen: View {
     private var nameRow: some View {
         HStack(spacing: 6) {
             Text("내 이름:")
-                .font(.system(size: Self.nameFontSize, weight: .medium))
+                .font(.system(size: Self.nameFontSize * contentScale, weight: .medium))
             // 이름을 비워 둔 사람에게도 이름은 보여야 한다.
             // 세션이 뜨기 전이라 아직 채워진 값이 없으면 기본 이름을 쓴다.
             Text(session?.displayName ?? Post.unknownSenderName)
-                .font(.system(size: Self.nameFontSize, weight: .semibold))
+                .font(.system(size: Self.nameFontSize * contentScale, weight: .semibold))
         }
         .foregroundStyle(Self.primary)
     }
@@ -337,9 +365,10 @@ struct NearbySharingScreen: View {
     private var closeButton: some View {
         Button(action: onClose) {
             Image(systemName: "xmark")
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: 18 * contentScale, weight: .medium))
                 .foregroundStyle(Self.primary)
-                .frame(width: Self.buttonHeight, height: Self.buttonHeight)
+                .frame(width: Self.buttonHeight * contentScale,
+                       height: Self.buttonHeight * contentScale)
                 .background(.white, in: Circle())
                 .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
         }
@@ -362,7 +391,7 @@ struct NearbySharingScreen: View {
         // Figma `iPhone 17 - 9` 의 `Frame 20`: 제목과 안내 사이 22.
         VStack(alignment: post == nil ? .center : .leading, spacing: 22) {
             Text(statusTitle(count: count, timedOut: timedOut || blocked))
-                .font(.system(size: 25, weight: .semibold))
+                .font(.system(size: 25 * contentScale, weight: .semibold))
                 .foregroundStyle(Self.primary)
                 // 디자인에서 제목은 한 줄이다(`whitespace-nowrap`, 폭 292).
                 // 폭을 좁게 잡으면 제멋대로 접히므로 줄바꿈 자체를 막는다.
@@ -412,9 +441,9 @@ struct NearbySharingScreen: View {
             session?.searchAgain()
         } label: {
             Text("다시 찾기")
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 17 * contentScale, weight: .semibold))
                 .foregroundStyle(.white)
-                .frame(width: 168, height: 48)
+                .frame(width: 168 * contentScale, height: 48 * contentScale)
                 .background(Self.primary, in: Capsule())
                 .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
         }
@@ -434,10 +463,10 @@ struct NearbySharingScreen: View {
             UIApplication.shared.open(url)
         } label: {
             Text("설정 열기")
-                .font(.system(size: 15, weight: .medium))
+                .font(.system(size: 15 * contentScale, weight: .medium))
                 .foregroundStyle(Color.doodleSubtext)
-                .frame(height: Self.buttonHeight)
-                .padding(.horizontal, 20)
+                .frame(height: Self.buttonHeight * contentScale)
+                .padding(.horizontal, 20 * contentScale)
         }
         .buttonStyle(.plain)
         .transition(.opacity)
@@ -493,11 +522,11 @@ struct NearbySharingScreen: View {
             VStack(spacing: 0) {
                 ForEach(session.peers, id: \.self) { peer in
                     peerRow(peer: peer, session: session)
-                        .frame(height: Self.peerRowHeight)
+                        .frame(height: Self.peerRowHeight * contentScale)
                 }
             }
         }
-        .frame(height: Self.peerRowHeight * CGFloat(rows))
+        .frame(height: Self.peerRowHeight * contentScale * CGFloat(rows))
         // 목록이 다 들어오면 튕기지 않게 한다. 스크롤될 때만 튕긴다.
         .scrollBounceBehavior(.basedOnSize)
         // 세 명까지만 카드에 들어가고 그 아래는 밀어서 본다.

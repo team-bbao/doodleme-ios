@@ -12,6 +12,26 @@ struct GalleryPage: View {
 
     @Query(filter: #Predicate<Post> { $0.isProfile }) private var profilePosts: [Post]
 
+    /// 남이 나를 그려 준 것들. 「나를 그린」 묶음과 같은 조건이라 그리드와 늘 같은 것을 본다.
+    ///
+    /// 내보내기가 이것을 통째로 가져간다 — 고르는 단계 없이 받은 것을 전부 카드로 만든다.
+    @Query(filter: #Predicate<Post> { !$0.isMine },
+           sort: \Post.createdAt, order: .reverse) private var receivedPosts: [Post]
+
+    /// 내가 남을 그려 준 것들. 「내가 그린」 묶음과 같은 조건이다.
+    @Query(filter: #Predicate<Post> { $0.isMine && !$0.isProfile },
+           sort: \Post.createdAt, order: .reverse) private var myPosts: [Post]
+
+    /// 지금 보고 있는 묶음. 내보내기가 이것을 통째로 가져간다.
+    private var postsInSection: [Post] {
+        GallerySection(rawValue: segmentedBar) == .receivedFromOthers ? receivedPosts : myPosts
+    }
+
+    /// 지금 보고 있는 것이 내가 그린 것인지. 카드 제목의 두 이름이 자리를 바꾼다.
+    private var isShowingMine: Bool {
+        GallerySection(rawValue: segmentedBar) != .receivedFromOthers
+    }
+
     private var profilePost: Post? { profilePosts.first }
 
     @Environment(\.modelContext) private var modelContext
@@ -27,9 +47,15 @@ struct GalleryPage: View {
     /// 지우려고 확인 팝업을 띄운 그림. 카드를 꾹 눌러 곧장 한 장을 지우는 길이다.
     @State private var postPendingDelete: Post?
     /// 여러 장을 골라 지우려고 표시해 둔 것들.
-    @State private var selectedForDeletion: Set<PersistentIdentifier> = []
+    @State private var selectedPosts: Set<PersistentIdentifier> = []
     /// 골라 둔 것들을 정말 지울지 묻는 중인지.
     @State private var isConfirmingBulkDelete = false
+    /// 지금 고르는 것이 지우려는 것인지 내보내려는 것인지.
+    ///
+    /// 들어온 길이 정한다 — 카드를 꾹 누르면 지우기, 상단 􀈂 를 누르면 내보내기.
+    @State private var selectionPurpose: GallerySelectionPurpose = .delete
+    /// 고른 그림들을 카드로 만들어 보여 줄지.
+    @State private var showExportPreview = false
     @State private var selectedPost: Post?
     @State private var profileCandidatePost: Post?
     @State private var showSharingScreen = false
@@ -40,6 +66,34 @@ struct GalleryPage: View {
     /// 방금 받아서 보여줘야 할 그림. 그리드가 그 자리로 스크롤하고 비운다.
     @State private var postToShow: Post.ID?
     @State private var confettiTrigger = 0
+
+    /// 화면이 실제로 준 폭. 넓은 화면에서 헤더를 키우는 데 쓴다.
+    /// 처음 한 번은 아이폰 본문 폭으로 두어, 재기 전에도 엉뚱한 크기가 스치지 않게 한다.
+    @State private var contentWidth: CGFloat = DoodleLayout.baseContentWidth
+    /// 화면 높이. 가로로 눕혔을 때 세로값을 덜 키우는 데 쓴다.
+    @State private var contentHeight: CGFloat = DoodleLayout.baseHeight
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    /// 아이폰 기준값을 지금 화면에 맞게 환산한다. 아이폰에서는 늘 1 배다.
+    private var layoutScale: CGFloat {
+        DoodleLayout.scale(forWidth: contentWidth, sizeClass: horizontalSizeClass)
+    }
+
+    /// 세로로 놓이는 값에 쓰는 배율. 가로로 누우면 높이가 모자라 덜 키운다.
+    /// 머리말(프로필·이름·세그먼트)이 쓰는 배율.
+    ///
+    /// 머리말은 **세로 공간을 먹는다.** 그래서 가로 폭이 아니라 세로 높이를 봐야 한다.
+    ///
+    /// 폭으로 재면 방향이 거꾸로 간다 — 11인치를 눕히면 폭 1210 이라 배율이 1.7 로 오르는데,
+    /// 정작 그때가 세로 834 로 가장 짧다. 세로가 제일 모자란 곳에서 머리말이 제일 커져,
+    /// 카드(411)가 남은 자리(396)보다 커지고 첫 줄 세 장이 모두 아래가 잘렸다.
+    private var headerScale: CGFloat { verticalScale }
+
+    private var verticalScale: CGFloat {
+        DoodleLayout.verticalScale(forWidth: contentWidth,
+                                   height: contentHeight,
+                                   sizeClass: horizontalSizeClass)
+    }
 
     private var isChoosingProfile: Bool { mode == .choosingProfile }
     private var isSelecting: Bool { mode == .selecting }
@@ -140,11 +194,11 @@ struct GalleryPage: View {
                 // 이 화면은 ZStack 이 안전영역을 무시하며 자리를 직접 잡고 있어,
                 // 네비게이션 바가 끼어들면 프로필 원부터 아래가 통째로 밀린다.
                 Text("갤러리")
-                    .font(.system(size: 34, weight: .bold))
+                    .font(.system(size: 34 * layoutScale, weight: .bold))
                     .kerning(0.4)
                     .foregroundStyle(Color.doodleTitle)
                     .padding(.leading, Self.contentInset)
-                    .padding(.top, Self.titleTopInset)
+                    .padding(.top, Self.titleTopInset * verticalScale)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .allowsHitTesting(false)
 
@@ -153,10 +207,11 @@ struct GalleryPage: View {
                 // 화면을 덮는 것이 떠 있으면 제목과 함께 물러난다.
                 if !isOverlayShowing {
                     HStack(spacing: Self.topButtonSpacing) {
-                        sortMenu
+                        if canExport { exportButton }
+                        moreMenu
                         receiveButton
                     }
-                    .padding(.top, Self.titleTopInset)
+                    .padding(.top, Self.titleTopInset * verticalScale)
                     .padding(.trailing, Self.contentInset)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
@@ -164,7 +219,9 @@ struct GalleryPage: View {
                 // 프로필 원과 이름. 고르는 중에도 밝게 남지만 누를 수는 없다.
                 // 지금 고르는 대상은 카드이고, 프로필은 그 결과가 놓일 자리일 뿐이다.
                 profileBlock
-                    .padding(.top, Self.headerTopInset)
+                    // 넓은 화면에서는 헤더도 함께 내려온다.
+                    // 위치만 그대로 두면 커진 프로필이 화면 위에 바짝 붙는다.
+                    .padding(.top, Self.headerTopInset * verticalScale)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
                     .padding(.horizontal, Self.contentInset)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -178,8 +235,8 @@ struct GalleryPage: View {
                 VStack(spacing: 0) {
                     // Figma `iPhone 17 - 12` 의 막대.
                     // 트랙이 불투명한 흰색이라, 뒤에 어두운 막이 깔려도 배어 나오지 않는다.
-                    GallerySegmentedControl(selection: $segmentedBar)
-                        .padding(.bottom, 20)
+                    GallerySegmentedControl(selection: $segmentedBar, scale: headerScale)
+                        .padding(.bottom, 20 * headerScale)
 
                     PostGridView(
                         mode: mode,
@@ -188,7 +245,7 @@ struct GalleryPage: View {
                         selectedPost: $selectedPost,
                         profileCandidatePost: $profileCandidatePost,
                         postPendingDelete: $postPendingDelete,
-                        selectedForDeletion: $selectedForDeletion,
+                        selectedPosts: $selectedPosts,
                         onShare: { sharingPost = $0 },
                         onStartSelecting: { startSelecting(with: $0) },
                         postToShow: $postToShow,
@@ -198,6 +255,11 @@ struct GalleryPage: View {
                 .padding(.horizontal, Self.contentInset)
                 .padding(.top, headerHeight)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                // 본문이 실제로 받은 폭을 재 둔다. 헤더 크기를 여기서 끌어낸다.
+                .onGeometryChange(for: CGSize.self) { $0.size } action: {
+                    contentWidth = $0.width
+                    contentHeight = $0.height
+                }
 
                 // 프로필로 앉힐지 묻는 확인창. Figma `iPhone 17 - 16`.
                 //
@@ -208,8 +270,19 @@ struct GalleryPage: View {
                         title: "프로필 사진으로 설정하시겠습니까?",
                         cancelTitle: "아니오",
                         confirmTitle: "예",
+                        // 「취소」 는 확인창만 닫는 것이 아니라 **갤러리로 돌아간다.**
+                        //
+                        // 예전에는 확인창만 닫혀 고르기 모드에 그대로 남았다.
+                        // 그런데 이 모드에는 무엇을 하라는 말도, 나가는 길도 보이지 않는다 —
+                        // 빈 곳을 눌러야 빠져나가는데 그건 눈에 띄지 않는 길이다.
+                        // 「취소」 가 나가는 길을 겸하면 막대를 따로 세우지 않아도 된다.
+                        //
+                        // 다른 그림으로 바꾸려면 ✎ 를 한 번 더 누르면 된다.
                         onCancel: {
-                            withAnimation(.spring(response: 0.3)) { profileCandidatePost = nil }
+                            withAnimation(.spring(response: 0.3)) {
+                                profileCandidatePost = nil
+                                mode = .browsing
+                            }
                         },
                         onConfirm: {
                             confirmProfile()
@@ -300,7 +373,7 @@ struct GalleryPage: View {
             // 고른 것이 화면 밖에 있을 수 있어, 되돌릴 수 없는 일 앞에서
             // "무엇을 지우는지" 를 숫자로라도 다시 확인시켜 준다.
             .alert(
-                "\(selectedForDeletion.count)장의 그림을 삭제할까요?",
+                "\(selectedPosts.count)장의 그림을 삭제할까요?",
                 isPresented: $isConfirmingBulkDelete
             ) {
                 Button("삭제", role: .destructive) { deleteSelected() }
@@ -308,7 +381,53 @@ struct GalleryPage: View {
             } message: {
                 Text("삭제한 그림은 되돌릴 수 없어요.")
             }
+            .fullScreenCover(isPresented: $showExportPreview) {
+                ExportPreviewScreen(
+                    pages: exportPages,
+                    fileName: "doodleme-\(selectedPosts.count)"
+                ) {
+                    showExportPreview = false
+                }
+            }
         }
+    }
+
+    /// 고른 그림으로 만들 카드들.
+    ///
+    /// **한 장이면 26번, 두 장부터 27번·28번이다.**
+    /// 한 장을 격자에 덩그러니 놓으면 다섯 칸이 비고, 제목도 「사람들이 그린」 이라
+    /// 한 사람이 그린 것에는 말이 맞지 않는다.
+    ///
+    /// 여러 장이면 그림 격자를 앞에, 한마디 말풍선을 뒤에 놓는다.
+    /// 넘치면 버리지 않고 페이지를 늘린다 —
+    /// 인스타그램 캐러셀이 한 게시물에 20장까지 받으므로 그대로 올릴 수 있고,
+    /// 한 장에 우겨넣어 그림이 알아볼 수 없게 작아지는 것보다 낫다.
+    private var exportPages: [ExportPage] {
+        let posts = selectedPosts
+            .compactMap { modelContext.registeredModel(for: $0) as Post? }
+            .sorted { $0.createdAt > $1.createdAt }
+        let name = inputName.isEmpty ? "나" : inputName
+        let mine = isShowingMine
+
+        guard posts.count > 1 else {
+            guard let only = posts.first else { return [] }
+            return [ExportPage(id: 0) { ExportSinglePostCard(post: only, myName: name) }]
+        }
+
+        var pages: [ExportPage] = []
+        for slice in posts.chunked(by: ExportDrawingsCard.perPage) {
+            pages.append(ExportPage(id: pages.count) {
+                ExportDrawingsCard(posts: slice, myName: name, mine: mine)
+            })
+        }
+        // 그림 뒤에 한마디를 붙인다. 한마디가 하나도 없으면 `paginate` 가 빈 배열을 주므로
+        // 말풍선 장 자체가 생기지 않는다.
+        for slice in ExportQuotesCard.paginate(posts) {
+            pages.append(ExportPage(id: pages.count) {
+                ExportQuotesCard(posts: slice, myName: name, mine: mine)
+            })
+        }
+        return pages
     }
 
     // MARK: - 선택 바
@@ -323,32 +442,61 @@ struct GalleryPage: View {
 
             // 몇 장 골랐는지 가운데에서 계속 알려준다.
             // 카드가 화면 밖으로 밀려나도 고른 개수는 여기 남는다.
-            Text(selectedForDeletion.isEmpty
+            Text(selectedPosts.isEmpty
                  ? "그림을 선택하세요"
-                 : "\(selectedForDeletion.count)장 선택됨")
+                 : "\(selectedPosts.count)장 선택됨")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(Color.doodleDetail)
 
             Spacer()
 
-            // 한 장도 고르지 않았으면 지울 것이 없다.
+            // 한 장도 고르지 않았으면 할 일이 없다.
             //
             // 색을 직접 지정하면 시스템이 비활성일 때 걸어 주는 흐림이 덮인다.
             // 눌리지도 않으면서 빨갛게 서 있어, 눌러 보고 나서야 안 된다는 걸 알게 된다.
             // 그래서 흐림도 직접 준다.
-            Button("삭제") { isConfirmingBulkDelete = true }
-                .foregroundStyle(selectedForDeletion.isEmpty ? Color.doodleMuted : .red)
-                .disabled(selectedForDeletion.isEmpty)
+            //
+            // 들어온 길에 따라 하나만 선다. 둘 다 세우면 버튼이 넷이 된다.
+            switch selectionPurpose {
+            case .delete:
+                Button("삭제") { isConfirmingBulkDelete = true }
+                    .foregroundStyle(selectedPosts.isEmpty ? Color.doodleMuted : .red)
+                    .disabled(selectedPosts.isEmpty)
+            case .export:
+                Button("내보내기") { showExportPreview = true }
+                    .foregroundStyle(selectedPosts.isEmpty ? Color.doodleMuted : Color.doodlePrimary)
+                    .disabled(selectedPosts.isEmpty)
+            }
         }
         .font(.system(size: 17, weight: .semibold))
         .padding(.horizontal, 24)
         .frame(height: DoodleMetrics.buttonSide + 12)
-        // 탭바와 같은 흰 캡슐. 이 화면의 떠 있는 것들이 모두 쓰는 재질이다.
-        .background(.white.opacity(0.95), in: Capsule())
-        .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
+        // 리퀴드 글래스. 흰 캡슐을 직접 그리지 않는다.
+        //
+        // 애플 HIG 「Materials」 — *Liquid Glass forms a distinct functional layer for controls
+        // and navigation elements … that floats above the content layer.*
+        // 이 막대는 **탭바가 서 있던 자리**를 그대로 물려받는데, iOS 26 탭바가 이미 유리라
+        // 흰 캡슐을 그려 두면 같은 자리에서 재질만 달라진다.
+        //
+        // 안에 누를 것이 들어 있으므로 `interactive` 를 건다.
+        // HIG: *for custom controls or containers with interactive elements, add the
+        // interactive modifier to the glass effect.*
+        .glassEffect(.regular.interactive(), in: .capsule)
+        // 넓은 화면에서 끝까지 늘어나지 않게 막는다.
+        //
+        // 아이패드 가로(1180)에서 화면 폭을 꽉 채우면 「취소」 가 맨 왼쪽,
+        // 「삭제」·「내보내기」 가 맨 오른쪽에 붙어 손이 닿지 않고 가운데만 휑하다.
+        // 탭바가 서 있던 자리를 물려받는 막대이므로 탭바처럼 가운데에 모아 둔다.
+        // 아이폰(402)에서는 이 값에 닿지 않아 지금과 똑같다.
+        .frame(maxWidth: Self.selectionBarMaxWidth)
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, Self.contentInset)
         .padding(.bottom, Self.selectionBarBottomInset)
     }
+
+    /// 선택 바가 아무리 넓어도 이보다 넓어지지 않는다.
+    /// 아이폰(402 - 좌우 20)보다 조금 여유를 둔 값이다.
+    private static let selectionBarMaxWidth: CGFloat = 440
 
     /// 선택 바가 화면 아래에서 떨어져 있는 정도.
     /// 탭바가 서 있던 자리와 같은 높이라 홈 인디케이터를 피한다.
@@ -371,21 +519,22 @@ struct GalleryPage: View {
                 } else {
                     DefaultDoodleImage()
                         // 원을 꽉 채우지 않고 지름의 80% 크기로 가운데 놓는다.
-                        .frame(width: Self.profileDiameter * 0.8,
-                               height: Self.profileDiameter * 0.8)
+                        .frame(width: Self.profileDiameter * 0.8 * headerScale,
+                               height: Self.profileDiameter * 0.8 * headerScale)
                 }
             }
-            .frame(width: Self.profileDiameter, height: Self.profileDiameter)
+            .frame(width: Self.profileDiameter * headerScale,
+                   height: Self.profileDiameter * headerScale)
             .clipShape(Circle())
             .shadow(color: .black.opacity(0.1), radius: 3, x: 2, y: 2)
             .overlay(alignment: .bottomTrailing) { profileEditBadge }
             .overlay { ConfettiBurst(trigger: confettiTrigger) }
             .offset(y: 5)
 
-            ProfileNameView(profileName: $inputName)
+            ProfileNameView(profileName: $inputName, scale: headerScale)
                 // 이 여백이 곧 세그먼트가 놓이는 높이를 정한다.
                 // 124(시작) + 97(원) + 12.5(이름 위) + 24(이름) + 36.5 = 294 — Figma `222:1199` 의 y.
-                .padding(.bottom, 36.5)
+                .padding(.bottom, 36.5 * headerScale)
         }
     }
 
@@ -408,10 +557,12 @@ struct GalleryPage: View {
             Image(systemName: "pencil")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white)
-                .frame(width: Self.profileBadgeDiameter, height: Self.profileBadgeDiameter)
+                .frame(width: Self.profileBadgeDiameter * headerScale,
+                       height: Self.profileBadgeDiameter * headerScale)
                 .background(Circle().fill(Color.doodlePrimary))
                 .shadow(color: .black.opacity(0.2), radius: 2, y: 3)
-                .frame(width: Self.profileBadgeTapDiameter, height: Self.profileBadgeTapDiameter)
+                .frame(width: Self.profileBadgeTapDiameter * headerScale,
+                       height: Self.profileBadgeTapDiameter * headerScale)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -438,7 +589,7 @@ struct GalleryPage: View {
     /// 리퀴드 글래스도, 고른 줄을 짚어 주는 회색 바탕도, 체크 표시도 시스템이 붙여 준다.
     /// Figma 의 `Frame 41`(198x90 · 흰색 80% · 45 짜리 두 줄 · 선택줄 `#DEDEDE` 80%)이
     /// 그리고 있는 것이 바로 그 시스템 메뉴다. 베껴 그리면 겉만 닮고 동작이 어긋난다.
-    private var sortMenu: some View {
+    private var moreMenu: some View {
         Menu {
             ForEach(GallerySortOrder.allCases, id: \.rawValue) { order in
                 Button {
@@ -452,9 +603,33 @@ struct GalleryPage: View {
                     }
                 }
             }
+
+            // 카드를 꾹 눌러야만 들어갈 수 있던 길을 주 화면에도 낸다.
+            //
+            // 애플 HIG 「Context menus」 —
+            // *Always make context menu items available in the main interface, too.*
+            // 내보내기는 􀈂 로 나와 있는데 지우기만 꾹 누르기에 숨어 있어 짝이 맞지 않았다.
+            Divider()
+
+            Button {
+                startDeleteSelection()
+            } label: {
+                Label("선택", systemImage: "checkmark.circle")
+            }
         } label: {
-            // Figma 글리프 상자가 26x24. 공유받기와 같은 20 으로 둔다.
-            Image(systemName: "list.bullet")
+            // 글리프를 `list.bullet`(정렬) 에서 `ellipsis`(더 보기) 로 바꿨다.
+            //
+            // 애플 HIG 「Toolbars」 —
+            // *Add a More menu to contain additional actions. Prioritize **less important**
+            // actions for inclusion in the More menu.*
+            // 정렬도 선택도 자주 쓰는 것이 아니라 이 메뉴의 조건에 맞는다.
+            //
+            // 버튼을 하나 더 세우지 않는 이유도 같은 문서에 있다 —
+            // *Choose items deliberately to avoid overcrowding.*
+            // 􀈂 내보내기와 􀝎 받기는 이 화면의 주된 두 동작이라 밖에 남는다.
+            //
+            // 원 크기·재질은 Figma `Frame 41` 그대로다. 바뀐 것은 안의 글리프뿐이다.
+            Image(systemName: "ellipsis")
                 .font(.system(size: 20, weight: .medium))
                 .foregroundStyle(Color.doodlePrimary)
                 .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
@@ -462,7 +637,7 @@ struct GalleryPage: View {
                 .background(.white.opacity(0.8), in: Circle())
                 .shadow(color: .black.opacity(0.05), radius: 7.5, y: 4)
         }
-        .accessibilityLabel("정렬 방법")
+        .accessibilityLabel("더 보기")
     }
 
     /// 그림을 받으러 가는 버튼. Figma `iPhone 17 - 13` 의 `Frame 25`(92:612):
@@ -492,6 +667,44 @@ struct GalleryPage: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("그림 공유받기")
+    }
+
+    /// 받은 그림을 카드로 묶어 밖으로 내보내는 버튼.
+    ///
+    /// 애플 HIG 「Activity views」 — 밖으로 내보내는 일은 공유 기호(􀈂)를 눌러 시작한다.
+    /// 「Toolbars」 도 오른쪽 끝을 **늘 닿을 수 있어야 하는 항목**의 자리로 두고,
+    /// 항목에는 글자 대신 알아보기 쉬운 기호를 쓰라고 한다.
+    ///
+    /// 고르는 단계를 두지 않는다.
+    /// 「Context menus」 의 *메뉴 항목은 주 화면에도 있어야 한다* 를 지키려고
+    /// 선택 바에 「내보내기」 를 끼워 넣었더니 취소·개수·삭제와 함께 네 개가 서서 어수선해졌다.
+    /// 여기서 누르면 받은 그림을 **전부** 모아 여섯 장씩 카드로 나눈다 —
+    /// 내보내는 것은 「사람들이 그린 나의 첫인상」 한 벌이지 낱장이 아니다.
+    ///
+    /// 정렬(흰 원)과 공유받기(먹색 원) 사이에서 흰 원 쪽에 선다.
+    /// 이 화면의 주된 동작은 그림을 **받는** 것이라 먹색은 그 하나만 쓴다.
+    private var exportButton: some View {
+        Button {
+            startExportSelection()
+        } label: {
+            Image(systemName: "square.and.arrow.up")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(Color.doodlePrimary)
+                .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
+                .background(.white.opacity(0.8), in: Circle())
+                .shadow(color: .black.opacity(0.05), radius: 7.5, y: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("그림 내보내기")
+    }
+
+    /// 내보낼 것이 있는지.
+    ///
+    /// 두 묶음 모두 낸다. 카드 제목의 두 이름이 자리를 바꿀 뿐이다 —
+    /// 「**사람들**이 그린 / **케빈**의 첫인상」 · 「**케빈**이 그린 / **사람들**의 첫인상」.
+    /// 한 장도 없으면 눌러도 빈 종이만 나오므로 그때는 버튼을 내지 않는다.
+    private var canExport: Bool {
+        !postsInSection.isEmpty
     }
 
     // MARK: - 동작
@@ -527,7 +740,32 @@ struct GalleryPage: View {
     /// 지우려고 고른 카드가 이미 눈앞에 있는데 다시 겨누게 할 이유가 없다.
     private func startSelecting(with post: Post) {
         withAnimation(.spring(response: 0.35)) {
-            selectedForDeletion = [post.persistentModelID]
+            selectedPosts = [post.persistentModelID]
+            selectionPurpose = .delete
+            mode = .selecting
+        }
+    }
+
+    /// 더 보기 메뉴의 「선택」 으로 들어온다. 지울 그림을 고르는 자리다.
+    ///
+    /// 카드를 꾹 눌러 들어오는 쪽과 달리 빈손으로 시작한다 — 누른 카드가 없기 때문이다.
+    private func startDeleteSelection() {
+        withAnimation(.spring(response: 0.35)) {
+            selectedPosts = []
+            selectionPurpose = .delete
+            mode = .selecting
+        }
+    }
+
+    /// 상단 􀈂 로 들어온다. 내보낼 그림을 고르는 자리다.
+    ///
+    /// 꾹 눌러 들어오는 쪽과 달리 **빈손으로 시작한다.**
+    /// 누른 카드가 따로 없기도 하고, 내보내기는 「무엇을 넣을지 고르는 일」 자체가 목적이라
+    /// 한 장을 먼저 집어 주면 고른 적 없는 것이 섞인다.
+    private func startExportSelection() {
+        withAnimation(.spring(response: 0.35)) {
+            selectedPosts = []
+            selectionPurpose = .export
             mode = .selecting
         }
     }
@@ -536,7 +774,8 @@ struct GalleryPage: View {
         withAnimation(.spring()) {
             mode = .browsing
             profileCandidatePost = nil
-            selectedForDeletion = []
+            selectionPurpose = .delete
+            selectedPosts = []
         }
     }
 
@@ -555,7 +794,7 @@ struct GalleryPage: View {
     /// 여러 장이 한 번에 빠지는 큰 변화라, 자동 저장을 기다리는 사이 앱이 꺼지면
     /// 지운 줄 알았던 그림이 통째로 돌아와 있다.
     private func deleteSelected() {
-        for id in selectedForDeletion {
+        for id in selectedPosts {
             guard let post = modelContext.registeredModel(for: id) as Post? else { continue }
             modelContext.delete(post)
         }

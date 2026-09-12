@@ -32,7 +32,7 @@ struct PostGridView: View {
     /// `Post` 자체가 아니라 식별자를 담는다.
     /// SwiftData 모델은 `Hashable` 이지만 지워지면 내용을 읽는 순간 터진다.
     /// 식별자만 들고 있으면 지워진 뒤에도 집합을 다루는 것 자체는 안전하다.
-    @Binding var selectedForDeletion: Set<PersistentIdentifier>
+    @Binding var selectedPosts: Set<PersistentIdentifier>
 
     /// 카드를 꾹 눌러 고른 동작. 화면 전환은 `GalleryPage` 가 맡는다.
     var onShare: ((Post) -> Void)?
@@ -48,6 +48,10 @@ struct PostGridView: View {
 
     /// 그리기 화면이 방금 저장했다고 켜 둔 표시.
     @AppStorage(Post.showsJustSavedKey) private var showsJustSavedPost = false
+
+    /// 격자가 실제로 받은 폭. 열 수와 카드 크기를 여기서 끌어낸다.
+    /// 처음 한 번은 아이폰 본문 폭으로 두어, 재기 전에도 엉뚱한 배치가 스치지 않게 한다.
+    @State private var gridWidth: CGFloat = 362
 
     /// 카드가 아닌 빈 곳을 눌렀을 때. 프로필 고르기에서 빠져나오는 데 쓴다.
     ///
@@ -87,13 +91,45 @@ struct PostGridView: View {
 
     // Figma `iPhone 17 - 13` 의 `Frame 28`(92:650): 362 폭 안에 170x186 카드가 두 장씩 세 줄.
 
-    /// 카드 높이. 폭은 칸이 정한다 — 402 화면에서 170 이 되고 좁은 기기에서는 함께 줄어든다.
+    /// 아이폰(402 화면)에서의 카드 한 장 크기. 다른 화면에서는 이 비율을 지키며 늘고 준다.
     ///
     /// 메모지 에셋(687x749)의 가로세로비가 170:186 과 거의 같다.
     /// 예전의 170 은 이보다 납작해서, 위아래가 잘리며 접힌 모서리도 함께 깎여 나갔다.
-    private static let cardHeight: CGFloat = 186
-    /// 카드 사이 가로 간격. 170 + 22 + 170 = 362 로 본문 폭에 딱 맞는다.
+    private static let baseCardWidth: CGFloat = 170
+    private static let baseCardHeight: CGFloat = 186
+    /// 카드 사이 가로 간격. 170 + 22 + 170 = 362 로 아이폰 본문 폭에 딱 맞는다.
     private static let columnSpacing: CGFloat = 22
+
+    /// 한 줄에 놓을 수 있는 최대 장수.
+    ///
+    /// 넓다고 끝없이 늘리면 카드가 화면의 5분의 1까지 작아진다.
+    /// 아이폰에서 한 장이 화면의 42% 를 차지하는데, 5열이면 18% 까지 떨어져
+    /// 메모지에 그린 그림이 무엇인지 알아보기 어려워진다.
+    ///
+    /// 인스타그램도 화면이 넓어지면 격자 열을 늘리되(모바일 3열, 큰 화면 3~6열)
+    /// 배치 구조 자체는 그대로 둔다. 같은 결로, 늘리기는 하되 셋에서 멈춘다.
+    private static let maxColumns = 3
+
+    /// 넓은 화면에서 글자를 얼마나 키울지. 아이폰에서는 1 이다.
+    private static func scale(forWidth width: CGFloat) -> CGFloat {
+        DoodleLayout.scale(forWidth: width)
+    }
+
+    /// 한 줄에 몇 장을 놓을지.
+    ///
+    /// 아이폰은 늘 두 장이다. 화면이 넓어지면 셋까지 늘고, 그 뒤로는 카드가 커진다.
+    /// 아이폰에서 한 장이 차지하던 폭(170 + 22)을 기준으로 몇 장이 들어가는지 센다.
+    private static func columnCount(forWidth width: CGFloat) -> Int {
+        let slot = baseCardWidth + columnSpacing
+        return min(maxColumns, max(2, Int((width + columnSpacing) / slot)))
+    }
+
+    /// 주어진 폭에서 카드 한 장이 갖는 크기. 아이폰 402 화면에서는 170x186 그대로다.
+    private static func cardSize(forWidth width: CGFloat) -> CGSize {
+        let count = CGFloat(columnCount(forWidth: width))
+        let w = (width - columnSpacing * (count - 1)) / count
+        return CGSize(width: w, height: w * baseCardHeight / baseCardWidth)
+    }
     /// 스크롤 막대를 본문 오른쪽 끝보다 얼마나 더 바깥으로 내보낼지.
     private static let indicatorOutset: CGFloat = 5
     /// 마지막 줄 아래 여백.
@@ -117,10 +153,12 @@ struct PostGridView: View {
     /// 여러 장을 고를 때는 골라 둔 그림이 무엇인지도 계속 보여야 해서 그만큼 옅게 둔다.
     private static let selectedDimming: CGFloat = 0.28
 
-    private static let columns = [
-        GridItem(.flexible(), spacing: columnSpacing),
-        GridItem(.flexible(), spacing: columnSpacing)
-    ]
+    private static func columns(forWidth width: CGFloat) -> [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: columnSpacing),
+            count: columnCount(forWidth: width)
+        )
+    }
 
     var body: some View {
         if currentPosts.isEmpty {
@@ -129,9 +167,13 @@ struct PostGridView: View {
             Text(emptyMessage)
                 .foregroundStyle(.colorGray)
                 .fontWeight(.semibold)
-                .font(.system(size: 20))
+                .font(.system(size: 20 * Self.scale(forWidth: gridWidth)))
                 .opacity(0.4)
                 .multilineTextAlignment(.center)
+                // 글줄이 지나치게 길어지지 않게 묶는다.
+                // 애플이 `readableContentGuide` 로 말하는 것과 같은 뜻 — 한 줄이 길면
+                // 눈이 다음 줄 첫머리를 못 찾는다. 아이폰 폭보다 넓으므로 좁은 화면에서는 걸리지 않는다.
+                .frame(maxWidth: DoodleLayout.readableWidth)
                 // 아래 여백으로 글을 위로 밀어 올린다.
                 // 그리드가 349 부터 화면 끝까지 차지하므로, 이 값이 클수록 글이 올라간다.
                 // Figma 는 이 문구의 가운데를 522.5 에 둔다.
@@ -142,11 +184,14 @@ struct PostGridView: View {
         } else {
             ScrollView {
                 ScrollViewReader { grid in
-                    LazyVGrid(columns: Self.columns, spacing: Self.rowSpacing) {
+                    LazyVGrid(columns: Self.columns(forWidth: gridWidth), spacing: Self.rowSpacing) {
                         ForEach(currentPosts) { post in
                             card(for: post)
                         }
                     }
+                    // 실제로 주어진 폭을 재서 열 수와 카드 크기를 정한다.
+                    // 아이폰에서는 362 가 들어와 지금까지와 똑같이 두 장이 된다.
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridWidth = $0 }
                     .padding(.bottom, Self.bottomInset)
                     // 넓힌 만큼 되돌려 카드는 제자리에 둔다. 아래 `indicatorOutset` 참고.
                     .padding(.trailing, Self.indicatorOutset)
@@ -178,7 +223,7 @@ struct PostGridView: View {
             // 카드가 옅게 덮이고 동그라미가 채워지는 것은 눈으로만 오는 신호다.
             // 여러 장을 빠르게 고를 때는 화면을 계속 확인하지 않게 되는데,
             // 그때 눌린 것이 먹었는지 알 길이 없다.
-            .sensoryFeedback(.selection, trigger: selectedForDeletion)
+            .sensoryFeedback(.selection, trigger: selectedPosts)
         }
     }
 
@@ -317,7 +362,7 @@ struct PostGridView: View {
         Image(resource)
             .resizable()
             .scaledToFill()
-            .frame(height: Self.cardHeight)
+            .frame(height: Self.cardSize(forWidth: gridWidth).height)
             .clipped()
     }
 
@@ -328,7 +373,7 @@ struct PostGridView: View {
         case .choosingProfile:
             profileCandidatePost?.persistentModelID == post.persistentModelID
         case .selecting:
-            selectedForDeletion.contains(post.persistentModelID)
+            selectedPosts.contains(post.persistentModelID)
         }
     }
 
@@ -353,10 +398,10 @@ struct PostGridView: View {
             // 지우는 일이라 되돌릴 길을 눌렀던 그 자리에 둔다.
             let id = post.persistentModelID
             withAnimation(.spring(response: 0.25, dampingFraction: 0.72)) {
-                if selectedForDeletion.contains(id) {
-                    selectedForDeletion.remove(id)
+                if selectedPosts.contains(id) {
+                    selectedPosts.remove(id)
                 } else {
-                    selectedForDeletion.insert(id)
+                    selectedPosts.insert(id)
                 }
             }
         }
@@ -371,7 +416,7 @@ struct PostGridView: View {
         selectedPost: .constant(nil),
         profileCandidatePost: .constant(nil),
         postPendingDelete: .constant(nil),
-        selectedForDeletion: .constant([]),
+        selectedPosts: .constant([]),
         postToShow: .constant(nil)
     )
     .modelContainer(LocalDataStore.makePreviewContainer())

@@ -28,6 +28,14 @@ struct PostDetailView: View {
     private static let toolbarInset: CGFloat = 5
     private static let toolbarButtonSpacing: CGFloat = 6
 
+    /// 알약 폭. 60 폭 버튼 `n` 개 + 사이 6 + 좌우 여백 5 둘.
+    ///
+    /// 내가 그린 것에는 「카드로 공유」 가 빠져 둘이 되므로 개수를 받아 잰다.
+    /// 셋이면 192, 둘이면 136 — Figma `Group 4` 의 원래 값이다.
+    private static func toolbarWidth(buttons: Int) -> CGFloat {
+        60 * CGFloat(buttons) + toolbarButtonSpacing * CGFloat(buttons - 1) + 5 * 2
+    }
+
     /// 다 접혔을 때 접힌 정사각형 한 변의 길이.
     /// memoFront 에셋의 접힌 자리를 캔버스 크기로 환산한 값이다.
     private static let foldSize: CGFloat = 100
@@ -36,6 +44,53 @@ struct PostDetailView: View {
     /// 두 상태를 오갈 때 걸리는 시간. 주기에 비해 길면 계속 움직이는 느낌이 든다.
     private static let foldFade: TimeInterval = 0.35
     @State private var showSharingScreen = false
+    /// 내보낼 카드를 먼저 보여 주는 화면이 떠 있는지.
+    @State private var showExportPreview = false
+
+    /// 화면이 실제로 준 크기. 넓은 화면에서 카드를 키우는 데 쓴다.
+    @State private var screenSize = CGSize(width: DoodleLayout.baseContentWidth,
+                                           height: DoodleLayout.baseHeight)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    /// 카드 덩이를 지금 화면에 맞게 키우는 배율. 아이폰에서는 늘 1 배다.
+    ///
+    /// 카드가 362x396 에 못박혀 있어 아이폰(402 폭)에서는 90% 를 채우지만
+    /// 아이패드(820)에서는 44% 밖에 안 돼, 작은 카드 하나가 위쪽에 떠 있고 아래가 텅 빈다.
+    ///
+    /// 가로 폭은 `DoodleLayout` 이 정하고, 거기서 **세로가 감당할 만큼**으로 한 번 더 깎는다.
+    /// 눕히면 높이가 모자라기 때문이다 — 11인치를 눕히면 폭은 1180 이지만 높이는 820 이다.
+    private var cardScale: CGFloat {
+        let byWidth = DoodleLayout.scale(forWidth: screenSize.width,
+                                         sizeClass: horizontalSizeClass)
+        guard byWidth > 1, screenSize.height > 0 else { return 1 }
+        let room = screenSize.height - Self.verticalChrome
+        let byHeight = room / Self.baseBlockHeight
+
+        // 펼쳐 놓으면 카드가 **두 장** 나란히 서므로 폭도 따로 본다.
+        // 이것 없이 세로 기준만 쓰면 눕혔을 때 두 장이 화면 좌우로 넘쳐 잘린다 — 실제로 그랬다.
+        let byPairWidth = isSpread
+            ? (screenSize.width - Self.horizontalChrome) / (Self.cardSize.width * 2 + 24)
+            : .greatestFiniteMagnitude
+
+        return max(1, min(byWidth, byHeight, byPairWidth))
+    }
+
+    /// 펼쳤을 때 좌우로 비워 두는 몫. 바깥 여백과 그림자 자리다.
+    private static let horizontalChrome: CGFloat = 140
+
+    /// 카드 덩이가 쓸 수 없는 세로 몫.
+    ///
+    /// 안전영역(위 24 · 아래 21)과 바깥 여백을 뺀다.
+    /// 빼지 않으면 눕혔을 때 덩이가 화면 높이를 꽉 채워 툴바가 위로 잘려 나간다 —
+    /// 실제로 그렇게 나왔다.
+    private static let verticalChrome: CGFloat = 120
+
+    /// 카드 덩이에서 **배율을 먹는 부분**이 쓰는 세로 길이.
+    /// 툴바 48 + 사이 24 + 카드 396 = 468. 아래 여백 80 은 키우지 않으므로 뺀다.
+    private static let baseBlockHeight: CGFloat = 468
+
+    /// 갤러리 머리말이 쓰는 것과 같은 이름. 내보내기 카드의 제목에 들어간다.
+    @AppStorage("userName") private var userName = ""
     @State private var showSaveAlert = false
     @State private var saveMessage = ""
 
@@ -67,9 +122,25 @@ struct PostDetailView: View {
                 )
             }
         }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { screenSize = $0 }
         .fullScreenCover(isPresented: $showSharingScreen) {
             NearbySharingScreen(post: post) { showSharingScreen = false }
         }
+        .fullScreenCover(isPresented: $showExportPreview) {
+            ExportPreviewScreen(
+                pages: [ExportPage(id: 0) { ExportSinglePostCard(post: post, myName: myName) }],
+                fileName: "doodleme-\(post.persistentModelID.hashValue.magnitude)"
+            ) {
+                showExportPreview = false
+            }
+        }
+    }
+
+    /// 제목의 「○○의 첫인상」 자리에 들어갈 내 이름.
+    ///
+    /// 갤러리 머리말에서 고친 이름과 같은 값을 본다.
+    private var myName: String {
+        userName.isEmpty ? "나" : userName
     }
 
     /// Figma `iPhone 17 - 14` 의 `Frame 6`: 화면 좌상단 (18, 72) 에 44x44.
@@ -78,23 +149,26 @@ struct PostDetailView: View {
     /// 눌러야 할 곳이 보이지 않으면 처음 온 사람은 빠져나갈 방법을 찾지 못한다.
     private var backButton: some View {
         Button(action: onClose) {
+            // 흰 원을 직접 그리지 않는다. 그림 위에 떠 있는 조작부라 유리가 맞는 자리다 —
+            // 애플 HIG 「Materials」: *Liquid Glass forms a distinct functional layer for
+            // controls and navigation elements … that floats above the content layer.*
+            // 내보내기 미리보기의 닫기 버튼과 같은 재질이어야 한다.
             Image(systemName: "chevron.backward")
                 .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(Color.doodlePrimary)
                 .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
-                .background(.white, in: Circle())
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
         }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
         .padding(.leading, 18)
         .padding(.top, 72)
         .accessibilityLabel("뒤로")
     }
 
     private var card: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 24 * cardScale) {
 
             // Figma `iPhone 17 - 17`(평소) · `iPhone 17 - 14`(눌림) 의 `Group 4`.
-            // 흰색 80% 알약 136x48 안에 60 폭 버튼 둘.
+            // 원래 흰색 80% 알약 136x48 안에 60 폭 버튼 둘이었고, 내보내기가 늘어 셋이 되었다.
             HStack(spacing: Self.toolbarButtonSpacing) {
                 Button {
                     showSharingScreen = true
@@ -106,6 +180,13 @@ struct PostDetailView: View {
                 .buttonStyle(CardToolbarButtonStyle())
                 .accessibilityLabel("가까운 친구에게 보내기")
 
+                // 사진 앱에 **그림만** 남긴다. 흰 바탕에 획뿐이고 종이도 제목도 없다 —
+                // `snapshotData()` 에 그 뜻이 적혀 있다: 「사진첩에 남는 건 그림이지 종이가 아니다」.
+                //
+                // 옆의 공유 버튼과 겹치지 않는다.
+                // 애플 HIG 「Activity views」 가 금하는 것은 **액티비티 뷰에 이미 있는 동작**을
+                // 따로 만드는 것인데, 공유 시트가 넘기는 것은 종이·제목·꼬리말이 붙은 **카드**다.
+                // 남는 결과물이 서로 달라 중복이 아니다.
                 Button {
                     Task { await saveDrawingToGallery() }
                 } label: {
@@ -113,52 +194,58 @@ struct PostDetailView: View {
                         .font(.title2)
                 }
                 .buttonStyle(CardToolbarButtonStyle())
-                .accessibilityLabel("사진에 저장")
+                .accessibilityLabel("그림만 사진에 저장")
+
+                // 내보내기 카드를 먼저 보여 주고, 거기서 시스템 공유 시트로 넘긴다.
+                // 사진 저장·인스타그램·AirDrop 이 모두 그 시트 안에 들어 있다.
+                //
+                // 받은 것이든 내가 그린 것이든 낼 수 있다.
+                // 제목의 두 이름이 자리를 바꿀 뿐이다 — `ExportSinglePostCard` 참고.
+                Button {
+                    showExportPreview = true
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.title2)
+                }
+                .buttonStyle(CardToolbarButtonStyle())
+                .accessibilityLabel("카드로 공유")
             }
             .padding(.horizontal, Self.toolbarInset)
-            .frame(width: 136, height: 48)
-            .background(.white.opacity(0.8), in: Capsule())
-            .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
+            .frame(width: Self.toolbarWidth(buttons: 3) * cardScale, height: 48 * cardScale)
+            // 흰 알약 대신 유리. 갤러리 하단 선택 바와 같은 재질이다.
+            // 안에 누를 것이 셋 들어 있으므로 HIG 대로 `interactive` 를 건다.
+            .glassEffect(.regular.interactive(), in: .capsule)
             .padding(.bottom, 10)
 
-            ZStack {
-                // 앞면: 그림
-                //
-                // 접힌 모서리와 접힘 없는 둥근 사각형을 번갈아 보여준다.
-                // 뒤집을 수 있는 카드라는 걸 가만히 알려주는 신호다.
-                //
-                // 반경은 그리던 캔버스와 같은 값이라 그림이 잘린 모양과 정확히 맞물린다.
-                // 색도 에셋에서 뽑은 값이라 두 상태를 오갈 때 본체 색이 흔들리지 않는다.
-                paperFace
-                    .frame(width: Self.cardSize.width, height: Self.cardSize.height)
-                .shadow(color: .black.opacity(0.25), radius: 10)
-                .overlay {
-                    DoodleImageView(drawingData: post.drawingData)
-                        .mask { frontMask }
+            // 넓고 낮은 화면(아이패드 가로)에서는 앞뒤를 나란히 편다.
+            //
+            // 좌우가 크게 남는데 카드 하나만 가운데 서 있으면 그 자리가 버려진다.
+            // 펼쳐 놓으면 그림과 한마디를 한눈에 본다 — 뒤집을 필요가 없어지므로
+            // 그 화면에서는 뒤집기도 끄고 접힘 신호도 내지 않는다.
+            if isSpread {
+                HStack(spacing: 24 * cardScale) {
+                    frontFace
+                    backFace
                 }
-                .opacity(isFlipped ? 0 : 1)
+                .padding(.bottom, 80)
+            } else {
+                ZStack {
+                    frontFace
+                        .opacity(isFlipped ? 0 : 1)
 
-                // 뒷면: 정보
-                //
-                // 앞면과 같은 주기로 접혔다 펴진다. 뒷면은 글씨가 가운데에 모여 있어
-                // 접힌 모서리와 겹치지 않는다.
-                //
-                // memoBack 에셋에는 좌하단이 어두워지는 그라디언트가 들어 있어
-                // 뒤집는 순간 앞면에 없던 음영이 생긴다. 그래서 앞면용 에셋을 쓴다.
-                // 좌우를 뒤집어 두어 접힌 모서리가 오른쪽 아래에 온다.
-                paperFace
-                    .scaleEffect(x: -1, y: 1)
-                    .frame(width: Self.cardSize.width, height: Self.cardSize.height)
-                .shadow(color: .black.opacity(0.25), radius: 10)
-                .overlay { backFaceContent }
-                .opacity(isFlipped ? 1 : 0)
-                .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
-            }
-            .padding(.bottom, 80)
-            .rotation3DEffect(.degrees(isFlipped ? 180 : 0), axis: (x: 0, y: 1, z: 0))
-            .animation(.easeInOut(duration: 0.5), value: isFlipped)
-            .onTapGesture {
-                isFlipped.toggle()
+                    backFace
+                        .opacity(isFlipped ? 1 : 0)
+                        .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
+                }
+                // 아래 여백은 키우지 않는다.
+                // 카드를 화면 한가운데보다 조금 위에 두려고 넣은 값인데,
+                // 배율을 먹이면 아이패드에서 120 이 되어 덩이가 위로 치우친다.
+                .padding(.bottom, 80)
+                .rotation3DEffect(.degrees(isFlipped ? 180 : 0), axis: (x: 0, y: 1, z: 0))
+                .animation(.easeInOut(duration: 0.5), value: isFlipped)
+                .onTapGesture {
+                    isFlipped.toggle()
+                }
             }
         }
         .padding()
@@ -176,8 +263,51 @@ struct PostDetailView: View {
         }
     }
 
+    /// 앞면: 그림.
+    ///
+    /// 접힌 모서리와 접힘 없는 둥근 사각형을 번갈아 보여준다.
+    /// 뒤집을 수 있는 카드라는 걸 가만히 알려주는 신호다.
+    ///
+    /// 반경은 그리던 캔버스와 같은 값이라 그림이 잘린 모양과 정확히 맞물린다.
+    private var frontFace: some View {
+        paperFace
+            .frame(width: Self.cardSize.width * cardScale,
+                   height: Self.cardSize.height * cardScale)
+            .shadow(color: .black.opacity(0.25), radius: 10)
+            .overlay {
+                DoodleImageView(drawingData: post.drawingData)
+                    .mask { frontMask }
+            }
+    }
+
+    /// 뒷면: 보낸 사람과 한마디.
+    ///
+    /// memoBack 에셋에는 좌하단이 어두워지는 그라디언트가 들어 있어
+    /// 뒤집는 순간 앞면에 없던 음영이 생긴다. 그래서 앞면용 에셋을 쓴다.
+    /// 좌우를 뒤집어 두어 접힌 모서리가 오른쪽 아래에 온다.
+    private var backFace: some View {
+        paperFace
+            .scaleEffect(x: -1, y: 1)
+            .frame(width: Self.cardSize.width * cardScale,
+                   height: Self.cardSize.height * cardScale)
+            .shadow(color: .black.opacity(0.25), radius: 10)
+            .overlay { backFaceContent }
+    }
+
+    /// 앞뒤를 나란히 펼칠지.
+    ///
+    /// 넓고 **낮은** 화면에서만 편다 — 아이패드를 눕혔을 때다.
+    /// 세로로 세우면 좌우가 남지 않아 나란히 놓을 자리가 없고, 아이폰은 어느 방향이든 좁다.
+    private var isSpread: Bool {
+        DoodleLayout.isWide(screenSize.width, sizeClass: horizontalSizeClass)
+            && screenSize.width > screenSize.height
+    }
+
     /// 지금 접힌 정도. 0 이면 펴진 상태.
-    private var foldDepth: CGFloat { showFold ? Self.foldSize : 0 }
+    ///
+    /// 펼쳐 놓았으면 접지 않는다. 접힘은 「뒤집을 수 있다」 는 신호인데
+    /// 이미 뒤가 보이는 자리에서는 알릴 것이 없다.
+    private var foldDepth: CGFloat { (showFold && !isSpread ? Self.foldSize : 0) * cardScale }
 
     /// 접혔다 펴지는 종이 한 장.
     ///
@@ -191,7 +321,7 @@ struct PostDetailView: View {
         ZStack {
             // 모서리가 접혔다 펴지므로 그림이 아니라 도형으로 그린다.
             // 색은 그리드 카드와 같은 그라디언트를 본다.
-            FoldedPaperShape(depth: foldDepth, cornerRadius: DoodleMetrics.canvasCornerRadius)
+            FoldedPaperShape(depth: foldDepth, cornerRadius: DoodleMetrics.canvasCornerRadius * cardScale)
                 .fill(LinearGradient.doodlePaperFace)
 
             FoldFlapShape(depth: foldDepth)
@@ -201,7 +331,7 @@ struct PostDetailView: View {
 
     /// 앞면의 그림을 가릴 마스크. 접힌 정사각형 자리에는 그림이 얹히지 않는다.
     private var frontMask: some View {
-        PaperBodyShape(depth: foldDepth, cornerRadius: DoodleMetrics.canvasCornerRadius)
+        PaperBodyShape(depth: foldDepth, cornerRadius: DoodleMetrics.canvasCornerRadius * cardScale)
     }
 
     // MARK: - 뒷면
@@ -221,11 +351,11 @@ struct PostDetailView: View {
             // SwiftUI `Text` 로는 잡히지 않는다. 자세한 사정은 `FixedLineHeightText` 에 있다.
             FixedLineHeightText(
                 text: post.text.isEmpty ? "(텍스트 없음)" : post.text,
-                font: .doodleHandwriting(size: Self.messageFontSize),
-                lineHeight: Self.messageLineHeight,
+                font: .doodleHandwriting(size: Self.messageFontSize * cardScale),
+                lineHeight: Self.messageLineHeight * cardScale,
                 color: UIColor(Color.doodlePrimary)
             )
-            .frame(width: 253)
+            .frame(width: 253 * cardScale)
 
             VStack(spacing: 0) {
             if !counterpartName.isEmpty {
