@@ -33,15 +33,16 @@ struct ExportPreviewScreen: View {
     let fileName: String
     let onClose: () -> Void
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var files: [URL] = []
     @State private var current = 0
 
     var body: some View {
         GeometryReader { proxy in
             TabView(selection: $current) {
-                ForEach(pages) { page in
-                    card(page, in: proxy)
-                        .tag(page.id)
+                ForEach(Array(slides(in: proxy.size).enumerated()), id: \.offset) { index, slide in
+                    slideView(slide, in: proxy)
+                        .tag(index)
                 }
             }
             // 페이지 점은 시스템 것을 그대로 쓴다. 아무것도 지정하지 않는다.
@@ -65,7 +66,8 @@ struct ExportPreviewScreen: View {
             // 카드와 관계없는 것처럼 보이고 1180 폭에서는 손도 닿지 않는다.
             .overlay(alignment: .top) {
                 topBar
-                    .frame(maxWidth: ExportCardLayout.size.width * fit(in: proxy.size))
+                    .frame(maxWidth: Self.slideWidth(columns: columns(in: proxy.size))
+                           * fit(in: proxy.size))
                     .padding(.top, topInset(in: proxy))
             }
         }
@@ -87,7 +89,16 @@ struct ExportPreviewScreen: View {
     ///
     /// 그래서 페이지가 놓인 자리를 직접 재서 되돌린다.
     /// `14` 를 적어 두지 않는 것은 기기마다 다를 수 있어서다 — 두 자리의 차이를 그때그때 잰다.
-    private func card(_ page: ExportPage, in proxy: GeometryProxy) -> some View {
+    /// 한 장(좁은 화면) 또는 두 장(눕힌 아이패드)을 담은 슬라이드 하나.
+    ///
+    /// **`TabView` 가 내용을 제자리에 놓아 주지 않는다.**
+    /// `GeometryReader` 는 화면 맨 위(y=0)에 서 있는데 그 안의 페이지는 y=14 에서 시작한다.
+    /// 점을 내든 안 내든(`indexDisplayMode`) 똑같이 14 만큼 밀린다 — 재서 확인했다.
+    /// 그대로 두면 종이 위쪽에 흰 띠가 14 남고 아래는 그만큼 잘린다.
+    ///
+    /// 그래서 페이지가 놓인 자리를 직접 재서 되돌린다.
+    /// `14` 를 적어 두지 않는 것은 기기마다 다를 수 있어서다 — 두 자리의 차이를 그때그때 잰다.
+    private func slideView(_ slide: [ExportPage], in proxy: GeometryProxy) -> some View {
         GeometryReader { inner in
             ZStack {
                 Self.backdrop
@@ -95,20 +106,49 @@ struct ExportPreviewScreen: View {
                 // 둥근 모서리와 그림자는 **화면에서만** 붙는다.
                 // 굽는 쪽(`bake`)은 카드를 따로 그리므로 내보내는 파일에는 들어가지 않는다.
                 //
-                // 카드가 9:16 이라 위아래에 배경이 남는데, 종이와 배경 색이 거의 같아
+                // 카드가 9:16 이라 위아래(또는 좌우)에 배경이 남는데, 종이와 배경 색이 거의 같아
                 // 종이가 화면 끝에서 **잘린 것처럼** 보였다.
                 // 사진 앱이 사진 한 장을 보여줄 때와 같은 모양으로 두면 한 장이라는 게 바로 읽힌다.
-                page.card
-                    .clipShape(RoundedRectangle(cornerRadius: Self.previewCornerRadius,
-                                                style: .continuous))
-                    .scaleEffect(fit(in: proxy.size))
-                    .shadow(color: .black.opacity(0.45), radius: 20, y: 8)
+                HStack(spacing: Self.slideGap) {
+                    ForEach(slide) { page in
+                        page.card
+                            .clipShape(RoundedRectangle(cornerRadius: Self.previewCornerRadius,
+                                                        style: .continuous))
+                            .shadow(color: .black.opacity(0.45), radius: 20, y: 8)
+                    }
+                }
+                .scaleEffect(fit(in: proxy.size))
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .clipped()
             .offset(y: proxy.frame(in: .global).minY - inner.frame(in: .global).minY)
         }
     }
+
+    /// 한 번에 보여 줄 장수.
+    ///
+    /// 눕힌 아이패드는 좌우가 크게 남는다 — 9:16 카드 하나를 가운데 놓으면
+    /// 양옆 검은 띠가 화면의 40% 를 먹는다. 두 장을 나란히 놓으면 그 자리가 살고
+    /// 넘길 횟수도 반으로 준다.
+    ///
+    /// 세로는 좌우가 남지 않고, 아이폰은 어느 방향이든 좁다.
+    private func columns(in size: CGSize) -> Int {
+        DoodleLayout.isWide(size.width, sizeClass: horizontalSizeClass)
+            && size.width > size.height ? 2 : 1
+    }
+
+    /// 넘길 단위. 한 슬라이드에 `columns` 장이 들어간다.
+    private func slides(in size: CGSize) -> [[ExportPage]] {
+        pages.chunked(by: columns(in: size))
+    }
+
+    /// 슬라이드 하나가 원래 좌표계에서 차지하는 폭.
+    private static func slideWidth(columns: Int) -> CGFloat {
+        ExportCardLayout.size.width * CGFloat(columns) + slideGap * CGFloat(columns - 1)
+    }
+
+    /// 나란히 놓인 카드 사이.
+    private static let slideGap: CGFloat = 24
 
     /// 버튼 줄이 화면 위에서 떨어져 있는 정도.
     ///
@@ -131,7 +171,7 @@ struct ExportPreviewScreen: View {
     /// 남는 자리는 닫기·공유 버튼이 앉아 종이를 가리지 않게 된다.
     private func fit(in size: CGSize) -> CGFloat {
         guard size.width > 0, size.height > 0 else { return 1 }
-        return min(size.width / ExportCardLayout.size.width,
+        return min(size.width / Self.slideWidth(columns: columns(in: size)),
                    size.height / ExportCardLayout.size.height)
     }
 
