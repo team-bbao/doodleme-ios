@@ -156,26 +156,19 @@ struct PostDetailView: View {
                 // 내보내기 카드를 먼저 보여 주고, 거기서 시스템 공유 시트로 넘긴다.
                 // 사진 저장·인스타그램·AirDrop 이 모두 그 시트 안에 들어 있다.
                 //
-                // **남이 나를 그려 준 것에만 낸다.**
-                // 카드 제목이 「**에리카**가 그린 / **케빈**의 첫인상」 이라
-                // 그린 사람과 그려진 사람이 따로 있어야 말이 된다.
-                // 내가 그린 것에 붙이면 보낸 사람 이름이 없어
-                // 「doodle.me 사용자가 그린 / 케빈의 첫인상」 이라는 엉뚱한 제목이 나온다 —
-                // 내가 그렸는데 낯선 사람이 그린 것처럼 읽힌다.
-                // 갤러리의 27·28번도 같은 이유로 「나를 그린」 에서만 낸다.
-                if !post.isMine {
-                    Button {
-                        showExportPreview = true
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.title2)
-                    }
-                    .buttonStyle(CardToolbarButtonStyle())
-                    .accessibilityLabel("카드로 공유")
+                // 받은 것이든 내가 그린 것이든 낼 수 있다.
+                // 제목의 두 이름이 자리를 바꿀 뿐이다 — `ExportSinglePostCard` 참고.
+                Button {
+                    showExportPreview = true
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.title2)
                 }
+                .buttonStyle(CardToolbarButtonStyle())
+                .accessibilityLabel("카드로 공유")
             }
             .padding(.horizontal, Self.toolbarInset)
-            .frame(width: Self.toolbarWidth(buttons: post.isMine ? 2 : 3), height: 48)
+            .frame(width: Self.toolbarWidth(buttons: 3), height: 48)
             // 흰 알약 대신 유리. 갤러리 하단 선택 바와 같은 재질이다.
             // 안에 누를 것이 셋 들어 있으므로 HIG 대로 `interactive` 를 건다.
             .glassEffect(.regular.interactive(), in: .capsule)

@@ -7,19 +7,38 @@ import SwiftUI
 
 /// 그림 한 장을 내보내는 카드. Figma `iPhone 17 - 26`(`222:1655`).
 ///
-/// 받은 그림 한 장과 거기 딸린 한마디를 종이 위에 얹는다.
+/// 그림 한 장과 거기 딸린 한마디를 종이 위에 얹는다.
+///
+/// **받은 것과 내가 그린 것을 모두 낼 수 있다.** 제목의 두 이름이 서로 자리를 바꿀 뿐이다 —
+/// 받은 것은 「**에리카**가 그린 / **케빈**의 첫인상」,
+/// 내가 그린 것은 「**케빈**이 그린 / **미나**의 첫인상」.
 struct ExportSinglePostCard: View {
 
     let post: Post
-    /// 그림을 받은 사람. 보통 앱을 쓰는 나다.
+    /// 앱을 쓰는 나. 받은 것이면 그려진 사람, 내가 그린 것이면 그린 사람이다.
     let myName: String
+
+    /// 그림을 그린 사람.
+    private var drawer: String {
+        post.isMine ? myName : post.displaySenderName
+    }
+
+    /// 그림에 그려진 사람.
+    ///
+    /// 내가 그린 것은 저장할 때 받는 사람 이름을 반드시 받으므로(`DrawingPage.canSave`)
+    /// 비어 있을 일이 없다. 그래도 혹시 비면 이름 없이 「의 첫인상」 만 남지 않게 막아 둔다.
+    private var subject: String {
+        guard post.isMine else { return myName }
+        return post.recipientName.isEmpty ? "너" : post.recipientName
+    }
 
     var body: some View {
         ExportCard(
             title: ExportCardTitle(
-                firstName: post.displaySenderName,
-                firstTail: "가 그린",
-                secondName: myName,
+                firstName: drawer,
+                // 받침에 따라 「이」·「가」 가 갈린다. 하나로 못박으면 「케빈가 그린」 이 나온다.
+                firstTail: "\(drawer.subjectParticle) 그린",
+                secondName: subject,
                 secondTail: "의 첫인상"
             )
         ) {
