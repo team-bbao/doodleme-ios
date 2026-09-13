@@ -208,11 +208,15 @@ struct GalleryPage: View {
                 // 정렬·공유받기. 제목과 같은 높이(y=70)의 오른쪽 끝에 나란히 뜬다.
                 //
                 // 화면을 덮는 것이 떠 있으면 제목과 함께 물러난다.
-                if !isOverlayShowing {
+                // **고르는 중에는 내보내기만 남는다** — 고른 것으로 카드를 만들러 가는 길이라
+                // 그때가 오히려 가장 쓸 때다. 정렬과 받기는 지금 할 일이 아니라 물러난다.
+                if !isOverlayShowing || mode == .selecting {
                     HStack(spacing: Self.topButtonSpacing) {
                         if canExport { exportButton }
-                        moreMenu
-                        receiveButton
+                        if mode != .selecting {
+                            moreMenu
+                            receiveButton
+                        }
                     }
                     .padding(.top, Self.titleTopInset * verticalScale)
                     .padding(.trailing, Self.contentInset)
@@ -450,8 +454,11 @@ struct GalleryPage: View {
             // 내보내기만 섰다. 그래서 세 장을 골라 놓고 마음이 바뀌면 취소하고 다른 길로
             // 들어가 **처음부터 다시 골라야** 했다. 고르는 일은 한 번이면 된다.
             //
-            // 글자 대신 글리프를 쓴다. 셋을 글자로 늘어놓으면 아이폰 한 줄에 빠듯하고,
-            // 저장 글리프는 상세 화면 툴바의 저장과 **같은 그림**이라 새로 배울 것이 없다.
+            // 글자 대신 글리프를 쓴다. 저장 글리프는 상세 화면 툴바의 저장과 **같은 그림**이라
+            // 새로 배울 것이 없다.
+            //
+            // 내보내기는 여기 두지 않는다. 고르는 동안에도 헤더에 그대로 서 있어
+            // 굳이 막대에 한 번 더 둘 이유가 없다.
             //
             // 한 장도 고르지 않았으면 할 일이 없다.
             // 색을 직접 지정하면 시스템이 비활성일 때 걸어 주는 흐림이 덮인다.
@@ -460,9 +467,6 @@ struct GalleryPage: View {
             HStack(spacing: Self.selectionActionSpacing) {
                 selectionAction("square.and.arrow.down", label: "사진 앱에 저장") {
                     saveSelectedToPhotos()
-                }
-                selectionAction("square.and.arrow.up", label: "내보내기") {
-                    showExportPreview = true
                 }
                 selectionAction("trash", label: "삭제", tint: .red) {
                     isConfirmingBulkDelete = true
@@ -521,15 +525,15 @@ struct GalleryPage: View {
     /// 내보내기 카드가 아니라 **그린 그대로**를 넣는다 —
     /// 상세 화면의 저장이 하던 일을 여러 장으로 늘린 것이다.
     private func saveSelectedToPhotos() {
-        let drawings = selectedPosts
+        let items = selectedPosts
             .compactMap { modelContext.registeredModel(for: $0) as Post? }
             .sorted { $0.createdAt > $1.createdAt }
-            .map(\.drawingData)
-        guard !drawings.isEmpty else { return }
+            .map(\.photoItem)
+        guard !items.isEmpty else { return }
 
         isSavingToPhotos = true
         Task {
-            let outcome = await PhotoLibrarySaver.save(drawings)
+            let outcome = await PhotoLibrarySaver.save(items)
             isSavingToPhotos = false
             saveResultMessage = outcome.message
         }
@@ -729,17 +733,28 @@ struct GalleryPage: View {
     /// 이 화면의 주된 동작은 그림을 **받는** 것이라 먹색은 그 하나만 쓴다.
     private var exportButton: some View {
         Button {
-            startExportSelection()
+            // 고르는 중이면 이미 고른 것으로 바로 넘어간다. 아니면 고르기부터 연다.
+            if mode == .selecting {
+                showExportPreview = true
+            } else {
+                startExportSelection()
+            }
         } label: {
             Image(systemName: "square.and.arrow.up")
                 .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(Color.doodlePrimary)
+                .foregroundStyle(isExportButtonEnabled ? Color.doodlePrimary : Color.doodleMuted)
                 .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
                 .background(.white.opacity(0.8), in: Circle())
                 .shadow(color: .black.opacity(0.05), radius: 7.5, y: 4)
         }
         .buttonStyle(.plain)
+        .disabled(!isExportButtonEnabled)
         .accessibilityLabel("그림 내보내기")
+    }
+
+    /// 고르는 중에는 한 장이라도 골랐을 때만 누를 수 있다.
+    private var isExportButtonEnabled: Bool {
+        mode != .selecting || !selectedPosts.isEmpty
     }
 
     /// 내보낼 것이 있는지.

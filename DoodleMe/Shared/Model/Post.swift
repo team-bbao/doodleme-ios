@@ -46,3 +46,20 @@ extension Post {
     /// 저장을 마친 쪽이 켜 두면, 갤러리가 가장 최근에 만든 내 그림으로 옮겨 가고 도로 끈다.
     static let showsJustSavedKey = "showsJustSavedPost"
 }
+
+extension Post {
+    /// 사진 앱에 저장할 한 장. 앞면과 뒷면이 함께 들어간다.
+    ///
+    /// 내가 그린 것은 상대에게 건네는 그림이라 「님에게」,
+    /// 받은 것은 상대가 건네준 그림이라 「님으로부터」 — 상세 화면 뒷장과 같은 말을 쓴다.
+    var photoItem: PhotoLibrarySaver.Item {
+        let name = isMine ? recipientName : displaySenderName
+        let relation = isMine ? "님에게" : "님으로부터"
+        return PhotoLibrarySaver.Item(
+            drawing: drawingData,
+            message: text,
+            caption: name.isEmpty ? "" : "\(name) \(relation)",
+            date: createdAt
+        )
+    }
+}

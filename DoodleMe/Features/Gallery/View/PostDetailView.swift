@@ -473,7 +473,7 @@ extension PostDetailView {
 
     /// 사진 앱에 그림을 저장한다. 실제로 굽고 쓰는 일은 `PhotoLibrarySaver` 가 맡는다.
     private func saveDrawingToGallery() async {
-        present(await PhotoLibrarySaver.save([post.drawingData]).message)
+        present(await PhotoLibrarySaver.save([post.photoItem]).message)
     }
 
     private func present(_ message: String) {

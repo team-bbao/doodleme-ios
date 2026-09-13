@@ -37,6 +37,16 @@ enum PhotoLibrarySaver {
         }
     }
 
+    /// 사진 앱에 넣을 한 장. 앞면(그림)과 뒷면(글)이 함께 들어간다.
+    struct Item {
+        let drawing: Data
+        /// 뒷면의 한마디.
+        let message: String
+        /// 「케빈 님에게」 처럼 누구와 주고받은 것인지.
+        let caption: String
+        let date: Date
+    }
+
     /// 그림들을 사진 앱에 넣는다.
     ///
     /// **권한은 맨 앞에서 한 번만 묻는다.** 장마다 물으면 열 장을 고른 사람에게
@@ -45,8 +55,8 @@ enum PhotoLibrarySaver {
     /// 한 장이 실패해도 멈추지 않고 나머지를 마저 넣는다.
     /// 열 장 중 아홉 장이 들어갈 수 있는데 첫 장에서 그만두면 아홉 장을 잃는다.
     @MainActor
-    static func save(_ drawings: [Data]) async -> Outcome {
-        guard !drawings.isEmpty else { return .saved(count: 0) }
+    static func save(_ items: [Item]) async -> Outcome {
+        guard !items.isEmpty else { return .saved(count: 0) }
 
         let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
         guard status == .authorized || status == .limited else { return .noPermission }
@@ -54,8 +64,8 @@ enum PhotoLibrarySaver {
         var saved = 0
         var firstError: String?
 
-        for drawing in drawings {
-            guard let data = snapshot(of: drawing) else {
+        for item in items {
+            guard let data = snapshot(of: item) else {
                 firstError = firstError ?? "이미지를 만들지 못했어요."
                 continue
             }
@@ -67,39 +77,104 @@ enum PhotoLibrarySaver {
             }
         }
 
-        if saved == drawings.count { return .saved(count: saved) }
-        if saved > 0 { return .partial(saved: saved, total: drawings.count) }
+        if saved == items.count { return .saved(count: saved) }
+        if saved > 0 { return .partial(saved: saved, total: items.count) }
         return .failed(firstError ?? "알 수 없는 까닭")
     }
 
-    /// 사진 앱에 남길 이미지. 흰 바탕(`#FFFFFF`)에 획만 담는다.
+    /// 사진 앱에 남길 이미지.
     ///
-    /// 화면의 메모지에는 그늘과 접힌 모서리가 있지만 사진에는 넣지 않는다.
-    /// 사진첩에 남는 건 그림이지 종이가 아니다.
+    /// **앞면과 뒷면을 한 장에 잇는다.** 위에 그림, 아래에 한마디와 누구에게서 온 것인지.
+    /// 그림만 남기면 사진첩에서 다시 볼 때 누가 무슨 말을 남겼는지 알 길이 없다 —
+    /// 이 앱에서 그림과 한마디는 한 쌍이다.
+    ///
+    /// 종이의 그늘과 접힌 모서리는 넣지 않는다. 사진첩에 남는 건 그림이지 종이가 아니다.
     ///
     /// SwiftUI `ImageRenderer` 로 `DoodleImageView` 를 굽지 않는다.
     /// 그 뷰는 `.task` 로 그림을 늦게 채우는데, 화면에 붙지 않은 뷰에서는 그 `task` 가 돌지 않는다.
     /// 그대로 구우면 획 없는 흰 종이만 저장된다.
     /// 캐시가 이미 구워 둔 그림이 있으니 흰 바탕에 얹기만 하면 된다.
-    ///
-    /// 캔버스 비율을 그대로 써야 그린 대로 저장된다.
     @MainActor
-    static func snapshot(of drawingData: Data) -> Data? {
-        let drawing = DoodleImageCache.image(for: drawingData)
-        let canvas = CGRect(origin: .zero, size: DoodleMetrics.canvasSize)
+    static func snapshot(of item: Item) -> Data? {
+        let canvas = DoodleMetrics.canvasSize
+        let drawing = DoodleImageCache.image(for: item.drawing)
+
+        let message = item.message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let messageText = message.isEmpty ? nil : attributed(message)
+        let captionText = attributed(caption(for: item), font: .systemFont(ofSize: 13), color: .gray)
+
+        let textWidth = canvas.width - sideMargin * 2
+        let messageHeight = messageText.map { height(of: $0, width: textWidth) } ?? 0
+        let captionHeight = height(of: captionText, width: textWidth)
+        // 한마디가 없으면 그 자리와 사이 간격도 함께 뺀다. 빈 줄만 남으면 잘린 것처럼 보인다.
+        let footerHeight = topPadding
+            + messageHeight
+            + (messageText == nil ? 0 : messageGap)
+            + captionHeight
+            + bottomPadding
+
+        let size = CGSize(width: canvas.width, height: canvas.height + footerHeight)
 
         let format = UIGraphicsImageRendererFormat()
         format.scale = 3
         // 사진에 투명한 자리를 남기지 않는다. 흰 바탕이 전부 채운다.
         format.opaque = true
 
-        let image = UIGraphicsImageRenderer(size: canvas.size, format: format).image { context in
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
             UIColor.white.setFill()
-            context.fill(canvas)
-            drawing.draw(in: canvas)
+            context.fill(CGRect(origin: .zero, size: size))
+            drawing.draw(in: CGRect(origin: .zero, size: canvas))
+
+            // 그림과 글 사이를 가르는 실선. 어디까지가 그림인지 눈으로 끊어 준다.
+            UIColor(white: 0.9, alpha: 1).setFill()
+            context.fill(CGRect(x: sideMargin, y: canvas.height,
+                                width: textWidth, height: 1))
+
+            var y = canvas.height + topPadding
+            if let messageText {
+                messageText.draw(with: CGRect(x: sideMargin, y: y,
+                                              width: textWidth, height: messageHeight),
+                                 options: .usesLineFragmentOrigin, context: nil)
+                y += messageHeight + messageGap
+            }
+            captionText.draw(with: CGRect(x: sideMargin, y: y,
+                                          width: textWidth, height: captionHeight),
+                             options: .usesLineFragmentOrigin, context: nil)
         }
         return image.pngData()
     }
+
+    /// 「케빈 님에게 · 2026. 9. 13.」 처럼 한 줄로 잇는다.
+    private static func caption(for item: Item) -> String {
+        let date = item.date.formatted(date: .abbreviated, time: .omitted)
+        return item.caption.isEmpty ? date : "\(item.caption) · \(date)"
+    }
+
+    /// 가운데 맞춘 글. 한마디는 손글씨체로, 밑줄은 시스템 글꼴로 쓴다.
+    private static func attributed(_ text: String,
+                                   font: UIFont = .doodleHandwriting(size: 22),
+                                   color: UIColor = UIColor(white: 0.26, alpha: 1)) -> NSAttributedString {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byWordWrapping
+        return NSAttributedString(string: text, attributes: [
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraph,
+        ])
+    }
+
+    private static func height(of text: NSAttributedString, width: CGFloat) -> CGFloat {
+        ceil(text.boundingRect(with: CGSize(width: width, height: .greatestFiniteMagnitude),
+                               options: [.usesLineFragmentOrigin, .usesFontLeading],
+                               context: nil).height)
+    }
+
+    private static let sideMargin: CGFloat = 24
+    private static let topPadding: CGFloat = 20
+    private static let bottomPadding: CGFloat = 22
+    /// 한마디와 아랫줄 사이.
+    private static let messageGap: CGFloat = 10
 
     /// 사진 앱에 실제로 쓰는 부분.
     ///
