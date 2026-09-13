@@ -22,6 +22,8 @@ struct PostGridView: View {
     /// 카드를 늘어놓는 순서. 두 섹션에 똑같이 걸린다.
     let sortOrder: GallerySortOrder
     @Binding var selectedPost: Post?
+    /// 상세를 옆 칸에 펼쳐 두었는지. 그때만 열린 카드를 격자에서 짚어 준다.
+    var showsDetailBeside = false
     @Binding var profileCandidatePost: Post?
 
     /// 지우려고 확인을 기다리는 그림. 확인창은 화면 가운데에 `GalleryPage` 가 띄운다.
@@ -98,17 +100,27 @@ struct PostGridView: View {
     private static let baseCardWidth: CGFloat = 170
     private static let baseCardHeight: CGFloat = 186
     /// 카드 사이 가로 간격. 170 + 22 + 170 = 362 로 아이폰 본문 폭에 딱 맞는다.
-    private static let columnSpacing: CGFloat = 22
+    private static let baseColumnSpacing: CGFloat = 22
 
-    /// 한 줄에 놓을 수 있는 최대 장수.
+    /// 이 폭에서 카드 사이가 실제로 얼마나 벌어지는지.
     ///
-    /// 넓다고 끝없이 늘리면 카드가 화면의 5분의 1까지 작아진다.
-    /// 아이폰에서 한 장이 화면의 42% 를 차지하는데, 5열이면 18% 까지 떨어져
-    /// 메모지에 그린 그림이 무엇인지 알아보기 어려워진다.
+    /// 고정 22 로 두면 iPad 에서 카드만 커져 상대적으로 더 붙어 보인다 —
+    /// 아이폰은 22/170 = 12.9% 인데 13인치 가로에서는 22/204 = 10.8% 였다.
+    /// 6열에서는 같은 간격이 다섯 번 반복되어 눈이 그 차이를 비교한다.
+    static func columnSpacing(forWidth width: CGFloat) -> CGFloat {
+        baseColumnSpacing * DoodleLayout.gridSpacingScale(forWidth: width)
+    }
+
+    /// 카드 한 장이 이보다 넓어지지 않는다.
     ///
-    /// 인스타그램도 화면이 넓어지면 격자 열을 늘리되(모바일 3열, 큰 화면 3~6열)
-    /// 배치 구조 자체는 그대로 둔다. 같은 결로, 늘리기는 하되 셋에서 멈춘다.
-    private static let maxColumns = 3
+    /// 예전에는 열 개수(셋)로 막았다. 그러면 13인치에서 세로도 가로도 똑같이 3열이 되어
+    /// 방향 차이가 사라지고, 남는 폭이 전부 카드로 가 한 장이 431pt 까지 부풀었다.
+    /// 폭으로 막으면 열 수가 방향에 따라 저절로 갈린다.
+    ///
+    /// 240 인 이유 — iPad 는 pt 당 물리 크기가 아이폰보다 16% 크지만 보는 거리가 1.4 배라,
+    /// 아이폰에서와 같은 각크기로 보이려면 이만큼은 되어야 한다.
+    /// 더 줄이면 이 앱의 가는 획이 뭉개져 무엇을 그린 것인지 알아보기 어려워진다.
+    private static let maxCardWidth: CGFloat = 240
 
     /// 넓은 화면에서 글자를 얼마나 키울지. 아이폰에서는 1 이다.
     private static func scale(forWidth width: CGFloat) -> CGFloat {
@@ -117,17 +129,22 @@ struct PostGridView: View {
 
     /// 한 줄에 몇 장을 놓을지.
     ///
-    /// 아이폰은 늘 두 장이다. 화면이 넓어지면 셋까지 늘고, 그 뒤로는 카드가 커진다.
-    /// 아이폰에서 한 장이 차지하던 폭(170 + 22)을 기준으로 몇 장이 들어가는지 센다.
+    /// 카드가 `maxCardWidth` 를 넘지 않는 **가장 적은** 열 수를 고른다.
+    /// 열 수를 먼저 정하고 카드를 맞추는 것이 아니라, 카드 크기를 정하고 열 수가 따라온다.
+    ///
+    /// 아이폰(362)은 두 장이면 이미 170 이라 하한 2 에 걸려 지금과 같다.
+    /// 13인치는 세로 992 에서 넷, 가로 1336 에서 여섯이 된다.
     private static func columnCount(forWidth width: CGFloat) -> Int {
-        let slot = baseCardWidth + columnSpacing
-        return min(maxColumns, max(2, Int((width + columnSpacing) / slot)))
+        let spacing = columnSpacing(forWidth: width)
+        let slot = maxCardWidth + spacing
+        let needed = Int(((width + spacing) / slot).rounded(.up))
+        return max(2, needed)
     }
 
     /// 주어진 폭에서 카드 한 장이 갖는 크기. 아이폰 402 화면에서는 170x186 그대로다.
     private static func cardSize(forWidth width: CGFloat) -> CGSize {
         let count = CGFloat(columnCount(forWidth: width))
-        let w = (width - columnSpacing * (count - 1)) / count
+        let w = (width - columnSpacing(forWidth: width) * (count - 1)) / count
         return CGSize(width: w, height: w * baseCardHeight / baseCardWidth)
     }
     /// 스크롤 막대를 본문 오른쪽 끝보다 얼마나 더 바깥으로 내보낼지.
@@ -140,9 +157,17 @@ struct PostGridView: View {
     ///
     /// 탭 바가 아래에서 차지하는 높이(≈66)에 손끝이 닿을 자리와 홈 인디케이터를 더해 잡았다.
     /// 마지막 줄 아래에 누를 수 있는 빈 자리를 남기는 몫도 겸한다.
+    ///
+    /// 선택 바(높이 56 + 아래 여백 34 = 90)에 맞춘 값이다. 실측 틈 6.5pt.
+    /// Dynamic Type 을 지원하게 되면 바 높이 + 안전영역으로 계산해야 한다.
     private static let bottomInset: CGFloat = 96
     /// 줄 사이 세로 간격. Figma 는 가로보다 좁은 17 을 쓴다 (186 세 줄 + 17 두 칸 = 592).
-    private static let rowSpacing: CGFloat = 17
+    /// 가로 간격과 같은 비율로 키운다 — 한쪽만 벌어지면 격자가 눌린 것처럼 보인다.
+    private static let baseRowSpacing: CGFloat = 17
+
+    private static func rowSpacing(forWidth width: CGFloat) -> CGFloat {
+        baseRowSpacing * DoodleLayout.gridSpacingScale(forWidth: width)
+    }
 
     /// 카드를 눌러 확대할 때의 결. `GalleryPage` 의 닫는 쪽과 같은 값을 쓴다.
     static let cardTransition: Animation = .spring(response: 0.32, dampingFraction: 0.86)
@@ -155,7 +180,7 @@ struct PostGridView: View {
 
     private static func columns(forWidth width: CGFloat) -> [GridItem] {
         Array(
-            repeating: GridItem(.flexible(), spacing: columnSpacing),
+            repeating: GridItem(.flexible(), spacing: columnSpacing(forWidth: width)),
             count: columnCount(forWidth: width)
         )
     }
@@ -184,7 +209,8 @@ struct PostGridView: View {
         } else {
             ScrollView {
                 ScrollViewReader { grid in
-                    LazyVGrid(columns: Self.columns(forWidth: gridWidth), spacing: Self.rowSpacing) {
+                    LazyVGrid(columns: Self.columns(forWidth: gridWidth),
+                              spacing: Self.rowSpacing(forWidth: gridWidth)) {
                         ForEach(currentPosts) { post in
                             card(for: post)
                         }
@@ -260,6 +286,17 @@ struct PostGridView: View {
                     .mask { paperLayer(.memoFrontMask) }
             }
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            // 옆 칸에 열어 둔 카드를 격자에서 계속 짚어 준다.
+            //
+            // 애플 HIG 「Split views」 — *persistently highlight the current selection in each pane
+            // that leads to the detail view. The selected appearance clarifies the relationship
+            // between the content in various panes.*
+            // 덮어서 보여 주던 때에는 상세가 격자를 가려 필요 없던 표시다.
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color.doodlePrimary,
+                                  lineWidth: isOpenInDetail(post) ? Self.openCardBorder : 0)
+            }
             // 고른 카드는 어둡게 덮어서 한눈에 구분되게 한다.
             // 확인창은 세그먼트 아래에 떠서 이 카드를 가리지 않는다.
             .overlay {
@@ -365,6 +402,13 @@ struct PostGridView: View {
             .frame(height: Self.cardSize(forWidth: gridWidth).height)
             .clipped()
     }
+
+    /// 지금 옆 칸에 열려 있는 카드인지. 덮어서 보여 줄 때는 짚을 이유가 없다.
+    private func isOpenInDetail(_ post: Post) -> Bool {
+        showsDetailBeside && selectedPost?.persistentModelID == post.persistentModelID
+    }
+
+    private static let openCardBorder: CGFloat = 3
 
     private func isSelected(_ post: Post) -> Bool {
         switch mode {
