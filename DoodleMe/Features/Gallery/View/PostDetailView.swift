@@ -10,6 +10,11 @@ import SwiftUI
 
 struct PostDetailView: View {
     let post: Post
+    /// 조작부(뒤로 버튼)가 쓰는 배율. 갤러리 상단 버튼과 같은 값을 받아 크기를 맞춘다.
+    ///
+    /// 여기서 직접 재지 않는 이유가 있다 — 이 뷰가 재는 크기는 안전영역 안쪽이라
+    /// 갤러리가 재는 화면 전체와 기준이 달라, 같은 기기에서 버튼이 1pt 어긋난다.
+    var chromeScale: CGFloat = 1
     /// 확대를 닫고 그리드로 돌아간다.
     var onClose: () -> Void
 
@@ -17,22 +22,50 @@ struct PostDetailView: View {
     /// 앞면에 접힌 모서리를 보여줄 차례인지.
     @State private var showFold = false
 
+    /// 뒤로 버튼이 화면 좌상단에서 떨어진 거리. Figma (18, 72).
+    private static let backButtonLeading: CGFloat = 18
+    private static let backButtonTop: CGFloat = 72
+
     /// 확대된 카드 크기. Figma `iPhone 17 - 17` 의 `메모지 1`(141:698).
     /// 그리기 캔버스(350x390)와 별개다 — 캔버스를 건드리면 그리기 탭이 흔들린다.
     private static let cardSize = CGSize(width: 362, height: 396)
+
+    /// 옆 칸으로 놓일 때 이만큼이면 카드가 편히 들어간다.
+    ///
+    /// 카드(362)에 좌우 여백을 더한 값이다. 그 이상은 낭비다 —
+    /// 카드가 350x390 고정 비율이라 칸만 넓혀도 카드가 커지지 않는다.
+    /// 넓이는 격자 쪽이 쓰는 것이 낫다.
+    static var preferredPaneWidth: CGFloat { cardSize.width + horizontalChrome }
     /// 한마디 글자 크기와 행높이. Figma `Frame 35`(92:828).
     private static let messageFontSize: CGFloat = 40
     private static let messageLineHeight: CGFloat = 44
     /// 알약 툴바 안쪽 좌우 여백과 버튼 사이 간격. Figma: 칩이 x=5 에서 시작해 60 폭.
     private static let toolbarInset: CGFloat = 5
     private static let toolbarButtonSpacing: CGFloat = 6
+    /// 알약 높이와 그 안 버튼 한 칸의 폭. Figma `Group 4`.
+    private static let baseToolbarHeight: CGFloat = 48
+    private static let toolbarButtonWidth: CGFloat = 60
+
+    /// 알약 높이.
+    ///
+    /// 넓은 화면에서는 **뒤로 버튼과 같은 크기**가 된다 — 같은 화면에 나란히 떠 있는
+    /// 조작부인데 하나는 60, 하나는 48 이면 한 벌로 보이지 않는다.
+    /// 아이폰은 Figma 의 48 그대로다.
+    private var toolbarHeight: CGFloat {
+        chromeScale == 1 ? Self.baseToolbarHeight : DoodleMetrics.side(scale: chromeScale)
+    }
+
+    /// 알약 안쪽 치수가 높이와 같은 비율로 자란다.
+    private var toolbarScale: CGFloat { toolbarHeight / Self.baseToolbarHeight }
+    /// 알약 안 글리프 크기. `.title2` 와 같은 22 다.
+    private static let toolbarGlyphSize: CGFloat = 22
 
     /// 알약 폭. 60 폭 버튼 `n` 개 + 사이 6 + 좌우 여백 5 둘.
     ///
     /// 내가 그린 것에는 「카드로 공유」 가 빠져 둘이 되므로 개수를 받아 잰다.
     /// 셋이면 192, 둘이면 136 — Figma `Group 4` 의 원래 값이다.
     private static func toolbarWidth(buttons: Int) -> CGFloat {
-        60 * CGFloat(buttons) + toolbarButtonSpacing * CGFloat(buttons - 1) + 5 * 2
+        toolbarButtonWidth * CGFloat(buttons) + toolbarButtonSpacing * CGFloat(buttons - 1) + toolbarInset * 2
     }
 
     /// 다 접혔을 때 접힌 정사각형 한 변의 길이.
@@ -151,15 +184,22 @@ struct PostDetailView: View {
             // 흰 원을 직접 그리지 않는다. 그림 위에 떠 있는 조작부라 유리가 맞는 자리다 —
             // 애플 HIG 「Materials」: *Liquid Glass forms a distinct functional layer for
             // controls and navigation elements … that floats above the content layer.*
-            // 내보내기 미리보기의 닫기 버튼과 같은 재질이어야 한다.
+            //
+            // 재질을 `buttonStyle(.glass)` 가 아니라 `glassEffect` 로 입힌다.
+            // 버튼 스타일은 라벨 바깥에 제 여백을 더해 **프레임보다 크게 그린다** —
+            // 60 을 줬는데 실제 원은 그보다 커져서, 바로 아래 카드 툴바(60)와 눈에 띄게 어긋났다.
+            // 알약 툴바가 쓰는 방식과 같게 하면 크기가 정확히 맞는다.
             Image(systemName: "chevron.backward")
-                .font(.system(size: 18, weight: .medium))
-                .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
+                .font(.system(size: 18 * chromeScale, weight: .medium))
+                .foregroundStyle(Color.doodlePrimary)
+                .frame(width: DoodleMetrics.side(scale: chromeScale),
+                       height: DoodleMetrics.side(scale: chromeScale))
+                .glassEffect(.regular.interactive(), in: .circle)
         }
-        .buttonStyle(.glass)
-        .buttonBorderShape(.circle)
-        .padding(.leading, 18)
-        .padding(.top, 72)
+        .buttonStyle(.plain)
+        // 자리도 함께 자란다. 버튼만 키우면 넓은 화면에서 모서리에 바짝 붙는다.
+        .padding(.leading, Self.backButtonLeading * chromeScale)
+        .padding(.top, Self.backButtonTop * chromeScale)
         .accessibilityLabel("뒤로")
     }
 
@@ -168,15 +208,19 @@ struct PostDetailView: View {
 
             // Figma `iPhone 17 - 17`(평소) · `iPhone 17 - 14`(눌림) 의 `Group 4`.
             // 원래 흰색 80% 알약 136x48 안에 60 폭 버튼 둘이었고, 내보내기가 늘어 셋이 되었다.
-            HStack(spacing: Self.toolbarButtonSpacing) {
+            // 알약 안쪽도 함께 키운다.
+            //
+            // 예전에는 바깥 `frame` 에만 `cardScale` 을 걸어, 13인치에서 알약은 341 로 커지는데
+            // 안의 버튼 셋은 아이폰 크기(202)로 남아 좌우에 빈 유리가 70 씩 남았다.
+            HStack(spacing: Self.toolbarButtonSpacing * toolbarScale) {
                 Button {
                     showSharingScreen = true
                 } label: {
                     // AirDrop 으로 건네는 동작이라 내보내기 화살표보다 이쪽이 뜻이 맞는다.
                     Image(systemName: "airplay.audio")
-                        .font(.title2)
+                        .font(toolbarGlyphFont)
                 }
-                .buttonStyle(CardToolbarButtonStyle())
+                .buttonStyle(CardToolbarButtonStyle(scale: toolbarScale))
                 .accessibilityLabel("가까운 친구에게 보내기")
 
                 // 사진 앱에 **그림만** 남긴다. 흰 바탕에 획뿐이고 종이도 제목도 없다 —
@@ -190,9 +234,9 @@ struct PostDetailView: View {
                     Task { await saveDrawingToGallery() }
                 } label: {
                     Image(systemName: "square.and.arrow.down")
-                        .font(.title2)
+                        .font(toolbarGlyphFont)
                 }
-                .buttonStyle(CardToolbarButtonStyle())
+                .buttonStyle(CardToolbarButtonStyle(scale: toolbarScale))
                 .accessibilityLabel("그림만 사진에 저장")
 
                 // 내보내기 카드를 먼저 보여 주고, 거기서 시스템 공유 시트로 넘긴다.
@@ -204,13 +248,14 @@ struct PostDetailView: View {
                     showExportPreview = true
                 } label: {
                     Image(systemName: "square.and.arrow.up")
-                        .font(.title2)
+                        .font(toolbarGlyphFont)
                 }
-                .buttonStyle(CardToolbarButtonStyle())
+                .buttonStyle(CardToolbarButtonStyle(scale: toolbarScale))
                 .accessibilityLabel("카드로 공유")
             }
-            .padding(.horizontal, Self.toolbarInset)
-            .frame(width: Self.toolbarWidth(buttons: 3) * cardScale, height: 48 * cardScale)
+            .padding(.horizontal, Self.toolbarInset * toolbarScale)
+            .frame(width: Self.toolbarWidth(buttons: 3) * toolbarScale,
+                   height: toolbarHeight)
             // 흰 알약 대신 유리. 갤러리 하단 선택 바와 같은 재질이다.
             // 안에 누를 것이 셋 들어 있으므로 HIG 대로 `interactive` 를 건다.
             .glassEffect(.regular.interactive(), in: .capsule)
@@ -291,6 +336,15 @@ struct PostDetailView: View {
                    height: Self.cardSize.height * cardScale)
             .shadow(color: .black.opacity(0.25), radius: 10)
             .overlay { backFaceContent }
+    }
+
+    /// 알약 안 글리프의 글꼴.
+    ///
+    /// 배율이 1 인 화면에서는 `.title2` 를 그대로 쓴다. 고정 크기로 바꿔 두면
+    /// 이 앱에서 **유일하게 큰 글자 설정을 따르던 자리**가 사라진다.
+    /// 키워야 할 때만 고정 크기로 내려간다 — 큰 글자와 배율을 함께 곱할 수는 없다.
+    private var toolbarGlyphFont: Font {
+        toolbarScale == 1 ? .title2 : .system(size: Self.toolbarGlyphSize * toolbarScale)
     }
 
     /// 앞뒤를 나란히 펼칠지.
@@ -402,15 +456,18 @@ struct PostDetailView: View {
 /// 눌린 표시는 60x42 지만 누를 수 있는 자리는 알약 높이(48)를 다 쓴다.
 /// 표시가 작다고 손가락이 닿는 자리까지 좁힐 이유는 없다.
 private struct CardToolbarButtonStyle: ButtonStyle {
+    /// 카드와 함께 커지는 배율. 알약 바깥만 키우면 버튼이 그 안에서 겉돈다.
+    var scale: CGFloat = 1
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(Color.doodlePrimary)
-            .frame(width: 60, height: 48)
+            .frame(width: 60 * scale, height: 48 * scale)
             .background {
                 if configuration.isPressed {
                     Capsule()
                         .fill(Color.doodleCardToolbarPressed)
-                        .frame(height: 42)
+                        .frame(height: 42 * scale)
                 }
             }
             .contentShape(Rectangle())
