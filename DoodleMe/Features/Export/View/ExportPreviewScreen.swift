@@ -258,19 +258,21 @@ struct ExportPreviewScreen: View {
     /// 갤러리의 고르기 막대와 같은 짜임이다 — 나가는 길이 왼쪽, 하는 일이 오른쪽.
     private func topBar(in size: CGSize) -> some View {
         HStack {
-            Button(action: isChoosing ? stopChoosing : onClose) { buttonFace("xmark") }
+            Button(action: isChoosing ? stopChoosing : onClose) {
+                buttonFace("xmark", scale: chromeScale(in: size))
+            }
                 .accessibilityLabel(isChoosing ? "고르기 취소" : "닫기")
 
             Spacer()
 
             shareButton(in: size)
         }
-        .padding(.horizontal, Self.sideInset)
+        .padding(.horizontal, Self.sideInset * chromeScale(in: size))
         // 세그먼트를 **겹쳐서** 가운데에 둔다.
         //
         // 같은 `HStack` 에 넣으면 공유 버튼이 아직 안 나왔을 때(굽는 중) 한쪽으로 쏠린다.
         // 겹쳐 두면 버튼이 있든 없든 늘 화면 한가운데 선다.
-        .overlay { isChoosing ? AnyView(chosenCount) : AnyView(ratioPicker) }
+        .overlay { isChoosing ? AnyView(chosenCount(in: size)) : AnyView(ratioPicker(in: size)) }
     }
 
     /// 공유로 가는 버튼.
@@ -284,7 +286,9 @@ struct ExportPreviewScreen: View {
     @ViewBuilder
     private func shareButton(in size: CGSize) -> some View {
         if isChoosing {
-            ShareLink(items: chosenFiles) { buttonFace("square.and.arrow.up") }
+            ShareLink(items: chosenFiles) {
+                buttonFace("square.and.arrow.up", scale: chromeScale(in: size))
+            }
                 .disabled(chosen.isEmpty)
                 .accessibilityLabel("고른 \(chosen.count)장 공유")
         } else if files.count > 1 {
@@ -308,27 +312,29 @@ struct ExportPreviewScreen: View {
                     Label("골라서…", systemImage: "checkmark.circle")
                 }
             } label: {
-                buttonFace("square.and.arrow.up")
+                buttonFace("square.and.arrow.up", scale: chromeScale(in: size))
             }
             .accessibilityLabel("공유")
         } else if !files.isEmpty {
             // 애플 HIG 「Activity views」 — 공유 버튼으로 시스템 시트를 연다.
             // 사진 저장·인스타그램·AirDrop 이 전부 이 안에 들어 있어 버튼을 따로 두지 않는다.
-            ShareLink(items: files) { buttonFace("square.and.arrow.up") }
+            ShareLink(items: files) {
+                buttonFace("square.and.arrow.up", scale: chromeScale(in: size))
+            }
                 .accessibilityLabel("공유")
         }
     }
 
     /// 고르는 중에 세그먼트 자리에 서는 글. 판형은 이때 바꿀 수 없다 —
     /// 판을 바꾸면 카드를 다시 구워야 해서 고른 것이 가리키던 파일이 사라진다.
-    private var chosenCount: some View {
+    private func chosenCount(in size: CGSize) -> some View {
         // 양옆 버튼과 같은 흰 바탕이다. 유리로 두었더니 검은 배경 위에서 알약 윤곽이
         // 사라져 글자만 허공에 뜬 것처럼 보였다 — 한 줄에 선 셋은 같은 재질이어야 한 줄로 읽힌다.
         Text(chosen.isEmpty ? "올릴 장을 고르세요" : "\(chosen.count)장 고름")
             .font(.subheadline.weight(.medium))
             .foregroundStyle(Color.doodlePrimary)
             .padding(.horizontal, 16)
-            .frame(height: Self.barHeight)
+            .frame(height: barHeight(in: size))
             .background(.white.opacity(0.95), in: Capsule())
             .shadow(color: .black.opacity(0.2), radius: 7.5, y: 4)
     }
@@ -392,7 +398,7 @@ struct ExportPreviewScreen: View {
     ///
     /// 고르면 미리보기가 바로 그 판으로 바뀐다. 나가기 전에 무엇이 나갈지 보게 하는 것이
     /// 이 화면의 일이라, 굽는 순간에 묻는 메뉴보다 여기가 맞다.
-    private var ratioPicker: some View {
+    private func ratioPicker(in size: CGSize) -> some View {
         Picker("판형", selection: $ratio) {
             ForEach(ExportRatio.allCases) { ratio in
                 Text(ratio.label)
@@ -419,22 +425,37 @@ struct ExportPreviewScreen: View {
     ///
     /// 흰 원은 검은 바탕에서도 흰 종이 위에서도 또렷하다.
     /// 갤러리에서 누르던 것과 같은 모양이라 여기서 따로 배울 것도 없다.
-    private func buttonFace(_ symbol: String) -> some View {
+    private func buttonFace(_ symbol: String, scale: CGFloat) -> some View {
         Image(systemName: symbol)
             // 갤러리 상단 버튼(`GalleryPage`)과 같은 글리프 크기·굵기·색이다.
-            .font(.system(size: 20, weight: .medium))
+            // 배율도 같은 것을 쓴다 — 앱 안의 닫기·공유 버튼은 어느 화면에서나 한 크기여야 한다.
+            .font(.system(size: 20 * scale, weight: .medium))
             .foregroundStyle(Color.doodlePrimary)
-            .frame(width: DoodleMetrics.buttonSide, height: DoodleMetrics.buttonSide)
+            .frame(width: DoodleMetrics.side(scale: scale),
+                   height: DoodleMetrics.side(scale: scale))
             // 갤러리는 흰색 80% 다. 여기서는 뒤가 검어 그만큼 비치면 회색으로 내려앉는다.
             .background(.white.opacity(0.95), in: Circle())
             .shadow(color: .black.opacity(0.2), radius: 7.5, y: 4)
     }
 
+    /// 버튼 줄이 카드 폭 안에서 좌우로 들어가는 정도.
     private static var sideInset: CGFloat { 18 }
-    /// 판형 세그먼트의 최대 폭.
+    /// 판형 세그먼트의 최대 폭. 양옆 버튼과 같은 배율로 자란다 —
+    /// 한 줄에 선 셋 중 가운데만 아이폰 크기로 남으면 줄이 어긋나 보인다.
     private static let ratioPickerWidth: CGFloat = 220
-    /// 버튼 줄의 높이. 글리프 하나가 44 니 줄도 44 다.
+    /// 조작부 배율. 갤러리 상단 버튼·공유 화면 닫기와 같은 기준을 쓴다.
+    private func chromeScale(in size: CGSize) -> CGFloat {
+        DoodleLayout.chromeScale(forWidth: size.width,
+                                 height: size.height,
+                                 sizeClass: horizontalSizeClass)
+    }
+
+    /// 버튼 줄의 높이. 글리프 하나가 44 니 줄도 44 다. 버튼이 커지면 줄도 같이 커진다.
     private static let barHeight: CGFloat = 44
+
+    private func barHeight(in size: CGSize) -> CGFloat {
+        DoodleMetrics.side(scale: chromeScale(in: size))
+    }
     /// 카드 아래에 비워 두는 페이지 점 자리.
     private static let indexRoom: CGFloat = 44
     /// 버튼이 안전영역·카드 윗변에서 떨어지는 정도. 좌우 여백과 같은 값이다.
