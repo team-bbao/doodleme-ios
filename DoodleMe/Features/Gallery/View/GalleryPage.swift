@@ -53,9 +53,12 @@ struct GalleryPage: View {
     /// 지금 고르는 것이 지우려는 것인지 내보내려는 것인지.
     ///
     /// 들어온 길이 정한다 — 카드를 꾹 누르면 지우기, 상단 􀈂 를 누르면 내보내기.
-    @State private var selectionPurpose: GallerySelectionPurpose = .delete
     /// 고른 그림들을 카드로 만들어 보여 줄지.
     @State private var showExportPreview = false
+    /// 여러 장 저장을 마치고 띄울 말. 비어 있으면 확인창이 뜨지 않는다.
+    @State private var saveResultMessage: String?
+    /// 저장하는 동안 같은 버튼을 또 누르지 못하게 막는다.
+    @State private var isSavingToPhotos = false
     @State private var selectedPost: Post?
     @State private var profileCandidatePost: Post?
     @State private var showSharingScreen = false
@@ -391,6 +394,15 @@ struct GalleryPage: View {
             } message: {
                 Text("삭제한 그림은 되돌릴 수 없어요.")
             }
+            // 저장 결과. 상세 화면의 한 장 저장과 같은 방식으로 알린다.
+            .alert("사진 저장",
+                   isPresented: Binding(get: { saveResultMessage != nil },
+                                        set: { if !$0 { saveResultMessage = nil } }),
+                   presenting: saveResultMessage) { _ in
+                Button("확인") { saveResultMessage = nil }
+            } message: { message in
+                Text(message)
+            }
             .fullScreenCover(isPresented: $showExportPreview) {
                 ExportPreviewScreen(
                     pages: exportPages,
@@ -432,22 +444,29 @@ struct GalleryPage: View {
 
             Spacer()
 
+            // 고른 뒤에 무엇을 할지 정한다.
+            //
+            // 예전에는 들어온 길이 할 일을 정했다 — ⋯ 로 들어오면 삭제만, 상단 􀈂 로 들어오면
+            // 내보내기만 섰다. 그래서 세 장을 골라 놓고 마음이 바뀌면 취소하고 다른 길로
+            // 들어가 **처음부터 다시 골라야** 했다. 고르는 일은 한 번이면 된다.
+            //
+            // 글자 대신 글리프를 쓴다. 셋을 글자로 늘어놓으면 아이폰 한 줄에 빠듯하고,
+            // 저장 글리프는 상세 화면 툴바의 저장과 **같은 그림**이라 새로 배울 것이 없다.
+            //
             // 한 장도 고르지 않았으면 할 일이 없다.
-            //
             // 색을 직접 지정하면 시스템이 비활성일 때 걸어 주는 흐림이 덮인다.
-            // 눌리지도 않으면서 빨갛게 서 있어, 눌러 보고 나서야 안 된다는 걸 알게 된다.
+            // 눌리지도 않으면서 또렷하게 서 있어, 눌러 보고 나서야 안 된다는 걸 알게 된다.
             // 그래서 흐림도 직접 준다.
-            //
-            // 들어온 길에 따라 하나만 선다. 둘 다 세우면 버튼이 넷이 된다.
-            switch selectionPurpose {
-            case .delete:
-                Button("삭제") { isConfirmingBulkDelete = true }
-                    .foregroundStyle(selectedPosts.isEmpty ? Color.doodleMuted : .red)
-                    .disabled(selectedPosts.isEmpty)
-            case .export:
-                Button("내보내기") { showExportPreview = true }
-                    .foregroundStyle(selectedPosts.isEmpty ? Color.doodleMuted : Color.doodlePrimary)
-                    .disabled(selectedPosts.isEmpty)
+            HStack(spacing: Self.selectionActionSpacing) {
+                selectionAction("square.and.arrow.down", label: "사진 앱에 저장") {
+                    saveSelectedToPhotos()
+                }
+                selectionAction("square.and.arrow.up", label: "내보내기") {
+                    showExportPreview = true
+                }
+                selectionAction("trash", label: "삭제", tint: .red) {
+                    isConfirmingBulkDelete = true
+                }
             }
         }
         .font(.system(size: 17, weight: .semibold))
@@ -475,6 +494,49 @@ struct GalleryPage: View {
         .padding(.horizontal, Self.contentInset)
         .padding(.bottom, Self.selectionBarBottomInset)
     }
+
+    /// 선택 바의 동작 하나. 글리프만 서고 이름은 낭독기에게만 간다.
+    private func selectionAction(_ symbol: String,
+                                 label: String,
+                                 tint: Color = .doodlePrimary,
+                                 action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 19, weight: .medium))
+                .frame(width: 30, height: 30)
+                .contentShape(Rectangle())
+        }
+        .foregroundStyle(isSelectionActionEnabled ? tint : Color.doodleMuted)
+        .disabled(!isSelectionActionEnabled)
+        .accessibilityLabel(label)
+    }
+
+    /// 고른 것이 있고, 저장이 돌고 있지 않을 때만 누를 수 있다.
+    private var isSelectionActionEnabled: Bool {
+        !selectedPosts.isEmpty && !isSavingToPhotos
+    }
+
+    /// 고른 그림들을 사진 앱에 넣는다.
+    ///
+    /// 내보내기 카드가 아니라 **그린 그대로**를 넣는다 —
+    /// 상세 화면의 저장이 하던 일을 여러 장으로 늘린 것이다.
+    private func saveSelectedToPhotos() {
+        let drawings = selectedPosts
+            .compactMap { modelContext.registeredModel(for: $0) as Post? }
+            .sorted { $0.createdAt > $1.createdAt }
+            .map(\.drawingData)
+        guard !drawings.isEmpty else { return }
+
+        isSavingToPhotos = true
+        Task {
+            let outcome = await PhotoLibrarySaver.save(drawings)
+            isSavingToPhotos = false
+            saveResultMessage = outcome.message
+        }
+    }
+
+    /// 선택 바의 동작 사이.
+    private static let selectionActionSpacing: CGFloat = 14
 
     /// 선택 바가 아무리 넓어도 이보다 넓어지지 않는다.
     /// 아이폰(402 - 좌우 20)보다 조금 여유를 둔 값이다.
@@ -723,31 +785,30 @@ struct GalleryPage: View {
     private func startSelecting(with post: Post) {
         withAnimation(.spring(response: 0.35)) {
             selectedPosts = [post.persistentModelID]
-            selectionPurpose = .delete
             mode = .selecting
         }
     }
 
-    /// 더 보기 메뉴의 「선택」 으로 들어온다. 지울 그림을 고르는 자리다.
+    /// 더 보기 메뉴의 「선택」 으로 들어온다.
     ///
     /// 카드를 꾹 눌러 들어오는 쪽과 달리 빈손으로 시작한다 — 누른 카드가 없기 때문이다.
     private func startDeleteSelection() {
-        withAnimation(.spring(response: 0.35)) {
-            selectedPosts = []
-            selectionPurpose = .delete
-            mode = .selecting
-        }
+        startSelection()
     }
 
-    /// 상단 􀈂 로 들어온다. 내보낼 그림을 고르는 자리다.
+    /// 상단 􀈂 로 들어온다. 내보내려고 들어가는 지름길이다.
     ///
     /// 꾹 눌러 들어오는 쪽과 달리 **빈손으로 시작한다.**
     /// 누른 카드가 따로 없기도 하고, 내보내기는 「무엇을 넣을지 고르는 일」 자체가 목적이라
     /// 한 장을 먼저 집어 주면 고른 적 없는 것이 섞인다.
     private func startExportSelection() {
+        startSelection()
+    }
+
+    /// 고르기를 연다. 어느 길로 들어오든 같은 자리다.
+    private func startSelection() {
         withAnimation(.spring(response: 0.35)) {
             selectedPosts = []
-            selectionPurpose = .export
             mode = .selecting
         }
     }
@@ -756,7 +817,6 @@ struct GalleryPage: View {
         withAnimation(.spring()) {
             mode = .browsing
             profileCandidatePost = nil
-            selectionPurpose = .delete
             selectedPosts = []
         }
     }
