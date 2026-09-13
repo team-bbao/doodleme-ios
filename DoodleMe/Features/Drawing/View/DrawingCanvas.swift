@@ -81,6 +81,9 @@ private struct CanvasRepresentable: UIViewRepresentable {
         let canvas = container.canvas
         canvas.tool = session.tool.pkTool
 
+        // 펜으로 긋다 만 미리보기가 남아 있을 수 있다. 도구를 바꾸면 걷어낸다.
+        if session.tool != .pen { container.live.finish() }
+
         // 코드에서 그림을 갈아끼운 경우(초기화·되돌리기)에만 캔버스를 덮어쓴다.
         // 사용자가 그리는 중에 덮어쓰면 획이 끊기므로 revision 으로 구분한다.
         if context.coordinator.appliedRevision != session.drawingRevision {
@@ -122,7 +125,15 @@ private struct CanvasRepresentable: UIViewRepresentable {
         ///
         /// 손을 뗀 자리에서 지우지 않는다.
         /// 확정된 획이 화면에 올라오기 전에 지우면 획이 한 번 깜빡인다.
+        ///
+        /// **지우개일 때는 그리지 않는다.**
+        /// 이 층은 도구를 보지 않고 손끝만 따라가던 탓에, 지우개로 문지르면
+        /// 지워지기는커녕 **검은 획이 그어졌다.** 빈 자리를 문지르면 지울 것이 없어
+        /// `canvasViewDrawingDidChange` 가 오지 않고, 그러면 `finish()` 도 불리지 않아
+        /// 그어진 미리보기가 화면에 그대로 남는다 — 지우개로 그림을 그리는 꼴이었다.
         func trackTouches(actual: [CGPoint], predicted: [CGPoint], isFirst: Bool) {
+            guard session.tool == .pen else { return }
+
             let now = CACurrentMediaTime()
             if isFirst, let first = actual.first {
                 liveView?.begin(at: first, time: now)
