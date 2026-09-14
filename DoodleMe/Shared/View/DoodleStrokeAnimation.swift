@@ -31,9 +31,19 @@ struct DoodleStrokeAnimation: View {
 
     /// 획마다 등간격으로 뽑아둔 점들을 그대로 받는다.
     /// `PKDrawing` 이 아닌 그림(예: `DefaultDoodle`)도 같은 연출로 되살릴 수 있다.
+    /// - Parameter canvasSize: 그림이 원래 놓여 있던 캔버스. 주면 **그 캔버스 전체**를 화면에 맞춰
+    ///   획이 제자리에 앉고, 주지 않으면 지금까지처럼 획이 차지한 만큼만 잡아 꽉 채운다.
+    ///
+    ///   사용자 그림에는 줘야 한다. 안 주면 작은 낙서일수록 크게 확대돼
+    ///   **같은 그림이 갤러리와 다른 크기·자리로** 보인다.
+    ///
+    ///   반대로 `DefaultDoodle` 에는 주면 안 된다. 그 그림의 좌표는 x 1.9~259.1 · y 1.5~276.5 로
+    ///   캔버스(350x390)가 아니라 제 좌표계를 쓴다 — 캔버스 기준으로 맞추면 74% 로 줄고
+    ///   왼쪽 위로 치우친다.
     init(
         strokes: [[CGPoint]],
         lineWidth: CGFloat = 2,
+        canvasSize: CGSize? = nil,
         drawDuration: TimeInterval = 2.6,
         holdDuration: TimeInterval = 0.7,
         isAnimating: Bool = true
@@ -41,7 +51,8 @@ struct DoodleStrokeAnimation: View {
         self.isAnimating = isAnimating
         self.strokes = strokes
         self.totalPointCount = strokes.reduce(0) { $0 + $1.count }
-        self.contentBounds = Self.bounds(of: strokes)
+        self.contentBounds = canvasSize.map { CGRect(origin: .zero, size: $0) }
+            ?? Self.bounds(of: strokes)
         self.lineWidth = lineWidth
         self.drawDuration = drawDuration
         self.holdDuration = holdDuration

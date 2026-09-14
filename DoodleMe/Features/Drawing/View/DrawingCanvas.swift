@@ -19,7 +19,14 @@ struct DrawingCanvas: View {
     let session: DrawingSession
 
     var body: some View {
-        CanvasRepresentable(session: session)
+        // **도구를 값으로 넘긴다.** `session` 만 넘기면 `body` 가 `session.tool` 을
+        // 읽지 않게 되어 `@Observable` 이 이 뷰를 도구 변경의 구독자로 세우지 않는다.
+        // 그러면 지우개를 눌러도 `updateUIView` 가 불리지 않아 PencilKit 은 **펜 그대로**다 —
+        // 지우개를 든 채 문지르면 획이 그어졌다.
+        //
+        // 이따금 제대로 지워지던 것은 부모의 카운트다운이 1초마다 바뀌며 `body` 를
+        // 다시 평가한 덕이었다. 도구가 바뀐 지 1초 안에 손을 대면 어김없이 펜으로 그려졌다.
+        CanvasRepresentable(session: session, tool: session.tool)
             .frame(
                 width: DoodleMetrics.canvasSize.width,
                 height: DoodleMetrics.canvasSize.height
@@ -33,6 +40,8 @@ struct DrawingCanvas: View {
 private struct CanvasRepresentable: UIViewRepresentable {
 
     let session: DrawingSession
+    /// 지금 든 도구. **값으로 받아야** SwiftUI 가 바뀐 것을 알고 `updateUIView` 를 부른다.
+    let tool: DrawingSession.Tool
 
     func makeCoordinator() -> Coordinator {
         Coordinator(session: session)
@@ -49,7 +58,7 @@ private struct CanvasRepresentable: UIViewRepresentable {
         // 캔버스가 스크롤·확대되면 저장 좌표와 화면 좌표가 어긋난다.
         canvas.isScrollEnabled = false
         canvas.contentInsetAdjustmentBehavior = .never
-        canvas.tool = session.tool.pkTool
+        canvas.tool = tool.pkTool
         canvas.drawing = session.drawing
 
         container.live.baseWidth = DrawingSession.Tool.penWidth
@@ -79,7 +88,10 @@ private struct CanvasRepresentable: UIViewRepresentable {
 
     func updateUIView(_ container: CanvasContainerView, context: Context) {
         let canvas = container.canvas
-        canvas.tool = session.tool.pkTool
+        canvas.tool = tool.pkTool
+
+        // 펜으로 긋다 만 미리보기가 남아 있을 수 있다. 도구를 바꾸면 걷어낸다.
+        if tool != .pen { container.live.finish() }
 
         // 코드에서 그림을 갈아끼운 경우(초기화·되돌리기)에만 캔버스를 덮어쓴다.
         // 사용자가 그리는 중에 덮어쓰면 획이 끊기므로 revision 으로 구분한다.
@@ -122,7 +134,15 @@ private struct CanvasRepresentable: UIViewRepresentable {
         ///
         /// 손을 뗀 자리에서 지우지 않는다.
         /// 확정된 획이 화면에 올라오기 전에 지우면 획이 한 번 깜빡인다.
+        ///
+        /// **지우개일 때는 그리지 않는다.**
+        /// 이 층은 도구를 보지 않고 손끝만 따라가던 탓에, 지우개로 문지르면
+        /// 지워지기는커녕 **검은 획이 그어졌다.** 빈 자리를 문지르면 지울 것이 없어
+        /// `canvasViewDrawingDidChange` 가 오지 않고, 그러면 `finish()` 도 불리지 않아
+        /// 그어진 미리보기가 화면에 그대로 남는다 — 지우개로 그림을 그리는 꼴이었다.
         func trackTouches(actual: [CGPoint], predicted: [CGPoint], isFirst: Bool) {
+            guard session.tool == .pen else { return }
+
             let now = CACurrentMediaTime()
             if isFirst, let first = actual.first {
                 liveView?.begin(at: first, time: now)

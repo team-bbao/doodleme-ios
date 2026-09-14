@@ -123,15 +123,14 @@ struct ExportQuotesCard: View {
 
     /// 위에서부터 차례로 쌓는다. 높이가 제각각이라 자리를 미리 계산해 둔다.
     ///
-    /// **덜 찬 쪽은 세로 가운데로 모은다.**
-    /// 마지막 쪽은 말풍선이 둘뿐일 때가 많은데, 그대로 위에 붙여 두면
-    /// 종이 아래 절반이 통째로 빈다 — 열 장을 골라 구워 보니 그런 장이 넉 장 중 둘이었다.
-    /// 27번 격자가 「마지막 줄이 한 칸만 남으면 가운데로 모은다」 고 한 것과 같다.
-    ///
-    /// 가득 찬 쪽(`maxPerPage`)은 Figma 자리(227)를 그대로 쓴다.
+    /// **몇 개가 들었든 첫 말풍선은 Figma 자리(227)에서 시작한다.**
+    /// 한때는 덜 찬 쪽을 세로 가운데로 모았다 — 아래가 비어 보이지 않게 하려던 것인데,
+    /// 그러면 장마다 첫 말풍선이 다른 높이에서 시작해 넘길 때 제목 아래가 들썩인다.
+    /// 하나만 남은 장에서 특히 눈에 띄었다. 카드 여러 장을 이어 보는 자리라
+    /// 장마다 같은 자리에서 시작하는 쪽이 낫다.
     private var laidOut: [Placed] {
         var result: [Placed] = []
-        var y = Self.contentTop + topSlack
+        var y = Self.contentTop
         for (index, post) in posts.enumerated() {
             let height = Self.bodyHeight(for: post, ratio: ratio)
             result.append(Placed(post: post, top: y, height: height,
@@ -139,15 +138,6 @@ struct ExportQuotesCard: View {
             y += height + SpeechBubbleTail.tailDrop + Self.gap
         }
         return result
-    }
-
-    /// 덜 찬 쪽에서 위로 더 내려오는 만큼. 가득 찬 쪽에서는 0 이다.
-    private var topSlack: CGFloat {
-        guard posts.count < Self.maxPerPage else { return 0 }
-        let stack = posts.reduce(CGFloat.zero) { $0 + Self.bodyHeight(for: $1, ratio: ratio) }
-            + CGFloat(posts.count) * SpeechBubbleTail.tailDrop
-            + CGFloat(max(posts.count - 1, 0)) * Self.gap
-        return max((Self.available - stack) / 2, 0)
     }
 
     /// 글에 맞춘 몸통 높이.
@@ -169,8 +159,10 @@ struct ExportQuotesCard: View {
     /// 그리기만 하고 넘어간 것이라, 남기면 읽는 사람에게 말줄임처럼 보인다.
     /// 고른 것이 전부 비어 있으면 빈 배열이 나오고, 그러면 이 장 자체가 만들어지지 않는다.
     ///
-    /// 한 장에 세 개까지다(Figma 가 셋). 다만 긴 한마디가 겹치면 셋이 안 들어가므로
-    /// 높이를 더해 보고 넘치면 거기서 끊는다.
+    /// **셋을 기본으로 두고, 글이 짧아 자리가 남으면 넷까지 받는다.**
+    /// Figma 가 셋을 그렸지만 그건 예시 글이 두 줄씩일 때의 그림이다 —
+    /// 한 줄짜리 한마디만 모이면 셋을 놓고도 종이 아래가 통째로 빈다.
+    /// 거꾸로 긴 한마디가 겹치면 셋도 안 들어가므로, 어느 쪽이든 높이를 더해 보고 넘치면 끊는다.
     /// **쪽 나눔은 9:16 을 기준으로 잰다.**
     /// 판형마다 다르게 나누면 세그먼트를 건드릴 때마다 쪽수가 달라져 보던 자리를 잃는다.
     /// 넓은 판은 말풍선이 더 넓어 줄이 줄어들 뿐이라, 9:16 에서 들어간 것은 어디서나 들어간다.
@@ -198,20 +190,23 @@ struct ExportQuotesCard: View {
         }
         if !page.isEmpty { pages.append(page) }
 
-        // 마지막 쪽에 하나만 남으면 앞 쪽에서 하나를 넘겨 준다.
+        // 마지막 쪽에 하나만 남고 **앞 쪽이 넷까지 차 있으면** 하나를 넘겨 준다.
         //
-        // 열 개면 3·3·3·1 이 되어 마지막 장이 말풍선 하나만 띄운 텅 빈 종이가 된다.
-        // 27번 격자가 「마지막 줄이 한 칸만 남으면 가운데로 모은다」 고 한 것과 같은 이유다.
+        // 앞 쪽이 셋이면 넘기지 않는다. 넘기는 순간 Figma 가 그린 셋이 둘로 줄어드는데,
+        // 그 둘뿐인 장이 내보내기의 얼굴이 된다 — 한마디 넷을 골랐더니 첫 장에 둘만 뜨는 것이
+        // 바로 이 자리에서 나왔다. 마지막 장이 허전한 것보다 앞 장이 비는 것이 더 눈에 띈다.
         if pages.count >= 2, pages[pages.count - 1].count == 1,
-           pages[pages.count - 2].count >= 2 {
+           pages[pages.count - 2].count > figmaPerPage {
             let moved = pages[pages.count - 2].removeLast()
             pages[pages.count - 1].insert(moved, at: 0)
         }
         return pages
     }
 
-    /// 한 장에 담는 최대 개수. Figma 가 셋을 둔다.
-    static let maxPerPage = 3
+    /// 한 장에 담는 최대 개수. 글이 짧아 자리가 남을 때만 여기까지 찬다.
+    static let maxPerPage = 4
+    /// Figma 가 그린 개수. 쪽을 나눌 때 앞 쪽에서 이만큼은 지킨다.
+    static let figmaPerPage = 3
 
     // MARK: - Figma 좌표
 
@@ -220,6 +215,12 @@ struct ExportQuotesCard: View {
     /// 말풍선 사이. 앞 꼬리 끝과 다음 몸통 윗변 사이가 Figma 에서 19.4 와 28.4 다. 그 가운데.
     private static let gap: CGFloat = 24
     /// 꼬리 끝까지 넣어 쓸 수 있는 세로 길이. 꼬리말(812) 앞에서 멈춘다.
+    ///
+    /// Figma 의 셋째 말풍선은 꼬리 끝이 799.9 까지 내려오니 573 까지 줄 수도 있다.
+    /// 그러지 않는 이유는 **5 를 더 줘도 들어가는 말풍선이 하나도 없기** 때문이다 —
+    /// 말풍선 높이가 줄 수에 따라 44 씩 뛰어서 한 쪽의 총높이는 509.8 · 553.8 · 597.8 처럼
+    /// 띄엄띄엄하고, 568 과 573 사이에 떨어지는 조합이 없다. 구워서 견줘 보니 한 장도 달라지지 않았다.
+    /// 얻는 것 없이 꼬리말과의 여유만 17 에서 12 로 줄어든다.
     private static let available: CGFloat = 568
 
     /// 말풍선 몸통의 폭.
