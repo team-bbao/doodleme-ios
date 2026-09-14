@@ -40,6 +40,8 @@ struct ExportPreviewScreen: View {
     @State private var ratio: ExportRatio = .story
     /// 올릴 장을 고르는 중인지.
     @State private var isChoosing = false
+    /// 조작부가 보이는지. 카드를 누르면 토글한다.
+    @State private var showsChrome = true
     /// 고른 장들. `ExportPage.id`(= `files` 의 자리)를 담는다.
     @State private var chosen: Set<Int> = []
 
@@ -75,11 +77,27 @@ struct ExportPreviewScreen: View {
             // 바깥에 두면 화면 폭을 차지해, 카드가 9:16 이라 좌우가 남는
             // 아이패드 가로에서 버튼만 검은 여백 맨 끝에 붙는다.
             // 카드와 관계없는 것처럼 보이고 1180 폭에서는 손도 닿지 않는다.
+            // 카드를 한 번 누르면 조작부가 숨고, 다시 누르면 돌아온다.
+            //
+            // **화면에 보이는 것과 올라가는 그림을 같게 하려는 것이다.**
+            // 조작부는 미리보기의 것이지 카드의 일부가 아니라 구운 PNG 에는 없다.
+            // 그런데 9:16 카드는 아이폰 화면을 거의 채워 조작부가 카드 위에 얹히므로,
+            // 숨기지 않으면 「보이는 것」과 「나가는 것」이 다르다.
+            //
+            // 사진 앱과 같은 결이다 — 열면 보이고, 한 번 누르면 사진만 남는다.
+            // `simultaneousGesture` 라 옆으로 넘기는 동작은 그대로 산다.
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    withAnimation(.easeInOut(duration: 0.2)) { showsChrome.toggle() }
+                }
+            )
             .overlay(alignment: .top) {
                 topBar(in: proxy.size)
                     .frame(maxWidth: slideWidth(columns: cardsOnCurrentSlide(in: proxy.size))
                            * fit(in: proxy.size))
                     .padding(.top, topInset(in: proxy))
+                    .opacity(showsChrome ? 1 : 0)
+                    .allowsHitTesting(showsChrome)
             }
         }
         // `.ignoresSafeArea()` 는 `GeometryReader` **자신**에게 걸어야 한다.
@@ -202,24 +220,19 @@ struct ExportPreviewScreen: View {
     /// 버튼 줄이 화면 위에서 떨어져 있는 정도.
     ///
     /// **카드 위에 자리가 있으면 카드 밖에 선다.**
-    /// 판이 넓어질수록 카드는 낮아져 위아래 빈 바탕이 넓어진다 —
-    /// 1:1 은 아이폰에서 위로 236 이 남는다. 그 자리를 두고 카드 안으로 들어가면
-    /// 세그먼트가 제목(「○○가 그린」)을 덮는다. 실제로 덮였다.
+    /// 조작부를 화면 맨 위에서 얼마나 내려 붙일지.
     ///
-    /// 자리가 모자라면 예전대로 카드 윗변 안쪽으로 들어간다.
-    /// 9:16 을 아이폰에 띄우면 카드가 화면을 거의 채워 위에 20 밖에 안 남는데,
-    /// 거기서는 제목 위 여백(106)이 넉넉해 겹치지 않는다.
+    /// **갤러리의 버튼 줄과 같은 자리(70)** 다. 두 화면을 오갈 때 버튼이 튀지 않는다 —
+    /// 갤러리는 `titleTopInset` 으로, Figma 는 `iPhone 17 - 26` 의 `Frame 25`(y 70)로 같은 값을 쓴다.
     ///
-    /// 어느 쪽이든 안전영역 아래로 `topGap` 만큼은 내려온다.
-    /// 가로에서는 안전영역이 24 밖에 안 돼 그대로 두면 버튼이 화면 맨 위에 붙는다.
+    /// 한때는 카드 **위쪽 빈 바탕**에 앉히려고 자리를 재서 갈랐다.
+    /// 9:16 을 아이폰에 띄우면 그 바탕이 80 밖에 안 남아 결국 카드 안으로 들어갔고,
+    /// 제목(「○○가 그린」)을 덮었다. 70 으로 올리면 카드 윗변(약 80)보다 위에서 시작해
+    /// 제목 글자(약 141)와 28 이 남는다.
+    ///
+    /// 그래도 겹치는 판형이 있으면 눌러서 숨기면 된다.
     private func topInset(in proxy: GeometryProxy) -> CGFloat {
-        let cardTop = (proxy.size.height - layout.size.height * fit(in: proxy.size)) / 2
-        let safeTop = proxy.safeAreaInsets.top
-
-        let aboveCard = cardTop - Self.topGap - Self.barHeight
-        if aboveCard >= safeTop + Self.topGap { return aboveCard }
-
-        return max(safeTop, cardTop) + Self.topGap
+        max(Self.chromeTop, proxy.safeAreaInsets.top + Self.topGap)
     }
 
     /// 카드를 화면에 들어가게 맞추는 배율. 잘리지 않게 짧은 쪽에 맞춘다.
@@ -460,6 +473,8 @@ struct ExportPreviewScreen: View {
     private static let indexRoom: CGFloat = 44
     /// 버튼이 안전영역·카드 윗변에서 떨어지는 정도. 좌우 여백과 같은 값이다.
     private static let topGap: CGFloat = 18
+    /// 조작부 윗변. 갤러리 `titleTopInset` 과 같은 값이다.
+    private static let chromeTop: CGFloat = 70
 
     /// 카드 뒤에 까는 바탕.
     ///
