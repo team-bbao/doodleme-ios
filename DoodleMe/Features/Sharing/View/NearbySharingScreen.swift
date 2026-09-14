@@ -459,7 +459,12 @@ struct NearbySharingScreen: View {
                 .frame(width: DoodleMetrics.side(scale: chromeScale),
                        height: DoodleMetrics.side(scale: chromeScale))
                 .background(.white, in: Circle())
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+                // 그림자를 10% 에서 5% 로 낮춘다.
+                //
+                // Figma 의 `Frame 6` 은 아직 `rgba(0,0,0,0.1)` 이지만 디자인에서 5% 로 정했다.
+                // 아래 두 알약 버튼(다시 찾기·확인)은 10% 그대로다 — 저쪽은 먹색 바탕이라
+                // 같은 농도라도 덜 도드라지는데, 이 단추는 흰 바탕이라 테두리처럼 보였다.
+                .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
         }
         .accessibilityLabel("닫기")
     }
