@@ -114,16 +114,59 @@ struct ExportCardLayout {
     /// 넓힌 카드 안에서 Figma 구성이 시작하는 x. 좌우로 똑같이 나눠 가진다.
     var contentLeft: CGFloat { (size.width - Self.contentWidth) / 2 }
 
-    /// Figma 프레임의 폭. 안쪽 구성이 쓰는 좌표계다.
-    static let contentWidth: CGFloat = 402
+    /// 안쪽 구성이 쓰는 좌표계의 폭. **9:16 카드의 폭 그대로다.**
+    ///
+    /// 한때 Figma 프레임 폭(402)을 그대로 썼는데, 그러면 정작 우리가 내보내는 9:16 카드
+    /// 안에서 좌우로 44 씩이 맨 종이로 남았다 — 메모지 자신의 여백 28 까지 더해
+    /// 한쪽에 72(카드 폭의 14.7%)가 비었다.
+    /// Figma 에 9:16 도안이 없어 402 짜리 도안을 기준으로 삼았던 탓이다.
+    ///
+    /// 그래서 **가장 좁은 판형인 9:16 을 좌표계로 삼는다.** 넓은 판형(4:5 · 1:1)은
+    /// 여기에 종이만 이어 붙인다. 세로 값은 Figma 그대로이므로 판형이 달라져도 흔들리지 않는다.
+    static let contentWidth: CGFloat = contentHeight * ExportRatio.story.value
     /// Figma 프레임의 높이. 카드 높이가 곧 이것이다.
-    private static let contentHeight: CGFloat = 871
+    static let contentHeight: CGFloat = 871
 
-    /// 제목 윗변. Figma `222:1799` 의 y.
-    static let titleTop: CGFloat = 112
+    // MARK: - 세로 격자
+    //
+    // 세 카드(한 장 · 격자 · 말풍선)가 **같은 격자**를 쓴다.
+    // 값 셋만 정하고 나머지는 전부 여기서 끌어낸다 — 손으로 잡은 자리는 없다.
+    //
+    //     바깥 여백 45  ┌──────────────┐
+    //                   │   제목 (획 76) │
+    //         리듬 36   │               │
+    //                   │   본문 598    │  <- 메모지 / 격자 / 말풍선
+    //         리듬 36   │               │
+    //                   │  꼬리말 (획 34) │
+    //     바깥 여백 45  └──────────────┘
+    //
+    // Figma 402 도안은 위 112 · 아래 25 로 한쪽에 쏠려 있었다.
+    // 402x871(1:2.167)에서는 알맞았지만 9:16 카드에 옮기니 위만 크게 비었다.
+    // 위아래를 같게 두고 남은 자리를 본문에 몰아 준다.
 
-    /// 꼬리말 윗변. Figma `222:1793` 의 y.
-    static let footerTop: CGFloat = 812
+    /// 좌우 여백. Figma 메모지가 쓰던 28 을 세 카드가 함께 쓴다.
+    static let sideMargin: CGFloat = 28
+    /// 위·아래 바깥 여백. 블록의 테두리가 아니라 **획**에서 카드 끝까지 잰다 —
+    /// 제목 블록은 위쪽에 3.4 의 빈 줄을 물고 있어 블록으로 재면 위가 그만큼 좁아 보인다.
+    static let outerMargin: CGFloat = 45
+    /// 블록 사이 리듬. 제목-본문, 본문 안, 본문-꼬리말이 모두 이 간격이다.
+    static let rhythm: CGFloat = 36
+
+    /// 제목 블록(두 줄 x 44) 위에서 첫 획까지, 그리고 획의 높이.
+    private static let titleInkTop: CGFloat = 3.4
+    private static let titleInkHeight: CGFloat = 76.2
+    /// 꼬리말 획(두 줄 x 20)의 높이. 블록 위에서 곧바로 획이 시작한다.
+    private static let footerInkHeight: CGFloat = 34.4
+
+    /// 제목 윗변. 획이 `outerMargin` 에 오도록 블록을 위로 물린다.
+    static let titleTop: CGFloat = outerMargin - titleInkTop
+    /// 꼬리말 윗변. 획의 아랫변이 카드 아래에서 `outerMargin` 만큼 떨어진다.
+    static let footerTop: CGFloat = contentHeight - outerMargin - footerInkHeight
+
+    /// 본문이 쓰는 자리의 윗변·아랫변. 제목과 꼬리말에서 리듬만큼 떨어진다.
+    static let bodyTop: CGFloat = outerMargin + titleInkHeight + rhythm
+    static let bodyBottom: CGFloat = footerTop - rhythm
+    static let bodyHeight: CGFloat = bodyBottom - bodyTop
 }
 
 /// 카드 맨 위의 두 줄 제목.

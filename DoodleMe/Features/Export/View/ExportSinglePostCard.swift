@@ -49,7 +49,7 @@ struct ExportSinglePostCard: View {
 
     // MARK: - 메모지
 
-    /// 그림이 얹힌 종이. Figma `222:1759` (28, 238) 346x379.
+    /// 그림이 얹힌 종이. Figma `222:1759` 는 402 프레임에서 (28, 238) 346x379 — 9:16 으로 옮긴 값은 아래에 있다.
     ///
     /// 그림은 `DoodleImageView` 가 아니라 캐시가 구워 둔 `UIImage` 를 직접 쓴다.
     /// 그 뷰는 `.task` 로 그림을 늦게 채우는데 **화면에 붙지 않은 뷰에서는 그 task 가 돌지 않아**,
@@ -117,7 +117,7 @@ struct ExportSinglePostCard: View {
             // 폭을 주지 않으면 한 줄에 우겨넣다가 「...」로 잘린다.
             BakedLineHeightText(
                 post.text,
-                font: .doodleHandwriting(size: 30),
+                font: .doodleHandwriting(size: Self.quoteTextFontSize),
                 lineHeight: Self.quoteLineHeight,
                 color: .doodlePrimary,
                 width: Self.quoteTextSize.width,
@@ -127,17 +127,58 @@ struct ExportSinglePostCard: View {
             .offset(x: Self.quoteTextOrigin.x, y: top)
 
             // 따옴표는 글과 함께 움직인다. 여는 쪽은 첫 줄, 닫는 쪽은 **마지막 줄**에 선다 —
-            // Figma 도 두 줄짜리 예시에서 닫는 따옴표를 둘째 줄에 두었다(644 + 44 = 688).
+            // Figma 도 두 줄짜리 예시에서 닫는 따옴표 칸을 둘째 줄에 두었다(644 + 44 = 688).
+            // 획은 그 한 줄 위에 그려진다 — `closeQuoteLeft` 에 기록이 있다.
             mark(at: CGPoint(x: Self.openQuoteOrigin.x, y: top), flipped: false)
-            mark(at: CGPoint(x: Self.closeQuoteOrigin.x, y: lastLine), flipped: true)
+            mark(at: CGPoint(x: closeQuoteLeft, y: lastLine), flipped: true)
         }
     }
+
+    /// 닫는 따옴표의 왼쪽.
+    ///
+    /// **글이 끝나는 자리를 따라간다.** Figma 처럼 한 자리에 못박지 않는다.
+    ///
+    /// Figma 는 402 프레임에서 글상자(89~359)와 닫는 따옴표(312~354)를 **47 겹쳐** 두었다.
+    /// 예시 글의 마지막 줄 「꼭 징징이 같아요」가 가운데 정렬로 309 에서 끝나
+    /// 따옴표를 3 차이로 비켜갈 뿐이라, 한마디가 조금만 길면 글자 위에 그대로 얹힌다 —
+    /// 구운 파일에서 「초승달처」를 덮었다.
+    ///
+    /// **마지막 줄뿐 아니라 그 윗줄도 피해야 한다.** 따옴표는 80pt 글리프를 34 높이 칸에 담은 것이라
+    /// 칸을 마지막 줄에 두어도 **잉크는 한 줄 위 높이에 그려진다** — Figma 의 두 줄짜리 예시도
+    /// 칸은 둘째 줄(688)인데 획은 첫 줄 자리에 있다. 마지막 줄만 보고 자리를 잡았더니
+    /// 짧은 마지막 줄 뒤에 섰다가 긴 윗줄의 「접히」를 덮었다.
+    ///
+    /// 그래서 획이 걸치는 **두 줄 중 더 긴 쪽** 끝에 붙인다.
+    /// 짧으면 Figma 와 거의 같은 자리에 서고, 길면 그만큼 오른쪽으로 물러난다.
+    /// 오른쪽 끝(카드 안쪽 여백)을 넘지는 않는다.
+    private var closeQuoteLeft: CGFloat {
+        let font = UIFont.doodleHandwriting(size: Self.quoteTextFontSize)
+        let lines = BakedLineHeightText.wrapped(post.text,
+                                                font: font,
+                                                width: Self.quoteTextSize.width)
+        // 글이 가운데 정렬이라 각 줄은 글상자 한가운데에 놓인다.
+        let right = { (line: String) -> CGFloat in
+            let width = (line as NSString).size(withAttributes: [.font: font]).width
+            return Self.quoteTextOrigin.x + (Self.quoteTextSize.width + width) / 2
+        }
+        let spanned = lines.suffix(2).map(right).max() ?? Self.quoteTextOrigin.x
+        // 오른쪽 끝은 카드 안에 머문다.
+        let limit = ExportCardLayout.contentWidth - Self.quoteSize.width - ExportCardLayout.sideMargin
+        return min(spanned + Self.closeQuoteGap, limit)
+    }
+
+    /// 마지막 글자와 닫는 따옴표 사이. Figma 예시에서 재면 3 이지만 그건 아슬아슬한 값이라
+    /// 눈에 띄게 띄운다.
+    private static let closeQuoteGap: CGFloat = 8
+
+    /// 한마디 글꼴 크기. 줄을 나누고 폭을 잴 때 같은 값을 써야 한다.
+    private static let quoteTextFontSize: CGFloat = 30
 
     /// 한마디가 차지하는 줄 수. 넘치면 `maxQuoteLines` 에서 끊긴다.
     private var quoteLines: Int {
         let counted = BakedLineHeightText.lineCount(
             post.text,
-            font: .doodleHandwriting(size: 30),
+            font: .doodleHandwriting(size: Self.quoteTextFontSize),
             width: Self.quoteTextSize.width
         )
         return min(max(counted, 1), Self.maxQuoteLines)
@@ -145,8 +186,8 @@ struct ExportSinglePostCard: View {
 
     /// 한마디 첫 줄의 윗변.
     ///
-    /// 두 줄까지는 Figma 자리(644) 그대로다. 그보다 길어지면 **위로 밀어 올린다** —
-    /// 그러지 않으면 꼬리말(812) 자리로 흘러내린다. 네 줄짜리 한마디를 구워 보니
+    /// 두 줄까지는 제자리(688)에 선다. 그보다 길어지면 **위로 밀어 올린다** —
+    /// 그러지 않으면 꼬리말(812) 자리로 흘러내린다. 긴 한마디를 구워 보니
     /// 마지막 줄이 「너도 친구의 첫인상을 그려봐.」 에 닿았다.
     private var quoteTop: CGFloat {
         let height = CGFloat(quoteLines) * Self.quoteLineHeight
@@ -169,32 +210,63 @@ struct ExportSinglePostCard: View {
             .offset(x: origin.x, y: origin.y)
     }
 
-    // MARK: - Figma 좌표
+    // MARK: - 자리
 
-    private static let memoOrigin = CGPoint(x: 28, y: 238)
-    private static let memoSize = CGSize(width: 346, height: 379)
+    /// 메모지. **본문 자리의 폭을 다 쓰고, 높이는 Figma 비율(346:379)이 정한다.**
+    ///
+    /// Figma 는 402 프레임에서 (28, 238) 346x379 였다. 9:16 카드에서는 좌우 여백만 그 28 을
+    /// 물려받고 폭은 434 로 늘어난다 — 카드 폭의 88.6%.
+    ///
+    /// 그림이 `.resizable()` 로 **종이 전체**를 덮으므로 비율을 어기면 그림이 늘어난다.
+    /// 그래서 높이는 고르는 값이 아니라 폭에서 따라 나온다.
+    private static let memoSize = CGSize(
+        width: ExportCardLayout.contentWidth - ExportCardLayout.sideMargin * 2,
+        height: (ExportCardLayout.contentWidth - ExportCardLayout.sideMargin * 2) * 379 / 346
+    )
+    private static let memoOrigin = CGPoint(x: ExportCardLayout.sideMargin,
+                                            y: ExportCardLayout.bodyTop)
 
-    private static let markOrigin = CGPoint(x: 37, y: 248)
-    private static let markSide: CGFloat = 67
+    /// 앱 마크. Figma 가 종이 안에 둔 자리(9, 10)와 크기(67)를 종이와 같은 배율로 키운다.
+    private static let markScale = memoSize.width / 346
+    private static let markOrigin = CGPoint(x: memoOrigin.x + 9 * markScale,
+                                            y: memoOrigin.y + 10 * markScale)
+    private static let markSide: CGFloat = 67 * markScale
 
-    /// 한마디 글상자. Figma 는 x 89 에서 폭 270 인데, 그러면 오른쪽 끝이 닫는 따옴표(354~396)와
-    /// 겹친다. 따옴표 사이에 꼭 맞게 좁힌다 — 여는 쪽 끝(82)과 닫는 쪽 시작(354) 사이다.
-    private static let quoteTextOrigin = CGPoint(x: 89, y: 644)
-    private static let quoteTextSize = CGSize(width: 258, height: 88)
-    private static let openQuoteOrigin = CGPoint(x: 40, y: 644)
-    private static let closeQuoteOrigin = CGPoint(x: 354, y: 688)
+    /// 한마디 글상자. **따옴표까지가 좌우 여백 28 에 맞아떨어지게 잡는다.**
+    ///
+    /// 여는 따옴표가 28 에서 시작하고, 7 띄우고 글상자가 온다.
+    /// 닫는 따옴표도 오른쪽에서 28 을 남기므로 글상자는 양쪽에서 77 씩 들어간 336 이다.
+    /// 메모지·격자·말풍선이 모두 같은 28 을 쓰니 카드 전체의 좌우 선이 하나로 맞는다.
+    ///
+    /// 세로는 **아래에서 잰다.** 글 아랫변이 본문 자리의 아랫변(755.6)에 닿아
+    /// 꼬리말과의 간격이 리듬(36) 그대로 떨어진다.
+    private static let quoteGapToBox: CGFloat = 7
+    private static let quoteTextSize = CGSize(
+        width: ExportCardLayout.contentWidth
+            - (ExportCardLayout.sideMargin + quoteSize.width + quoteGapToBox) * 2,
+        height: quoteLineHeight * CGFloat(maxQuoteLines)
+    )
+    private static let quoteTextOrigin = CGPoint(
+        x: ExportCardLayout.sideMargin + quoteSize.width + quoteGapToBox,
+        y: ExportCardLayout.bodyBottom - quoteTextSize.height
+    )
+    private static let openQuoteOrigin = CGPoint(x: ExportCardLayout.sideMargin,
+                                                 y: quoteTextOrigin.y)
     private static let quoteSize = CGSize(width: 42, height: 34)
 
     private static let quoteLineHeight: CGFloat = 44
-    /// 한마디 띠의 아랫변. 꼬리말(812) 위로 16 을 남긴다.
-    private static let quoteBandBottom: CGFloat = 796
-    /// 한마디 띠의 윗변. 메모지 아랫변(238 + 379 = 617)에서 3 을 띄운다.
-    private static let quoteBandTop: CGFloat = 620
-    /// 담을 수 있는 최대 줄 수. 띠 높이를 행높이로 나눈 값이라 넷이다.
-    /// 그보다 길면 말줄임표로 끊는다 — 꼬리말을 덮는 것보다 낫다.
-    private static var maxQuoteLines: Int {
-        Int((quoteBandBottom - quoteBandTop) / quoteLineHeight)
-    }
+
+    /// 담을 수 있는 최대 줄 수.
+    ///
+    /// **둘이면 넉넉하다.** 한마디는 30자까지고(`DrawingPage.textLimit`),
+    /// 336 짜리 글상자 두 줄이면 672 를 담는다 — 가장 넓은 한글 30자가 570 언저리라
+    /// 줄바꿈이 한 낱말을 통째로 넘겨도 들어간다.
+    /// 셋으로 늘리면 그만큼 메모지가 작아지는데, 쓰이지 않을 셋째 줄이다.
+    private static let maxQuoteLines = 2
+
+    /// 한마디 띠의 위·아랫변. 글상자가 곧 띠다.
+    private static let quoteBandTop = quoteTextOrigin.y
+    private static let quoteBandBottom = ExportCardLayout.bodyBottom
 
     /// PostScript 이름. 파일은 `Resources/Fonts/CrimsonText-Bold.ttf`, `Info.plist` 의 `UIAppFonts` 에 등록돼 있다.
     private static let quoteFontName = "CrimsonText-Bold"

@@ -130,32 +130,23 @@ struct ExportDrawingsCard: View {
 
     /// 장수와 판형에 맞춰 격자를 짠다.
     ///
-    /// **9:16 여섯 장은 Figma 그대로다.** 디자이너가 잡아 둔 자리가 있으니 건드리지 않는다 —
-    /// 열 중심 134 / 265, 행 중심 338 / 479 / 620.
-    ///
-    /// 그 밖에는 **칸이 가장 커지는 열 수**를 고른다.
-    /// 2열에 못박아 두면 카드가 넓어져도 격자는 402 폭에 갇혀 가운데로 몰린다 —
+    /// **칸이 가장 커지는 열 수**를 고른다.
+    /// 2열에 못박아 두면 카드가 넓어져도 격자는 좁은 폭에 갇혀 가운데로 몰린다 —
     /// 1:1 로 여섯 장을 구우면 격자가 카드 폭의 **29%** 밖에 안 썼다.
     /// 6 = 2x3 = 3x2 이므로 카드가 가로로 길어지면 격자도 눕히면 된다(73%, 칸은 1.6배).
     ///
-    /// 바꾸는 기준을 **1.1배**로 둔 것은 9:16 을 지키기 위해서다.
-    /// 거기서는 3열이 2열보다 1.5% 밖에 안 커서 저절로 Figma 배치가 남는다 —
+    /// 바꾸는 기준을 **1.1배**로 둔 것은 9:16 에서 세로 배치를 지키기 위해서다.
+    /// 거기서는 3열이 2열보다 오히려 작아(칸 138 대 168) 저절로 2열이 남는다 —
     /// 판형을 손으로 가려내지 않아도 규칙 하나로 갈린다.
+    ///
+    /// 한때 **9:16 여섯 장만 Figma 자리(열 134/265, 행 338/479/620, 칸 126.5x141)에 못박아** 두었다.
+    /// 그 도안이 402 프레임에 그려진 것이라 9:16 카드에서는 격자가 폭의 53% 밖에 쓰지 못했다.
+    /// 자리를 계산에 맡기니 같은 2열 3행에 칸만 126.5 -> 167.8 로 커진다(+33%).
     ///
     /// 마지막 줄이 한 칸만 남으면 가운데로 모은다. 왼쪽에 붙여 두면 오른쪽이 휑하다.
     private static func layout(for count: Int, basis: Int, ratio: ExportRatio) -> GridLayout {
         let area = adaptiveArea(ratio: ratio)
         let columns = columnCount(for: basis, in: area)
-
-        // 9:16 에서 여섯 장이 다 찬 쪽. Figma 자리를 그대로 쓴다.
-        if count >= perPage, columns == figmaColumnCenters.count {
-            return GridLayout(
-                cell: figmaCell,
-                centers: figmaRowCenters.flatMap { y in
-                    figmaColumnCenters.map { CGPoint(x: $0, y: y) }
-                }
-            )
-        }
 
         // 칸 크기는 이 장의 장수가 아니라 `basis` 가 정한다.
         // 이 장의 장수로 잡으면 아홉 장을 5·4 로 나눴을 때 1쪽은 세 줄, 2쪽은 두 줄이 되어
@@ -217,33 +208,29 @@ struct ExportDrawingsCard: View {
     /// 열 수를 바꾸려면 칸이 이만큼은 커져야 한다.
     private static let columnGain: CGFloat = 1.1
 
-    /// 여섯 장이 안 될 때 격자가 쓸 수 있는 자리.
+    /// 격자가 쓸 수 있는 자리.
     ///
-    /// 가로는 **카드 전체 폭**(9:16 으로 넓힌 490)에서 좌우 30 씩 남긴 만큼이다.
-    /// `content` 좌표계는 402 라 왼쪽으로 넘어가므로 x 가 음수로 시작한다.
-    /// 세로는 제목 아래(268)에서 꼬리말 위(740)까지 — Figma 가 쓰던 690 보다 50 더 내려간다.
+    /// 세로는 `ExportCardLayout` 의 본문 자리 그대로다 — 제목과 꼬리말에서 리듬(36)만큼 떨어진다.
+    /// 가로는 카드 전체 폭에서 좌우 여백(28)을 남긴 만큼이다.
+    /// `content` 좌표계가 곧 9:16 카드라 9:16 에서는 `contentLeft` 가 0 이고,
+    /// 더 넓은 판형에서만 왼쪽으로 넘어가 x 가 음수로 시작한다.
     ///
-    /// 판형이 넓어지면 이 자리도 같이 넓어진다. 두 장을 1:1 로 구우면
+    /// 9:16 에서는 세로가 먼저 차므로 이 599 가 곧 칸 크기를 정한다 — 칸 174x194.
+    /// 판형이 넓어지면 이 자리도 같이 넓어져, 두 장을 1:1 로 구우면
     /// 칸이 9:16 의 두 배 가까이 커져 정사각형 판을 제대로 채운다.
     private static func adaptiveArea(ratio: ExportRatio) -> CGRect {
         let layout = ExportCardLayout(ratio: ratio)
         return CGRect(
             x: -layout.contentLeft + sideMargin,
-            y: 268,
+            y: ExportCardLayout.bodyTop,
             width: layout.size.width - sideMargin * 2,
-            height: 740 - 268
+            height: ExportCardLayout.bodyHeight
         )
     }
 
-    /// Figma `iPhone 17 - 27` 의 열·행 중심.
-    private static let figmaColumnCenters: [CGFloat] = [134, 265]
-    private static let figmaRowCenters: [CGFloat] = [338, 479, 620]
-
-    private static let sideMargin: CGFloat = 30
+    /// 좌우 여백. 세 카드가 함께 쓴다.
+    private static let sideMargin = ExportCardLayout.sideMargin
     private static let gap: CGFloat = 8
-
-    /// 칸 하나. 행 간격(141)을 넘지 않고 캔버스 비율(350:390)을 지킨다.
-    private static let figmaCell = CGSize(width: 141 * 350 / 390, height: 141)
 
     /// 획 굵기의 절반이 잘리지 않도록 잘라낼 범위를 조금 넓힌다.
     private static let inkMargin: CGFloat = 4

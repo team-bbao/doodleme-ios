@@ -66,15 +66,23 @@ struct ExportQuotesCard: View {
             //
             // 그림자는 Figma SVG 의 `feOffset dy=4` + `feGaussianBlur stdDeviation=10` + 검정 10%.
             // SwiftUI 반경은 CSS blur 의 절반이라 stdDeviation 과 같은 값이 된다.
-            SpeechBubbleTail(tailOnLeft: tailOnLeft)
-                .fill(.white)
-                .frame(width: bodyWidth, height: height)
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+            // **그림자는 둘을 합친 뒤 한 번만 건다.**
+            //
+            // 각각 걸면 몸통의 그림자가 꼬리 위에 내려앉아 뾰족한 끝에 회색 얼룩이 생긴다 —
+            // Figma SVG 는 `Rectangle 4` 를 먼저 그리고 `Polygon 1` 을 나중에 얹는데
+            // 우리는 순서가 반대(꼬리가 아래)라 그렇다.
+            // `compositingGroup()` 으로 한 장으로 합치면 바깥 윤곽에만 그림자가 생긴다.
+            ZStack(alignment: .topLeading) {
+                SpeechBubbleTail(tailOnLeft: tailOnLeft)
+                    .fill(.white)
+                    .frame(width: bodyWidth, height: height)
 
-            RoundedRectangle(cornerRadius: SpeechBubbleTail.cornerRadius)
-                .fill(.white)
-                .frame(width: bodyWidth, height: height)
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+                RoundedRectangle(cornerRadius: SpeechBubbleTail.cornerRadius)
+                    .fill(.white)
+                    .frame(width: bodyWidth, height: height)
+            }
+            .compositingGroup()
+            .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
 
             BakedLineHeightText(
                 post.text,
@@ -121,21 +129,33 @@ struct ExportQuotesCard: View {
         let tailOnLeft: Bool
     }
 
-    /// 위에서부터 차례로 쌓는다. 높이가 제각각이라 자리를 미리 계산해 둔다.
+    /// 자리를 잡는다. 높이가 제각각이라 미리 계산해 둔다.
     ///
-    /// **몇 개가 들었든 첫 말풍선은 Figma 자리(227)에서 시작한다.**
-    /// 한때는 덜 찬 쪽을 세로 가운데로 모았다 — 아래가 비어 보이지 않게 하려던 것인데,
-    /// 그러면 장마다 첫 말풍선이 다른 높이에서 시작해 넘길 때 제목 아래가 들썩인다.
-    /// 하나만 남은 장에서 특히 눈에 띄었다. 카드 여러 장을 이어 보는 자리라
-    /// 장마다 같은 자리에서 시작하는 쪽이 낫다.
+    /// **남는 자리를 버리지 않는다.** 한마디가 짧으면 말풍선 셋이 605 중 378 밖에 쓰지 못해
+    /// 카드 아래 절반이 통째로 비었다. 그래서 남는 만큼을
+    /// **말풍선 사이에 먼저 나누고(최대 1.6배), 그래도 남으면 위아래로 4:6 으로 나눈다.**
+    /// 위를 적게 주는 것은 첫 말풍선이 제목에서 너무 멀어지지 않게 하려는 것이다.
+    ///
+    /// 한때는 **몇 개가 들었든 첫 말풍선을 Figma 자리(227)에 못박았다.**
+    /// 장마다 시작 높이가 달라지면 넘길 때 제목 아래가 들썩인다는 이유였는데,
+    /// 지금은 `paginate(_:)` 가 장마다 개수를 고르게 맞추므로 그 들썩임이 한 줄(44) 안쪽이다.
+    /// 카드 절반이 비어 보이는 쪽이 훨씬 눈에 띈다.
     private var laidOut: [Placed] {
+        let bodies = posts.map { Self.bodyHeight(for: $0, ratio: ratio) }
+        let stack = bodies.reduce(0, +) + CGFloat(bodies.count) * SpeechBubbleTail.tailDrop
+        let gaps = CGFloat(max(bodies.count - 1, 0))
+
+        let spread = gaps > 0
+            ? min(Self.maxGap, Self.gap + max(Self.available - stack - gaps * Self.gap, 0) / gaps)
+            : Self.gap
+        let left = max(Self.available - stack - gaps * spread, 0)
+
         var result: [Placed] = []
-        var y = Self.contentTop
-        for (index, post) in posts.enumerated() {
-            let height = Self.bodyHeight(for: post, ratio: ratio)
-            result.append(Placed(post: post, top: y, height: height,
+        var y = Self.contentTop + left * Self.headRoom
+        for (index, height) in bodies.enumerated() {
+            result.append(Placed(post: posts[index], top: y, height: height,
                                  tailOnLeft: index.isMultiple(of: 2)))
-            y += height + SpeechBubbleTail.tailDrop + Self.gap
+            y += height + SpeechBubbleTail.tailDrop + spread
         }
         return result
     }
@@ -190,17 +210,32 @@ struct ExportQuotesCard: View {
         }
         if !page.isEmpty { pages.append(page) }
 
-        // 마지막 쪽에 하나만 남고 **앞 쪽이 넷까지 차 있으면** 하나를 넘겨 준다.
+        // **마지막 쪽이 허전하면 앞 쪽에서 하나를 넘겨 준다.**
         //
-        // 앞 쪽이 셋이면 넘기지 않는다. 넘기는 순간 Figma 가 그린 셋이 둘로 줄어드는데,
+        // 앞 쪽이 셋 이하면 넘기지 않는다. 넘기는 순간 Figma 가 그린 셋이 둘로 줄어드는데,
         // 그 둘뿐인 장이 내보내기의 얼굴이 된다 — 한마디 넷을 골랐더니 첫 장에 둘만 뜨는 것이
-        // 바로 이 자리에서 나왔다. 마지막 장이 허전한 것보다 앞 장이 비는 것이 더 눈에 띈다.
-        if pages.count >= 2, pages[pages.count - 1].count == 1,
-           pages[pages.count - 2].count > figmaPerPage {
-            let moved = pages[pages.count - 2].removeLast()
+        // 바로 이 자리에서 나왔다.
+        //
+        // 넷까지 차 있을 때만 넘기므로 넷에서 셋으로만 줄어든다.
+        // 한마디 여섯 개가 4+2 로 갈려 마지막 장이 40% 비던 것이 3+3 이 된다 —
+        // 9:16 에서 한 장에 넷이 들어가게 되면서 생긴 쏠림이다.
+        // 넘긴 것이 마지막 장 높이를 넘기면 그대로 둔다.
+        while pages.count >= 2,
+              let last = pages.last, last.count < figmaPerPage,
+              pages[pages.count - 2].count > figmaPerPage,
+              let moved = pages[pages.count - 2].last,
+              stackHeight(of: [moved] + last) <= available {
+            pages[pages.count - 2].removeLast()
             pages[pages.count - 1].insert(moved, at: 0)
         }
         return pages
+    }
+
+    /// 말풍선들을 한 장에 쌓았을 때의 총높이. 꼬리 끝까지 센다.
+    private static func stackHeight(of posts: [Post]) -> CGFloat {
+        posts.reduce(CGFloat(0)) { total, post in
+            total + (total > 0 ? gap : 0) + bodyHeight(for: post) + SpeechBubbleTail.tailDrop
+        }
     }
 
     /// 한 장에 담는 최대 개수. 글이 짧아 자리가 남을 때만 여기까지 찬다.
@@ -210,37 +245,41 @@ struct ExportQuotesCard: View {
 
     // MARK: - Figma 좌표
 
-    /// 첫 말풍선 윗변. Figma `222:1889` 의 y.
-    private static let contentTop: CGFloat = 227
+    /// 첫 말풍선 윗변. `ExportCardLayout` 의 본문 자리 윗변이다.
+    private static let contentTop = ExportCardLayout.bodyTop
     /// 말풍선 사이. 앞 꼬리 끝과 다음 몸통 윗변 사이가 Figma 에서 19.4 와 28.4 다. 그 가운데.
     private static let gap: CGFloat = 24
-    /// 꼬리 끝까지 넣어 쓸 수 있는 세로 길이. 꼬리말(812) 앞에서 멈춘다.
-    ///
-    /// Figma 의 셋째 말풍선은 꼬리 끝이 799.9 까지 내려오니 573 까지 줄 수도 있다.
-    /// 그러지 않는 이유는 **5 를 더 줘도 들어가는 말풍선이 하나도 없기** 때문이다 —
-    /// 말풍선 높이가 줄 수에 따라 44 씩 뛰어서 한 쪽의 총높이는 509.8 · 553.8 · 597.8 처럼
-    /// 띄엄띄엄하고, 568 과 573 사이에 떨어지는 조합이 없다. 구워서 견줘 보니 한 장도 달라지지 않았다.
-    /// 얻는 것 없이 꼬리말과의 여유만 17 에서 12 로 줄어든다.
-    private static let available: CGFloat = 568
+    /// 벌릴 수 있는 최대 간격. 리듬의 두 배다.
+    /// 더 벌리면 말풍선들이 한 덩이로 읽히지 않고 따로 떠 보인다.
+    private static let maxGap = ExportCardLayout.rhythm * 2
+    /// 사이를 다 벌리고도 남은 자리 중 **위에 두는 몫.** 나머지는 아래로 간다.
+    /// 첫 말풍선이 제목 쪽에 조금 더 붙는다.
+    private static let headRoom: CGFloat = 0.4
+
+    /// 꼬리 끝까지 넣어 쓸 수 있는 세로 길이. 본문 자리의 높이 그대로다.
+    private static let available = ExportCardLayout.bodyHeight
 
     /// 말풍선 몸통의 폭.
     ///
-    /// Figma `Rectangle 4` 는 342 다 — 9:16 카드(490)의 70% 라 알맞게 찬다.
-    /// 그런데 판형이 넓어져도 342 로 두면 1:1(871)에서는 **39%** 만 써서 좌우가 텅 빈다.
+    /// **9:16 에서는 본문 자리를 그대로 쓴다** — 좌우 여백 28 을 남긴 434.
+    /// 메모지·격자와 같은 선에 맞으므로 세 카드를 이어 보면 좌우가 흐트러지지 않는다.
+    /// Figma `Rectangle 4` 의 342 는 402 도안의 값이라, 9:16 카드에 올리면 폭의 70% 밖에 못 썼다.
+    ///
+    /// 넓은 판형에서도 434 로 두면 1:1(871)에서는 50% 만 써서 좌우가 텅 빈다.
     /// 그래서 카드 폭에 비례해 넓히되 `maxBodyWidth` 에서 멈춘다 —
     /// 끝까지 늘리면 한 줄이 600 을 넘어, 손글씨로 읽기에 너무 긴 줄이 된다.
     static func bodyWidth(for ratio: ExportRatio) -> CGFloat {
         let card = ExportCardLayout(ratio: ratio).size.width
         let story = ExportCardLayout(ratio: .story).size.width
-        return min(figmaBodyWidth * card / story, maxBodyWidth)
+        return min(storyBodyWidth * card / story, maxBodyWidth)
     }
 
     private static func bodyLeft(for ratio: ExportRatio) -> CGFloat {
         (ExportCardLayout.contentWidth - bodyWidth(for: ratio)) / 2
     }
 
-    /// Figma `Rectangle 4` 의 폭.
-    private static let figmaBodyWidth: CGFloat = 342
+    /// 9:16 에서의 몸통 폭. 넓은 판형은 여기에 비례해 커진다.
+    private static let storyBodyWidth = ExportCardLayout.contentWidth - ExportCardLayout.sideMargin * 2
     /// 넓은 판에서 말풍선이 커지는 한계. 4:5 와 1:1 은 둘 다 여기서 멈춘다.
     private static let maxBodyWidth: CGFloat = 480
 
