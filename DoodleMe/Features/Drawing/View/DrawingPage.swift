@@ -289,7 +289,7 @@ struct DrawingPage: View {
                 // 곧 iOS 의 systemGroupedBackground 와 같은 값이다.
                 // 값을 박아 두는 대신 시스템 색을 쓰면 대비 설정에도 따라간다.
                 Color(.systemGroupedBackground)
-                    .ignoresSafeArea(.container, edges: .vertical)
+                    .ignoresSafeArea([.container, .keyboard], edges: .vertical)
 
                 // 타이머는 화면 맨 위에서 잰 자리에 고정한다.
                 // 툴바가 단계에 따라 나타났다 사라지는데, 그때마다 안전영역이 달라져
@@ -316,7 +316,7 @@ struct DrawingPage: View {
                             sizeClass: horizontalSizeClass))
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .allowsHitTesting(false)
-                        .ignoresSafeArea(.container, edges: .vertical)
+                        .ignoresSafeArea([.container, .keyboard], edges: .vertical)
                 }
 
                 GeometryReader { proxy in
@@ -324,7 +324,7 @@ struct DrawingPage: View {
                         .padding(.top, Self.countdownTop(in: proxy.size))
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
-                .ignoresSafeArea(.container, edges: .vertical)
+                .ignoresSafeArea([.container, .keyboard], edges: .vertical)
 
                 VStack {
                     Spacer()
@@ -349,7 +349,7 @@ struct DrawingPage: View {
                     Color.clear
                         .onGeometryChange(for: CGSize.self) { $0.size } action: { screenSize = $0 }
                 }
-                .ignoresSafeArea(.container, edges: .vertical)
+                .ignoresSafeArea([.container, .keyboard], edges: .vertical)
                 .allowsHitTesting(false)
 
                 // 안전영역을 **뺀** 크기도 따로 재 둔다 — 제목 전용이다.
@@ -386,7 +386,17 @@ struct DrawingPage: View {
                         .offset(x: shakeAmount, y: memoCardOffset(in: proxy.size))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .ignoresSafeArea(.container, edges: .vertical)
+                // `.keyboard` 를 빼먹으면 안 된다.
+                //
+                // 한때 `.container` 만 적었는데, 그러면 키보드가 올라올 때
+                // **이 칸의 높이가 함께 줄어든다.** 카드는 줄어든 칸의 한가운데로 앉고
+                // 거기에 `keyboardLift` 가 한 번 더 밀어 올려, 아이폰에서 「To.」 줄이
+                // 위쪽 툴바 밑으로 파고들었다 — 실측 카드 윗변 64.7pt.
+                //
+                // 이 카드는 화면 기준으로 자리를 직접 계산한다(`memoCardOffset`).
+                // 시스템의 자동 회피까지 겹치면 두 번 밀리므로, 키보드 영역은 무시하고
+                // 필요한 만큼만 우리가 민다. 좌우는 계속 지킨다 — 아이패드 사이드바 몫이다.
+                .ignoresSafeArea([.container, .keyboard], edges: .vertical)
                 .animation(.easeOut(duration: 0.25), value: keyboardTop)
             }
             .ignoresSafeArea(.container, edges: .bottom)
