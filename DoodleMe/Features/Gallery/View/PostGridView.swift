@@ -82,12 +82,16 @@ struct PostGridView: View {
     }
 
     /// 비어 있을 때 보여줄 문구. 무엇을 하는 중인지, 어느 탭인지에 따라 할 일이 다르다.
+    ///
+    /// 마침표를 넷 다 붙인다. 디자인에 있는 것은 「친구의 얼굴을 그려보세요.」 하나뿐이고
+    /// (Figma `iPhone 17 - 12` 의 `85:349`) 나머지 셋은 코드에서 지은 것인데,
+    /// 같은 자리에 번갈아 뜨는 문구라 표기가 갈리면 눈에 띈다. 있는 쪽에 맞췄다.
     private var emptyMessage: String {
         switch (mode, segmentedBar == 1) {
-        case (.choosingProfile, true), (.selecting, true): "고를 수 있는 내 그림이 없어요"
-        case (.choosingProfile, false), (.selecting, false): "고를 수 있는 받은 그림이 없어요"
-        case (.browsing, true): "친구의 얼굴을 그려보세요"
-        case (.browsing, false): "친구가 그린 그림을 받아보세요"
+        case (.choosingProfile, true), (.selecting, true): "고를 수 있는 내 그림이 없어요."
+        case (.choosingProfile, false), (.selecting, false): "고를 수 있는 받은 그림이 없어요."
+        case (.browsing, true): "친구의 얼굴을 그려보세요."
+        case (.browsing, false): "친구가 그린 그림을 받아보세요."
         }
     }
 
@@ -193,6 +197,9 @@ struct PostGridView: View {
     /// 여러 장을 고를 때는 골라 둔 그림이 무엇인지도 계속 보여야 해서 그만큼 옅게 둔다.
     private static let selectedDimming: CGFloat = 0.28
 
+    /// 빈 화면 안내 문구 글자 크기. Figma `85:349` 의 23.
+    private static let emptyMessageFontSize: CGFloat = 23
+
     private static func columns(forWidth width: CGFloat) -> [GridItem] {
         Array(
             repeating: GridItem(.flexible(), spacing: columnSpacing(forWidth: width)),
@@ -205,10 +212,13 @@ struct PostGridView: View {
             // 위에 붙여 두면 카드가 놓일 자리가 아니라 헤더 바로 밑에서 뜬다.
             // 그리드가 차지할 영역 한가운데에 두어 "여기가 빈 자리" 임을 보여준다.
             Text(emptyMessage)
-                .foregroundStyle(.colorGray)
-                .fontWeight(.semibold)
-                .font(.system(size: 20 * Self.scale(forWidth: gridWidth)))
-                .opacity(0.4)
+                // Figma `iPhone 17 - 12` 의 `85:349` — 23pt · SF Pro Medium · #9D9D9D.
+                //
+                // 예전에는 20pt Semibold 에 `opacity(0.4)` 였다. 자리는 맞았는데
+                // 크기·굵기·색이 셋 다 어긋나 있었다 — 실측 색이 #ACACAF 로 흐렸다.
+                .foregroundStyle(Color.doodleEmptyHint)
+                .fontWeight(.medium)
+                .font(.system(size: Self.emptyMessageFontSize * Self.scale(forWidth: gridWidth)))
                 .multilineTextAlignment(.center)
                 // 글줄이 지나치게 길어지지 않게 묶는다.
                 // 애플이 `readableContentGuide` 로 말하는 것과 같은 뜻 — 한 줄이 길면

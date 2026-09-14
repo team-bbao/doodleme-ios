@@ -40,6 +40,13 @@ extension Color {
     /// 화면 제목. Figma 라지 타이틀 `#1A1A1A`
     static let doodleTitle = Color(red: 0x1A / 255, green: 0x1A / 255, blue: 0x1A / 255)
 
+    /// 그림이 하나도 없을 때 뜨는 안내 문구. Figma `iPhone 17 - 12` 의 `85:349` `#9D9D9D`
+    ///
+    /// 예전에는 `colorGray`(#424242)에 `opacity(0.4)` 를 겹쳐 썼는데,
+    /// 배경(#F2F2F7)과 섞이면서 실제로는 #ACACAF 로 흐려져 디자인보다 밝았다.
+    /// 단색으로 못박아 배경이 달라져도 같은 색이 나오게 한다.
+    static let doodleEmptyHint = Color(red: 0x9D / 255, green: 0x9D / 255, blue: 0x9D / 255)
+
     /// 보조 문구("님에게" 등). Figma `#6F6F6F`
     static let doodleSecondary = Color(red: 0x6F / 255, green: 0x6F / 255, blue: 0x6F / 255)
     /// 아바타 원 테두리. Figma `#E1E1E1`
