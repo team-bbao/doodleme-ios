@@ -91,21 +91,32 @@ struct PostGridView: View {
         }
     }
 
-    // Figma `iPhone 17 - 13` 의 `Frame 28`(92:650): 362 폭 안에 170x186 카드가 두 장씩 세 줄.
+    // Figma `iPhone 17 - 25` 의 `Frame 28`(222:1094): 362 폭 안에 167x183 카드가 두 장씩 세 줄.
+    //
+    // 옛 프레임 `iPhone 17 - 13`(92:650)은 170x186 에 간격 22/17 이었다.
+    // 17-25 에서 카드가 작아지고 간격이 벌어졌다.
+    //
+    // 17-25 자체는 첫 줄만 167x183 이고 2·3 번째 줄은 170x186 으로 남아 있다.
+    // 세로 간격 30 은 세 줄 모두에 걸려 있으므로, 세로는 전역으로 고치고
+    // 카드 인스턴스만 첫 줄에서 멈춘 것으로 읽었다. 격자는 줄마다 다른 카드 크기를
+    // 가질 수 없기도 해서 전 줄을 첫 줄에 맞춘다.
 
     /// 아이폰(402 화면)에서의 카드 한 장 크기. 다른 화면에서는 이 비율을 지키며 늘고 준다.
     ///
-    /// 메모지 에셋(687x749)의 가로세로비가 170:186 과 거의 같다.
-    /// 예전의 170 은 이보다 납작해서, 위아래가 잘리며 접힌 모서리도 함께 깎여 나갔다.
-    private static let baseCardWidth: CGFloat = 170
-    private static let baseCardHeight: CGFloat = 186
-    /// 카드 사이 가로 간격. 170 + 22 + 170 = 362 로 아이폰 본문 폭에 딱 맞는다.
-    private static let baseColumnSpacing: CGFloat = 22
+    /// **이 둘은 비율만 정한다.** 실제 폭은 아래 `cardSize(forWidth:)` 가
+    /// 본문 폭에서 간격을 빼고 나눠서 얻는다 — (362 - 28) / 2 = 167.
+    /// 그래서 167 을 만드는 것은 이 값이 아니라 `baseColumnSpacing` 이다.
+    ///
+    /// 메모지 에셋(687x749)의 가로세로비가 167:183 과 거의 같다.
+    private static let baseCardWidth: CGFloat = 167
+    private static let baseCardHeight: CGFloat = 183
+    /// 카드 사이 가로 간격. 167 + 28 + 167 = 362 로 아이폰 본문 폭에 딱 맞는다.
+    private static let baseColumnSpacing: CGFloat = 28
 
     /// 이 폭에서 카드 사이가 실제로 얼마나 벌어지는지.
     ///
     /// 고정 22 로 두면 iPad 에서 카드만 커져 상대적으로 더 붙어 보인다 —
-    /// 아이폰은 22/170 = 12.9% 인데 13인치 가로에서는 22/204 = 10.8% 였다.
+    /// 아이폰은 28/167 = 16.8% 인데, 고정 간격이면 13인치 가로에서 그보다 훨씬 좁아진다.
     /// 6열에서는 같은 간격이 다섯 번 반복되어 눈이 그 차이를 비교한다.
     static func columnSpacing(forWidth width: CGFloat) -> CGFloat {
         baseColumnSpacing * DoodleLayout.gridSpacingScale(forWidth: width)
@@ -132,7 +143,7 @@ struct PostGridView: View {
     /// 카드가 `maxCardWidth` 를 넘지 않는 **가장 적은** 열 수를 고른다.
     /// 열 수를 먼저 정하고 카드를 맞추는 것이 아니라, 카드 크기를 정하고 열 수가 따라온다.
     ///
-    /// 아이폰(362)은 두 장이면 이미 170 이라 하한 2 에 걸려 지금과 같다.
+    /// 아이폰(362)은 두 장이면 이미 167 이라 하한 2 에 걸려 지금과 같다.
     /// 13인치는 세로 992 에서 넷, 가로 1336 에서 여섯이 된다.
     private static func columnCount(forWidth width: CGFloat) -> Int {
         let spacing = columnSpacing(forWidth: width)
@@ -141,7 +152,7 @@ struct PostGridView: View {
         return max(2, needed)
     }
 
-    /// 주어진 폭에서 카드 한 장이 갖는 크기. 아이폰 402 화면에서는 170x186 그대로다.
+    /// 주어진 폭에서 카드 한 장이 갖는 크기. 아이폰 402 화면에서는 167x183 이 된다.
     private static func cardSize(forWidth width: CGFloat) -> CGSize {
         let count = CGFloat(columnCount(forWidth: width))
         let w = (width - columnSpacing(forWidth: width) * (count - 1)) / count
@@ -161,9 +172,13 @@ struct PostGridView: View {
     /// 선택 바(높이 56 + 아래 여백 34 = 90)에 맞춘 값이다. 실측 틈 6.5pt.
     /// Dynamic Type 을 지원하게 되면 바 높이 + 안전영역으로 계산해야 한다.
     private static let bottomInset: CGFloat = 96
-    /// 줄 사이 세로 간격. Figma 는 가로보다 좁은 17 을 쓴다 (186 세 줄 + 17 두 칸 = 592).
+    /// 줄 사이 세로 간격. Figma `iPhone 17 - 25` 는 가로보다 넓은 30 을 쓴다
+    /// (183 세 줄 + 30 두 칸 = 609).
     /// 가로 간격과 같은 비율로 키운다 — 한쪽만 벌어지면 격자가 눌린 것처럼 보인다.
-    private static let baseRowSpacing: CGFloat = 17
+    ///
+    /// 옛 프레임(17-13)은 17 이었다. 카드가 작아진 만큼 숨 쉴 자리를 더 준 것이라
+    /// 가로(22→28)보다 세로(17→30)가 더 많이 벌어졌다.
+    private static let baseRowSpacing: CGFloat = 30
 
     private static func rowSpacing(forWidth width: CGFloat) -> CGFloat {
         baseRowSpacing * DoodleLayout.gridSpacingScale(forWidth: width)
