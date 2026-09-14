@@ -261,12 +261,15 @@ struct NearbySharingScreen: View {
 
             // Figma `Frame 20`(149:629): 제목과 안내 사이 22.
             VStack(spacing: 22) {
+                // Figma `149:630` — SF Pro **Bold** 25 / `#424242`.
                 Text("그림을 받으시겠어요?")
-                    .font(.system(size: 25 * contentScale, weight: .semibold))
+                    .font(.system(size: 25 * contentScale, weight: .bold))
                     .foregroundStyle(Self.primary)
 
+                // Figma `149:631` — SF Pro **Medium** 15 / 행높이 20 / `#6A6A6A`.
+                // 굵기를 적지 않아 regular 로 나오던 것을 맞췄다.
                 Text("확인을 누르면 해당 그림 갤러리 탭으로\n넘어가져요.")
-                    .font(.system(size: 15))
+                    .font(.system(size: 15, weight: .medium))
                     .lineSpacing(2)
                     .foregroundStyle(Color.doodleSubtext)
             }
@@ -476,8 +479,9 @@ struct NearbySharingScreen: View {
 
         // Figma `iPhone 17 - 9` 의 `Frame 20`: 제목과 안내 사이 22.
         VStack(alignment: post == nil ? .center : .leading, spacing: 22) {
+            // Figma `149:537` · `162:688` — SF Pro **Bold** 25.
             Text(statusTitle(count: count, timedOut: timedOut || blocked))
-                .font(.system(size: 25 * contentScale, weight: .semibold))
+                .font(.system(size: 25 * contentScale, weight: .bold))
                 .foregroundStyle(Self.primary)
                 // 디자인에서 제목은 한 줄이다(`whitespace-nowrap`, 폭 292).
                 // 폭을 좁게 잡으면 제멋대로 접히므로 줄바꿈 자체를 막는다.
