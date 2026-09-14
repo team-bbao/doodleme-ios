@@ -598,6 +598,31 @@ struct DrawingPage: View {
 
     // MARK: - 툴바
 
+    /// 툴바 단추 글씨. 넓은 화면에서만 커진다.
+    ///
+    /// `controlSize(.extraLarge)` 를 먼저 걸어 봤는데 툴바에서는 듣지 않았다 —
+    /// 실측으로 13인치 가로와 아이폰이 76.5x44 로 똑같았다.
+    /// 툴바는 제 항목 크기를 스스로 정하므로, 글씨를 키워 유리 알약이 따라 자라게 한다.
+    /// 높이를 못박지 않으니 손쉬운 사용의 글씨 크기 설정도 그대로 따라온다.
+    ///
+    /// 높이는 44 에서 멈춘다 — 세로 여백을 14 얹어 봐도 그대로였다.
+    /// 내비게이션 바가 제 높이를 지키기 때문이고, 44 는 HIG 가 말하는 최소 크기이기도 하다.
+    /// 그래서 키울 수 있는 것은 가로뿐이다 (13인치 가로 76.5x44 → 92.5x44).
+    ///
+    /// 좁은 화면에서는 `nil` 을 돌려준다. 시스템이 주던 글꼴이 그대로 남아
+    /// 아이폰 화면은 한 픽셀도 달라지지 않는다.
+    /// 갤러리·공유·내보내기의 조작부와 같은 기준(`chromeScale`)으로 갈린다.
+    private var toolbarLabelFont: Font? {
+        let scale = DoodleLayout.chromeScale(forWidth: screenSize.width,
+                                             height: screenSize.height,
+                                             sizeClass: horizontalSizeClass)
+        guard scale > 1 else { return nil }
+        return .system(size: Self.toolbarLabelSize * scale)
+    }
+
+    /// 시스템이 툴바 단추에 쓰는 글씨 크기(`.body`). 배율의 기준일 뿐 못박은 높이가 아니다.
+    private static let toolbarLabelSize: CGFloat = 17
+
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         // 아직 포스트잇을 떼지도 않았으면 되돌릴 것이 없다.
@@ -605,6 +630,7 @@ struct DrawingPage: View {
         if session.phase != .notStarted {
             ToolbarItem(placement: .topBarLeading) {
                 Button("초기화") { showResetAlert = true }
+                    .font(toolbarLabelFont)
             }
         }
 
@@ -615,6 +641,7 @@ struct DrawingPage: View {
                 Button("다음") {
                     session.beginMemo()
                 }
+                .font(toolbarLabelFont)
             }
         }
 
@@ -622,6 +649,7 @@ struct DrawingPage: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("저장") { save() }
                     .buttonStyle(.glassProminent)
+                    .font(toolbarLabelFont)
                     .disabled(!canSave)
             }
         }
