@@ -550,7 +550,7 @@ extension PostDetailView {
 ///
 /// 접힌 자리는 한 변이 `depth` 인 정사각형이고, 그 대각선을 접는 선으로 본다.
 /// 대각선 아래쪽 삼각형은 뜯겨 나가고, 위쪽 삼각형이 접혀 올라온다.
-private struct FoldedPaperShape: Shape {
+private nonisolated struct FoldedPaperShape: Shape {
     var depth: CGFloat
     var cornerRadius: CGFloat
 
@@ -574,7 +574,7 @@ private struct FoldedPaperShape: Shape {
 }
 
 /// 접혀 올라온 삼각형. 잘려나간 삼각형을 접는 선에 대고 뒤집은 모양이다.
-private struct FoldFlapShape: Shape {
+private nonisolated struct FoldFlapShape: Shape {
     var depth: CGFloat
 
     var animatableData: CGFloat {
@@ -598,7 +598,7 @@ private struct FoldFlapShape: Shape {
 ///
 /// 잘려나간 쪽뿐 아니라 접혀 올라온 쪽에도 그림이 얹히면 안 된다.
 /// 접힌 종이의 뒷면에 그림이 이어질 리가 없기 때문이다.
-private struct PaperBodyShape: Shape {
+private nonisolated struct PaperBodyShape: Shape {
     var depth: CGFloat
     var cornerRadius: CGFloat
 

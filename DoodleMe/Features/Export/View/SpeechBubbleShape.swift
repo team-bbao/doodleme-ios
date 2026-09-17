@@ -14,7 +14,7 @@ import SwiftUI
 ///
 /// 꼬리는 SVG 의 `Polygon 1` 을 좌표 그대로 옮긴 것이다.
 /// 셋 다 같은 모양(폭 35.5 · 높이 31.5)이고 바뀌는 것은 좌우 어느 쪽에 붙느냐뿐이다.
-struct SpeechBubbleTail: Shape {
+nonisolated struct SpeechBubbleTail: Shape {
 
     /// 꼬리가 왼쪽 아래에 붙는지. `false` 면 오른쪽으로 뒤집는다.
     let tailOnLeft: Bool
