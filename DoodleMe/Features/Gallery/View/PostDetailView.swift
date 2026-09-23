@@ -194,7 +194,7 @@ struct PostDetailView: View {
             FoldedPaperShape(depth: foldDepth, cornerRadius: DoodleMetrics.canvasCornerRadius)
                 .fill(LinearGradient.doodlePaperFace)
 
-            FoldFlapShape(depth: foldDepth)
+            FoldFlapShape(depth: foldDepth, cornerRadius: DoodleMetrics.canvasCornerRadius)
                 .fill(Color.doodleFoldFlap)
         }
     }
@@ -420,6 +420,55 @@ extension PostDetailView {
 
 // MARK: - 접힌 종이 도형
 
+/// 접힌 종이의 자리들. 세 도형이 같은 좌표를 봐야 접힌 자리가 어긋나지 않는다.
+private nonisolated enum FoldGeometry {
+
+    /// 접는 선이 왼쪽 변과 만나는 곳.
+    static func head(in rect: CGRect, depth: CGFloat) -> CGPoint {
+        CGPoint(x: rect.minX, y: rect.maxY - depth)
+    }
+
+    /// 접는 선이 아래 변과 만나는 곳.
+    static func foot(in rect: CGRect, depth: CGFloat) -> CGPoint {
+        CGPoint(x: rect.minX + depth, y: rect.maxY)
+    }
+
+    /// 접혀 올라온 삼각형의 꼭지. 원래 종이의 왼쪽 아래 모서리가 여기로 넘어온다.
+    static func tip(in rect: CGRect, depth: CGFloat) -> CGPoint {
+        CGPoint(x: rect.minX + depth, y: rect.maxY - depth)
+    }
+
+    /// 접힌 자리에 쓸 모서리 반경.
+    ///
+    /// 카드의 모서리 반경을 그대로 쓴다. 접힌 자리만 각지면
+    /// 나머지 세 모서리와 결이 맞지 않아 종이가 찢어진 것처럼 보인다.
+    /// 접히는 중에는 아직 자리가 좁으니, 그 폭을 넘지 않는 선에서 줄인다.
+    static func radius(cornerRadius: CGFloat, depth: CGFloat) -> CGFloat {
+        min(cornerRadius, depth / 2)
+    }
+
+    /// 왼쪽 아래가 잘려나간 종이의 테두리.
+    static func paperPath(in rect: CGRect, depth: CGFloat, cornerRadius: CGFloat) -> Path {
+        guard depth > 0 else { return Path(roundedRect: rect, cornerRadius: cornerRadius) }
+
+        let foldRadius = radius(cornerRadius: cornerRadius, depth: depth)
+        let topLeft = CGPoint(x: rect.minX, y: rect.minY)
+        let topRight = CGPoint(x: rect.maxX, y: rect.minY)
+        let bottomRight = CGPoint(x: rect.maxX, y: rect.maxY)
+
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + cornerRadius, y: rect.minY))
+        path.addArc(tangent1End: topRight, tangent2End: bottomRight, radius: cornerRadius)
+        path.addArc(tangent1End: bottomRight, tangent2End: foot(in: rect, depth: depth), radius: cornerRadius)
+        path.addArc(tangent1End: foot(in: rect, depth: depth),
+                    tangent2End: head(in: rect, depth: depth), radius: foldRadius)
+        path.addArc(tangent1End: head(in: rect, depth: depth), tangent2End: topLeft, radius: foldRadius)
+        path.addArc(tangent1End: topLeft, tangent2End: topRight, radius: cornerRadius)
+        path.closeSubpath()
+        return path
+    }
+}
+
 /// 왼쪽 아래 모서리가 접혀 잘려나간 종이.
 ///
 /// 접힌 자리는 한 변이 `depth` 인 정사각형이고, 그 대각선을 접는 선으로 본다.
@@ -434,22 +483,17 @@ private nonisolated struct FoldedPaperShape: Shape {
     }
 
     func path(in rect: CGRect) -> Path {
-        let paper = Path(roundedRect: rect, cornerRadius: cornerRadius)
-        guard depth > 0 else { return paper }
-
-        var cut = Path()
-        cut.move(to: CGPoint(x: rect.minX, y: rect.maxY - depth))
-        cut.addLine(to: CGPoint(x: rect.minX + depth, y: rect.maxY))
-        cut.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        cut.closeSubpath()
-
-        return paper.subtracting(cut)
+        FoldGeometry.paperPath(in: rect, depth: depth, cornerRadius: cornerRadius)
     }
 }
 
 /// 접혀 올라온 삼각형. 잘려나간 삼각형을 접는 선에 대고 뒤집은 모양이다.
+///
+/// 꼭지는 원래 종이의 왼쪽 아래 모서리가 넘어온 자리라,
+/// 카드의 다른 모서리와 같은 반경이어야 접힌 것처럼 보인다.
 private nonisolated struct FoldFlapShape: Shape {
     var depth: CGFloat
+    var cornerRadius: CGFloat
 
     var animatableData: CGFloat {
         get { depth }
@@ -457,14 +501,27 @@ private nonisolated struct FoldFlapShape: Shape {
     }
 
     func path(in rect: CGRect) -> Path {
-        var path = Path()
-        guard depth > 0 else { return path }
+        var flap = Path()
+        guard depth > 0 else { return flap }
 
-        path.move(to: CGPoint(x: rect.minX, y: rect.maxY - depth))
-        path.addLine(to: CGPoint(x: rect.minX + depth, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX + depth, y: rect.maxY - depth))
-        path.closeSubpath()
-        return path
+        let radius = FoldGeometry.radius(cornerRadius: cornerRadius, depth: depth)
+        let head = FoldGeometry.head(in: rect, depth: depth)
+        let foot = FoldGeometry.foot(in: rect, depth: depth)
+        let tip = FoldGeometry.tip(in: rect, depth: depth)
+
+        // 접는 선 한가운데에서 출발한다. 꼭지에서 출발하면 그 꼭지를 둥글릴 수 없다.
+        flap.move(to: CGPoint(x: (head.x + foot.x) / 2, y: (head.y + foot.y) / 2))
+        flap.addLine(to: foot)
+        flap.addArc(tangent1End: tip, tangent2End: head, radius: radius)
+        flap.addLine(to: head)
+        flap.closeSubpath()
+
+        // 접는 선이 종이 테두리와 만나는 두 곳은 종이 쪽이 둥글게 패여 있다.
+        // 삼각형을 그대로 두면 그 패인 자리로 삐져나와 종이 밖에 뿔처럼 남는다.
+        // 접힌 조각이 종이 밖으로 나갈 수는 없으니 테두리로 잘라낸다.
+        return flap.intersection(
+            FoldGeometry.paperPath(in: rect, depth: depth, cornerRadius: cornerRadius)
+        )
     }
 }
 
@@ -482,7 +539,7 @@ private nonisolated struct PaperBodyShape: Shape {
     }
 
     func path(in rect: CGRect) -> Path {
-        let paper = Path(roundedRect: rect, cornerRadius: cornerRadius)
+        let paper = FoldGeometry.paperPath(in: rect, depth: depth, cornerRadius: cornerRadius)
         guard depth > 0 else { return paper }
 
         let corner = Path(CGRect(x: rect.minX, y: rect.maxY - depth, width: depth, height: depth))
