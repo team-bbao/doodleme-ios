@@ -7,11 +7,14 @@ import SwiftUI
 
 /// 고른 그림을 내보낼 카드 묶음으로 짠다.
 ///
-/// **한 장이면 26번, 두 장부터 27번·28번이다.**
+/// **한 장이면 한 장 카드, 두 장부터 격자다.**
 /// 한 장을 격자에 덩그러니 놓으면 다섯 칸이 비고, 제목도 「사람들이 그린」 이라
 /// 한 사람이 그린 것에는 말이 맞지 않는다.
 ///
-/// 여러 장이면 그림 격자를 앞에, 한마디 말풍선을 뒤에 놓는다.
+/// **판은 이 둘뿐이다.** 한때 격자 뒤에 한마디만 모은 말풍선 장을 덧붙였는데,
+/// 최종시안(`424:2528`)에는 그 장이 없다. 한마디는 한 장 카드에서 그림 바로 아래에 붙는다 —
+/// 누가 무슨 말을 했는지는 그 그림 옆에 있어야 읽히지, 따로 모아 놓으면 짝을 잃는다.
+///
 /// 넘치면 버리지 않고 페이지를 늘린다 —
 /// 인스타그램 캐러셀이 한 게시물에 20장까지 받으므로 그대로 올릴 수 있고,
 /// 한 장에 우겨넣어 그림이 알아볼 수 없게 작아지는 것보다 낫다.
@@ -25,7 +28,12 @@ enum ExportComposer {
     ///   - posts: 고른 그림. 최근 것이 앞에 오도록 이미 정렬돼 있어야 한다.
     ///   - myName: 앱을 쓰는 나.
     ///   - mine: 「내가 그린」 묶음인지. 제목의 두 이름이 자리를 바꾼다.
-    static func pages(for posts: [Post], myName: String, mine: Bool) -> [ExportPage] {
+    ///   - shuffle: 격자에 그림을 흩뿌릴 때 쓰는 씨앗. 부르는 쪽이 **한 번 뽑아 들고 있는다** —
+    ///     화면이 다시 그려질 때마다 새로 뽑으면 미리보기와 구운 파일이 어긋난다.
+    static func pages(for posts: [Post],
+                      myName: String,
+                      mine: Bool,
+                      shuffle: UInt64) -> [ExportPage] {
         guard posts.count > 1 else {
             guard let only = posts.first else { return [] }
             return [ExportPage(id: 0) { ExportSinglePostCard(post: only, myName: myName) }]
@@ -35,14 +43,11 @@ enum ExportComposer {
         let (slices, gridBasis) = balancedSlices(posts, perPage: ExportDrawingsCard.perPage)
         for slice in slices {
             pages.append(ExportPage(id: pages.count) {
-                ExportDrawingsCard(posts: slice, myName: myName, mine: mine, gridBasis: gridBasis)
-            })
-        }
-        // 그림 뒤에 한마디를 붙인다. 한마디가 하나도 없으면 `paginate` 가 빈 배열을 주므로
-        // 말풍선 장 자체가 생기지 않는다.
-        for slice in ExportQuotesCard.paginate(posts) {
-            pages.append(ExportPage(id: pages.count) {
-                ExportQuotesCard(posts: slice, myName: myName, mine: mine)
+                ExportDrawingsCard(posts: slice,
+                                   myName: myName,
+                                   mine: mine,
+                                   shuffle: shuffle,
+                                   gridBasis: gridBasis)
             })
         }
         return pages
