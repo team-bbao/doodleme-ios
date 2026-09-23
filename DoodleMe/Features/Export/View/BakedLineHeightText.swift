@@ -23,6 +23,8 @@ struct BakedLineHeightText: View {
     /// 한 줄이 차지할 높이. 글꼴 기본값보다 작아도 된다.
     let lineHeight: CGFloat
     let color: Color
+    /// 글자 사이. Figma 의 `letter-spacing` 이다. 0 이면 글꼴 그대로.
+    let tracking: CGFloat
 
     /// - Parameters:
     ///   - width: 이 폭에서 넘치면 줄을 나눈다. `nil` 이면 `\n` 에서만 나눈다.
@@ -31,16 +33,18 @@ struct BakedLineHeightText: View {
          font: UIFont,
          lineHeight: CGFloat,
          color: Color,
+         tracking: CGFloat = 0,
          width: CGFloat? = nil,
          maxLines: Int? = nil) {
         self.uiFont = font
         self.lineHeight = lineHeight
         self.color = color
+        self.tracking = tracking
 
         let paragraphs = text.components(separatedBy: "\n")
         let all: [String]
         if let width {
-            all = paragraphs.flatMap { Self.wrapped($0, font: font, width: width) }
+            all = paragraphs.flatMap { Self.wrapped($0, font: font, width: width, tracking: tracking) }
         } else {
             all = paragraphs
         }
@@ -52,6 +56,11 @@ struct BakedLineHeightText: View {
         } else {
             self.lines = all
         }
+    }
+
+    /// 폭을 잴 때 쓰는 속성. **자간까지 넣어야** 줄이 실제 그려지는 대로 끊긴다.
+    static func attributes(font: UIFont, tracking: CGFloat) -> [NSAttributedString.Key: Any] {
+        tracking == 0 ? [.font: font] : [.font: font, .kern: tracking]
     }
 
     /// 마지막 줄 끝에 말줄임표를 붙인다. 폭을 넘기면 글자를 하나씩 덜어낸다.
@@ -81,6 +90,7 @@ struct BakedLineHeightText: View {
     private func text(_ line: String) -> some View {
         Text(line)
             .font(.custom(uiFont.fontName, size: uiFont.pointSize))
+            .tracking(tracking)
             .foregroundStyle(color)
             .fixedSize()
     }
@@ -93,14 +103,17 @@ struct BakedLineHeightText: View {
     /// `UILabel` 이 아니라 CoreText 를 쓰는 이유는 이것이 **뷰가 아니기** 때문이다 —
     /// `ImageRenderer` 가 굽지 못하는 것은 UIKit **뷰**이지 글자 계산이 아니다.
     /// 주어진 폭에서 몇 줄이 되는지. 글이 담길 상자 높이를 미리 잴 때 쓴다.
-    static func lineCount(_ text: String, font: UIFont, width: CGFloat) -> Int {
+    static func lineCount(_ text: String, font: UIFont, width: CGFloat,
+                          tracking: CGFloat = 0) -> Int {
         text.components(separatedBy: "\n")
-            .reduce(0) { $0 + wrapped($1, font: font, width: width).count }
+            .reduce(0) { $0 + wrapped($1, font: font, width: width, tracking: tracking).count }
     }
 
-    static func wrapped(_ text: String, font: UIFont, width: CGFloat) -> [String] {
+    static func wrapped(_ text: String, font: UIFont, width: CGFloat,
+                        tracking: CGFloat = 0) -> [String] {
         guard !text.isEmpty else { return [""] }
-        let attributed = NSAttributedString(string: text, attributes: [.font: font])
+        let attributed = NSAttributedString(string: text,
+                                            attributes: attributes(font: font, tracking: tracking))
         let typesetter = CTTypesetterCreateWithAttributedString(attributed)
         let source = text as NSString
 

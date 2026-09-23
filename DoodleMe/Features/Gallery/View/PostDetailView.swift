@@ -244,14 +244,22 @@ struct PostDetailView: View {
                 //
                 // 받은 것이든 내가 그린 것이든 낼 수 있다.
                 // 제목의 두 이름이 자리를 바꿀 뿐이다 — `ExportSinglePostCard` 참고.
+                //
+                // 􀈂 대신 **인스타그램 글리프**를 쓴다. 갤러리 머리말의 같은 동작과 짝을 맞춘 것이다 —
+                // 􀈂 는 「어디로든 보낸다」 는 뜻이라 어디로 가는지 알 수 없었다.
+                // SF Symbols 에 인스타그램 글리프가 없어(상표) Figma 의 SVG 를 들였다.
                 Button {
                     showExportPreview = true
                 } label: {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(toolbarGlyphFont)
+                    Image(.instagram)
+                        .renderingMode(.template)
+                        .resizable()
+                        // 옆의 SF 기호가 `.title2`(22) 라 같은 크기로 맞춘다.
+                        .frame(width: Self.toolbarGlyphSize * toolbarScale,
+                               height: Self.toolbarGlyphSize * toolbarScale)
                 }
                 .buttonStyle(CardToolbarButtonStyle(scale: toolbarScale))
-                .accessibilityLabel("카드로 공유")
+                .accessibilityLabel("인스타그램으로 내보내기")
             }
             .padding(.horizontal, Self.toolbarInset * toolbarScale)
             .frame(width: Self.toolbarWidth(buttons: 3) * toolbarScale,

@@ -21,7 +21,7 @@ struct ExportPage: Identifiable {
 
 /// 내보낼 카드를 먼저 보여 주는 화면.
 ///
-/// Figma `iPhone 17 - 26 / 27 / 28` 이 402x871 아이폰 화면 모양이고 상태바까지 얹혀 있다 —
+/// Figma 최종시안의 `IG Stories/User default` 가 390x844 아이폰 화면 모양이다 —
 /// 그림 파일 규격이 아니라 **앱 안에서 보는 화면**이라는 뜻이다.
 ///
 /// 무엇을 내보내는지 보고 누르게 한다. 한 번 나가면 되돌릴 수 없는 일이라
@@ -36,17 +36,12 @@ struct ExportPreviewScreen: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var files: [URL] = []
     @State private var current = 0
-    /// 어느 자리에 올릴 판인지. 스토리로 시작한다 — 원래 이 화면이 만들어진 규격이다.
-    @State private var ratio: ExportRatio = .story
     /// 올릴 장을 고르는 중인지.
     @State private var isChoosing = false
     /// 조작부가 보이는지. 카드를 누르면 토글한다.
     @State private var showsChrome = true
     /// 고른 장들. `ExportPage.id`(= `files` 의 자리)를 담는다.
     @State private var chosen: Set<Int> = []
-
-    /// 고른 판형의 카드 크기.
-    private var layout: ExportCardLayout { ExportCardLayout(ratio: ratio) }
 
     var body: some View {
         GeometryReader { proxy in
@@ -70,18 +65,16 @@ struct ExportPreviewScreen: View {
             // 점 색도 칠하지 않는다. HIG: *Avoid coloring indicator images… let the system
             // automatically color the indicators.*
             .tabViewStyle(.page)
-            // 카드들이 저마다 폭을 알아야 한다. 한 군데서 내리면 안쪽이 전부 따라온다.
-            .environment(\.exportRatio, ratio)
             // 버튼을 **카드 폭에 맞춰** 얹는다. 안전영역은 여기서만 지킨다.
             //
-            // 바깥에 두면 화면 폭을 차지해, 카드가 9:16 이라 좌우가 남는
+            // 바깥에 두면 화면 폭을 차지해, 카드보다 화면이 넓은
             // 아이패드 가로에서 버튼만 검은 여백 맨 끝에 붙는다.
             // 카드와 관계없는 것처럼 보이고 1180 폭에서는 손도 닿지 않는다.
             // 카드를 한 번 누르면 조작부가 숨고, 다시 누르면 돌아온다.
             //
             // **화면에 보이는 것과 올라가는 그림을 같게 하려는 것이다.**
             // 조작부는 미리보기의 것이지 카드의 일부가 아니라 구운 PNG 에는 없다.
-            // 그런데 9:16 카드는 아이폰 화면을 거의 채워 조작부가 카드 위에 얹히므로,
+            // 그런데 이 카드는 아이폰 화면을 꽉 채워 조작부가 카드 위에 얹히므로,
             // 숨기지 않으면 「보이는 것」과 「나가는 것」이 다르다.
             //
             // 사진 앱과 같은 결이다 — 열면 보이고, 한 번 누르면 사진만 남는다.
@@ -106,8 +99,7 @@ struct ExportPreviewScreen: View {
         // 돌려준다. 그러면 배율이 0.897 로 떨어져 카드가 화면 한가운데 작게 뜬다.
         // `PaperBackground` 주석에 적힌 것과 같은 함정이다.
         .ignoresSafeArea()
-        // 판을 바꾸면 다시 굽는다. 공유 시트에는 지금 보고 있는 판만 나가야 한다.
-        .task(id: ratio) { bake() }
+        .task { bake() }
     }
 
     /// 카드 한 장을 화면에 꽉 채워 놓는다.
@@ -147,9 +139,9 @@ struct ExportPreviewScreen: View {
                             .shadow(color: .black.opacity(0.45), radius: 20, y: 8)
                             // 고르지 않은 장을 흐리게 덮지 않는다.
                             //
-                            // 한때 `opacity` 로 눌러 두었는데 세 가지가 한꺼번에 어긋났다 —
-                            // 종이와 말풍선이 **따로따로** 반투명해져 흰 말풍선이 회색 위에 뜬 것처럼
-                            // 겹쳐 보였고, 카드가 어두워지면서 그 위에 떠 있는 유리 버튼이
+                            // 한때 `opacity` 로 눌러 두었는데 두 가지가 한꺼번에 어긋났다 —
+                            // 종이와 그 위에 얹힌 것들이 **따로따로** 반투명해져 겹쳐 보였고,
+                            // 카드가 어두워지면서 그 위에 떠 있는 유리 버튼이
                             // 어두운 배경에 녹아 닫기·공유 글리프가 사라졌다.
                             //
                             // 사진 앱도 고르지 않은 것을 흐리게 하지 않는다. 켜진 것에만 표를 단다.
@@ -211,7 +203,7 @@ struct ExportPreviewScreen: View {
 
     /// 슬라이드 하나가 원래 좌표계에서 차지하는 폭.
     private func slideWidth(columns: Int) -> CGFloat {
-        layout.size.width * CGFloat(columns) + Self.slideGap * CGFloat(columns - 1)
+        ExportCardLayout.size.width * CGFloat(columns) + Self.slideGap * CGFloat(columns - 1)
     }
 
     /// 나란히 놓인 카드 사이.
@@ -252,22 +244,18 @@ struct ExportPreviewScreen: View {
         // 위아래를 같이 비워야 카드가 계속 한가운데에 선다.
         let room = pages.count > 1 ? Self.indexRoom * 2 : 0
         return min(size.width / slideWidth(columns: columns(in: size)),
-                   max(size.height - room, 1) / layout.size.height)
+                   max(size.height - room, 1) / ExportCardLayout.size.height)
     }
 
     private func bake() {
-        // 판형을 파일 이름에 남긴다. 사진 앱에 여러 판을 저장해 두었을 때
-        // 어느 것이 스토리용이고 어느 것이 게시물용인지 열어 보지 않고 가린다.
         files = pages.compactMap {
-            ExportRenderer.temporaryFile($0.card,
-                                         ratio: ratio,
-                                         name: "\(fileName)-\(ratio.fileTag)-\($0.id + 1)")
+            ExportRenderer.temporaryFile($0.card, name: "\(fileName)-\($0.id + 1)")
         }
     }
 
-    /// 카드 위에 떠 있는 줄. 양 끝에 버튼, 가운데에 판형 세그먼트.
+    /// 카드 위에 떠 있는 줄. 양 끝에 버튼, 가운데는 비어 있다.
     ///
-    /// 고르는 중에는 같은 자리가 「취소 · 몇 장 골랐는지 · 공유」 로 바뀐다.
+    /// 고르는 중에는 가운데에 「몇 장 골랐는지」 가 선다.
     /// 갤러리의 고르기 막대와 같은 짜임이다 — 나가는 길이 왼쪽, 하는 일이 오른쪽.
     private func topBar(in size: CGSize) -> some View {
         HStack {
@@ -281,11 +269,11 @@ struct ExportPreviewScreen: View {
             shareButton(in: size)
         }
         .padding(.horizontal, Self.sideInset * chromeScale(in: size))
-        // 세그먼트를 **겹쳐서** 가운데에 둔다.
+        // 개수를 **겹쳐서** 가운데에 둔다.
         //
         // 같은 `HStack` 에 넣으면 공유 버튼이 아직 안 나왔을 때(굽는 중) 한쪽으로 쏠린다.
         // 겹쳐 두면 버튼이 있든 없든 늘 화면 한가운데 선다.
-        .overlay { isChoosing ? AnyView(chosenCount(in: size)) : AnyView(ratioPicker(in: size)) }
+        .overlay { if isChoosing { chosenCount(in: size) } }
     }
 
     /// 공유로 가는 버튼.
@@ -338,8 +326,7 @@ struct ExportPreviewScreen: View {
         }
     }
 
-    /// 고르는 중에 세그먼트 자리에 서는 글. 판형은 이때 바꿀 수 없다 —
-    /// 판을 바꾸면 카드를 다시 구워야 해서 고른 것이 가리키던 파일이 사라진다.
+    /// 고르는 중에 줄 한가운데에 서는 글.
     private func chosenCount(in size: CGSize) -> some View {
         // 양옆 버튼과 같은 흰 바탕이다. 유리로 두었더니 검은 배경 위에서 알약 윤곽이
         // 사라져 글자만 허공에 뜬 것처럼 보였다 — 한 줄에 선 셋은 같은 재질이어야 한 줄로 읽힌다.
@@ -385,10 +372,9 @@ struct ExportPreviewScreen: View {
     ///
     /// **닫기·공유 버튼과 같은 44 로 선다.** 부르는 쪽에서 카드 배율을 되돌려 주기 때문이다.
     ///
-    /// 이 동그라미는 카드 안(폭 490 좌표계)에 얹히므로 그냥 두면 카드와 함께 줄어든다.
-    /// 그러면 판을 바꿀 때마다 크기가 달라진다 — 9:16 에서 42 로 버튼과 나란하던 것이
-    /// 1:1 에서는 23 으로 절반이 된다. 재서 확인했다.
-    /// 같은 화면에 선 세 개가 저마다 다른 크기로 보일 까닭이 없다.
+    /// 이 동그라미는 카드 안(폭 390 좌표계)에 얹히므로 그냥 두면 카드와 함께 줄어든다.
+    /// 화면 크기에 따라 배율이 달라지므로 같은 화면에 선 것들이 저마다 다른 크기로 보인다.
+    /// 부르는 쪽에서 되돌려 주어 닫기·공유 버튼과 늘 나란히 선다.
     private func selectionBadge(isOn: Bool) -> some View {
         Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
             // SF Symbol 의 원은 글꼴 크기의 0.9 쯤이라 48 이 버튼 지름 44 와 맞는다.
@@ -403,28 +389,6 @@ struct ExportPreviewScreen: View {
             .padding(18)
     }
 
-    /// 어느 자리에 올릴지 고르는 세그먼트.
-    ///
-    /// 애플 기본 `.segmented` 그대로다. HIG 「Segmented controls」 —
-    /// *Use a segmented control to offer closely related choices that affect an object,
-    /// state, or view* — 같은 그림을 어느 판으로 내보낼지가 꼭 그 자리다.
-    ///
-    /// 고르면 미리보기가 바로 그 판으로 바뀐다. 나가기 전에 무엇이 나갈지 보게 하는 것이
-    /// 이 화면의 일이라, 굽는 순간에 묻는 메뉴보다 여기가 맞다.
-    private func ratioPicker(in size: CGSize) -> some View {
-        Picker("판형", selection: $ratio) {
-            ForEach(ExportRatio.allCases) { ratio in
-                Text(ratio.label)
-                    .accessibilityLabel(ratio.accessibilityLabel)
-                    .tag(ratio)
-            }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        // 좌우 버튼(각 44)과 부딪히지 않는 폭이다. 가장 좁은 아이폰에서도 60 씩 남는다.
-        .frame(maxWidth: Self.ratioPickerWidth)
-    }
-
     /// 버튼 알맹이. 갤러리 상단 버튼과 **같은 흰 원**이다.
     ///
     /// 처음에는 유리(`glassEffect`)로 갔다. HIG 「Materials」 가
@@ -432,7 +396,7 @@ struct ExportPreviewScreen: View {
     /// that floats above the content layer* 라고 하니 카드 위에 떠 있는 이 둘이 그 자리로 보였다.
     ///
     /// **어두운 바탕에서 사라졌다.** 이 화면은 앱에서 유일하게 배경이 검은 곳이고,
-    /// 1:1·4:5 처럼 카드가 낮은 판에서는 버튼이 그 검은 자리 위에 선다.
+    /// 카드보다 화면이 넓은 아이패드에서는 버튼이 그 검은 자리 위에 선다.
     /// 유리는 뒤를 보고 스스로 어두워지는데, 그러면 어두운 바탕에 어두운 원이 되어
     /// 테두리도 글리프도 읽히지 않았다 — 화면을 찍어 확대해 보고서야 드러났다.
     ///
@@ -453,9 +417,6 @@ struct ExportPreviewScreen: View {
 
     /// 버튼 줄이 카드 폭 안에서 좌우로 들어가는 정도.
     private static var sideInset: CGFloat { 18 }
-    /// 판형 세그먼트의 최대 폭. 양옆 버튼과 같은 배율로 자란다 —
-    /// 한 줄에 선 셋 중 가운데만 아이폰 크기로 남으면 줄이 어긋나 보인다.
-    private static let ratioPickerWidth: CGFloat = 220
     /// 조작부 배율. 갤러리 상단 버튼·공유 화면 닫기와 같은 기준을 쓴다.
     private func chromeScale(in size: CGSize) -> CGFloat {
         DoodleLayout.chromeScale(forWidth: size.width,
@@ -479,8 +440,8 @@ struct ExportPreviewScreen: View {
     /// 카드 뒤에 까는 바탕.
     ///
     /// **앱에서 유일하게 어두운 화면이다.** 그럴 이유가 있다.
-    /// 카드는 9:16 이라 19.5:9 인 화면에서 위아래가 남는데, 종이(241,241,246)와
-    /// 원래 배경(242,242,247)이 **1 차이**라 경계가 보이지 않았다.
+    /// 카드가 화면을 꽉 채우지 못하는 곳(아이패드, 그리고 조금 남는 위아래)에서
+    /// 종이(241,241,246)와 원래 배경(242,242,247)이 **1 차이**라 경계가 보이지 않았다.
     /// 종이가 화면 끝에서 잘린 것처럼 읽혀 「내보내면 잘리나?」 하는 오해를 낳았다.
     /// 둥근 모서리와 그림자만으로는 모자랐다 — 흰 것 뒤에는 어두운 것이 있어야 한다.
     ///
@@ -488,6 +449,6 @@ struct ExportPreviewScreen: View {
     /// 이 화면은 감상하는 자리가 아니라 **무엇이 나가는지 확인하는 자리**다.
     private static let backdrop = Color(white: 0.13)
 
-    /// 미리보기에서만 깎는 모서리. 카드 좌표(490 폭) 기준이라 화면에서는 20 쯤으로 보인다.
+    /// 미리보기에서만 깎는 모서리. 카드 좌표(390 폭) 기준이다.
     private static let previewCornerRadius: CGFloat = 24
 }

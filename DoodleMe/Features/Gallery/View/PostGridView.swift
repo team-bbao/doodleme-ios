@@ -40,7 +40,6 @@ struct PostGridView: View {
     var onShare: ((Post) -> Void)?
 
     /// 카드를 꾹 눌러 「선택」 을 고른 경우. 누른 카드가 첫 선택이 된다.
-    var onStartSelecting: ((Post) -> Void)?
 
     /// 보여줘야 할 그림. 값이 들어오면 그 자리로 스크롤하고 도로 비운다.
     ///
@@ -195,7 +194,6 @@ struct PostGridView: View {
     ///
     /// 프로필은 한 장만 고르므로 짙게 덮어도 헷갈릴 일이 없었다.
     /// 여러 장을 고를 때는 골라 둔 그림이 무엇인지도 계속 보여야 해서 그만큼 옅게 둔다.
-    private static let selectedDimming: CGFloat = 0.28
 
     /// 빈 화면 안내 문구 글자 크기. Figma `85:349` 의 23.
     private static let emptyMessageFontSize: CGFloat = 23
@@ -322,22 +320,31 @@ struct PostGridView: View {
                     .strokeBorder(Color.doodlePrimary,
                                   lineWidth: isOpenInDetail(post) ? Self.openCardBorder : 0)
             }
-            // 고른 카드는 어둡게 덮어서 한눈에 구분되게 한다.
-            // 확인창은 세그먼트 아래에 떠서 이 카드를 가리지 않는다.
-            .overlay {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.black.opacity(selected ? Self.selectedDimming : 0))
-            }
-            // 여러 장을 고를 때는 어둡게 덮는 것만으로 부족하다.
+            // 고른 카드를 덮는 색. Figma `iPhone 17 - 38` 의 `Rectangle 9`.
             //
-            // 한 장만 고르는 프로필과 달리 고른 것과 안 고른 것이 화면에 섞여 있어,
-            // 명암 차이만으로는 어느 쪽이 골라진 것인지 매번 다시 읽어야 한다.
-            // 동그라미를 모든 카드에 띄워 "고를 수 있다" 를 먼저 알리고,
-            // 채워진 동그라미로 "골랐다" 를 말한다.
-            .overlay(alignment: .topTrailing) {
-                if mode == .selecting {
-                    selectionBadge(isOn: selected)
-                        .padding(8)
+            // **종이 모양을 그대로 따른다.** 네모로 덮으면 잘려나간 왼쪽 아래 모서리까지
+            // 회색으로 메워져 카드가 그냥 회색 사각형이 된다 — Figma 의 `Rectangle 9` 도
+            // 경로에 그 대각선이 들어 있다. 종이 에셋의 알파를 마스크로 쓰면 저절로 맞는다.
+            //
+            // 색은 검정이 아니라 `#808080` 50% 다. 검정을 깔면 그림의 어두운 획까지 함께
+            // 묻히는데, 회색 50% 는 밝은 데를 낮추고 어두운 데를 올려 그림이 남는다.
+            .overlay {
+                if selected {
+                    Color.doodleSelectedTint
+                        .mask { paperLayer(.memoFront) }
+                }
+            }
+            // **고른 카드에만** 표시가 붙는다. 오른쪽 아래다.
+            // Figma `iPhone 17 - 35` · `17 - 38` · `17 - 39`.
+            //
+            // 한때 모든 카드에 빈 동그라미를 띄워 「고를 수 있다」 를 먼저 알렸는데,
+            // 디자인이 고른 것만 표시하는 쪽으로 정했다 — 고르는 중에는 화면 전체가
+            // 어두워지고 카드도 함께 눌리므로, 무엇을 하는 중인지는 그것으로 이미 읽힌다.
+            .overlay(alignment: .bottomTrailing) {
+                if mode.isSelecting, selected {
+                    selectionBadge
+                        .padding(.trailing, Self.badgeTrailing)
+                        .padding(.bottom, Self.badgeBottom)
                         .transition(.scale.combined(with: .opacity))
                 }
             }
@@ -349,19 +356,36 @@ struct PostGridView: View {
             .contextMenu { cardMenu(for: post) }
     }
 
-    /// 고르는 중에 카드마다 붙는 동그라미.
+    /// 고른 카드에 붙는 표시. Figma `Button - Liquid Glass - Symbol`(424:1988) 25x25.
     ///
-    /// 시스템 심볼을 그대로 쓴다. 사진 앱에서 여러 장을 고를 때와 같은 모양이라
-    /// 따로 배우지 않아도 무엇을 하는 자리인지 안다.
-    private func selectionBadge(isOn: Bool) -> some View {
-        Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
-            .font(.system(size: 22, weight: isOn ? .semibold : .light))
-            // 켜졌을 때만 색을 준다. 꺼진 동그라미까지 짙으면 그림 위에서 시끄럽다.
-            .foregroundStyle(isOn ? Color.white : Color.white.opacity(0.9),
-                             isOn ? Color.doodlePrimary : Color.clear)
-            // 흰 종이 위에 흰 테두리라 그림자가 없으면 윤곽이 사라진다.
-            .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+    /// **유리에 파란 틴트를 얹은 것**이지 단색 원이 아니다 —
+    /// Figma 가 `White Backing`(흰색 94%) 위에 `Tint`(#0088FF)를 깔고
+    /// `Glass Effect`(흰 1px 테두리)로 테를 두른다.
+    /// 그 흰 테가 유리의 가장자리 빛이라, 종이 위에서도 배지의 윤곽이 살아 있다.
+    ///
+    /// 파랑은 확정 단추(`→`)와 같은 색이다 —
+    /// 「고른 것」과 「고른 것을 가지고 나가는 길」이 한 색으로 이어진다.
+    private var selectionBadge: some View {
+        Image(systemName: "checkmark")
+            .font(.system(size: Self.badgeGlyphSize, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: Self.badgeSide, height: Self.badgeSide)
+            .glassEffect(.regular.tint(Color.doodleAccent), in: .circle)
+            .overlay {
+                Circle().strokeBorder(.white, lineWidth: Self.badgeRim)
+            }
+            // Figma `Fill + Shadow`: 0 8 15 검정 2%. SwiftUI 반경은 blur 의 절반.
+            .shadow(color: .black.opacity(0.02), radius: 7.5, y: 8)
     }
+
+    /// Figma 의 체크는 SF Pro Semibold 10 이다.
+    private static let badgeGlyphSize: CGFloat = 10
+    /// `Glass Effect` 의 흰 테.
+    private static let badgeRim: CGFloat = 1
+
+    private static let badgeSide: CGFloat = 25
+    private static let badgeTrailing: CGFloat = 10
+    private static let badgeBottom: CGFloat = 7
 
     /// 카드를 꾹 눌렀을 때 뜨는 메뉴.
     ///
@@ -382,16 +406,11 @@ struct PostGridView: View {
                 Label("그림 공유하기", systemImage: "airplay.audio")
             }
 
-            // 여러 장을 지우러 가는 문.
+            // **여기가 지우는 유일한 길이다.** Figma `Frame 29` 는 셋만 둔다 —
+            // 프로필 사진 설정 · 그림 공유하기 · 삭제.
             //
-            // 삭제 바로 위에 둔다. 한 장만 지울 사람은 아래를 누르면 되고,
-            // 누르다 보니 여러 장이더라 하는 사람은 같은 자리에서 갈아탈 수 있다.
-            Button {
-                onStartSelecting?(post)
-            } label: {
-                Label("선택", systemImage: "checkmark.circle")
-            }
-
+            // 한때 「선택」(여러 장 고르기) 도 함께 두었는데, 고르기는 이제 내보내기 전용이라
+            // 머리말의 인스타그램 버튼에서 판을 고르고 들어간다. 지우기와 길이 갈렸다.
             Button(role: .destructive) {
                 postPendingDelete = post
             } label: {
@@ -462,13 +481,17 @@ struct PostGridView: View {
             // 카드를 꾹 눌러 「프로필 사진 설정」으로 들어온 길과 같은 곳으로 모인다.
             withAnimation(.spring()) { profileCandidatePost = post }
 
-        case .selecting:
-            // 같은 카드를 다시 누르면 선택이 풀린다.
-            // 지우는 일이라 되돌릴 길을 눌렀던 그 자리에 둔다.
+        case .selecting(let template):
             let id = post.persistentModelID
             withAnimation(.spring(response: 0.25, dampingFraction: 0.72)) {
                 if selectedPosts.contains(id) {
+                    // 같은 카드를 다시 누르면 선택이 풀린다. 되돌릴 길을 눌렀던 그 자리에 둔다.
                     selectedPosts.remove(id)
+                } else if template.selectionLimit == 1 {
+                    // **한 장짜리 판에서는 새로 누른 것이 앞의 것을 밀어낸다.**
+                    // Figma `iPhone 17 - 39`. 한 장만 담기는 판이라 「가득 찼으니 하나 푸세요」
+                    // 하고 막아 세우는 것보다, 마지막에 누른 것을 그대로 받는 쪽이 짧다.
+                    selectedPosts = [id]
                 } else {
                     selectedPosts.insert(id)
                 }

@@ -59,6 +59,10 @@ struct GalleryPage: View {
     @AppStorage("userName") private var inputName = ""
 
     @State private var mode: GalleryMode = .browsing
+    /// 어느 판으로 낼지 묻는 시트가 떠 있는지. Figma `iPhone 17 - 36`.
+    @State private var showTemplateChooser = false
+    /// 정렬 메뉴가 떠 있는지. Figma `iPhone 17 - 25` 의 `Menu`.
+    @State private var showsSortMenu = false
     /// 지우려고 확인 팝업을 띄운 그림. 카드를 꾹 눌러 곧장 한 장을 지우는 길이다.
     @State private var postPendingDelete: Post?
     /// 여러 장을 골라 지우려고 표시해 둔 것들.
@@ -70,6 +74,8 @@ struct GalleryPage: View {
     /// 들어온 길이 정한다 — 카드를 꾹 누르면 지우기, 상단 􀈂 를 누르면 내보내기.
     /// 고른 그림들을 카드로 만들어 보여 줄지.
     @State private var showExportPreview = false
+    /// 내보내기 격자를 흩뿌리는 씨앗. 화면을 열 때마다 새로 뽑는다.
+    @State private var exportShuffle: UInt64 = 0
     /// 여러 장 저장을 마치고 띄울 말. 비어 있으면 확인창이 뜨지 않는다.
     @State private var saveResultMessage: String?
     /// 저장하는 동안 같은 버튼을 또 누르지 못하게 막는다.
@@ -126,7 +132,13 @@ struct GalleryPage: View {
     }
 
     private var isChoosingProfile: Bool { mode == .choosingProfile }
-    private var isSelecting: Bool { mode == .selecting }
+    private var isSelecting: Bool { mode.isSelecting }
+
+    /// 고르는 중이면서 **한 장이라도 골랐는지.** 위쪽 조작부가 뜨는 조건이다.
+    private var hasSelection: Bool { isSelecting && !selectedPosts.isEmpty }
+
+    /// 고르는 중이면 어느 판으로 내는 중인지. 아니면 `nil`.
+    private var selectionTemplate: ExportTemplate? { mode.template }
 
     /// 저장소에 남은 숫자를 뜻이 있는 값으로 풀어 준다.
     /// 모르는 값이 들어 있으면 처음 열었을 때의 순서로 돌아간다.
@@ -191,11 +203,33 @@ struct GalleryPage: View {
     /// Figma `iPhone 17 - 12` 는 원의 윗변을 129 에 둔다.
     /// 원이 `offset(y: 5)` 로 내려가 있으므로 자리 자체는 그보다 5 위에서 시작한다.
     private static let headerTopInset: CGFloat = 124
+
     /// 화면 제목이 놓이는 높이. Figma 의 y=70. 오른쪽 위 버튼들도 같은 줄에 선다.
     private static let titleTopInset: CGFloat = 70
     /// 오른쪽 위 버튼 둘 사이.
     /// Figma 는 정렬(`Frame 40`, 276~320)과 공유받기(`Frame 25`, 338~382)를 18 띄운다.
     private static let topButtonSpacing: CGFloat = 18
+
+    /// 정렬 메뉴 윗변. Figma 는 118 — 버튼 아랫변(70 + 44)에서 4 띄운 자리다.
+    private var sortMenuTop: CGFloat {
+        (Self.titleTopInset + DoodleMetrics.buttonSide + Self.sortMenuGap) * verticalScale
+    }
+
+    /// 정렬 메뉴 오른쪽 여백. 정렬 버튼 오른쪽 끝에서 `sortMenuOverhang` 만큼 더 나간다.
+    private var sortMenuTrailing: CGFloat {
+        let side = DoodleMetrics.side(scale: chromeScale)
+        let gap = Self.topButtonSpacing * chromeScale
+        return contentInset + (side + gap) * 2 - Self.sortMenuOverhang * chromeScale
+    }
+
+    /// 버튼 아랫변과 메뉴 윗변 사이.
+    private static let sortMenuGap: CGFloat = 4
+    /// 메뉴가 정렬 버튼보다 오른쪽으로 더 나가는 만큼.
+    private static let sortMenuOverhang: CGFloat = 5
+
+    private func closeSortMenu() {
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) { showsSortMenu = false }
+    }
     /// 프로필 확인창이 놓이는 높이. Figma `iPhone 17 - 16` 의 `Alert` y=390.
     private static let confirmPopupTop: CGFloat = 390
 
@@ -445,18 +479,39 @@ struct GalleryPage: View {
                 .padding(.top, headerLineTop(for: titleLineHeight))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-                // 정렬·공유받기. 제목과 같은 높이(y=70)의 오른쪽 끝에 나란히 뜬다.
+                // 정렬·인스타그램·공유받기. 제목과 같은 높이(y=70)의 오른쪽 끝에 나란히 뜬다.
                 //
                 // 화면을 덮는 것이 떠 있으면 제목과 함께 물러난다.
-                // **고르는 중에는 내보내기만 남는다** — 고른 것으로 카드를 만들러 가는 길이라
-                // 그때가 오히려 가장 쓸 때다. 정렬과 받기는 지금 할 일이 아니라 물러난다.
-                if !isOverlayShowing || mode == .selecting {
+                // 왼쪽부터 **정렬 · 인스타그램 · 받기**. Figma `iPhone 17 - 25` 의 `Frame 52` 순서다.
+                //
+                // **고르는 중에도 남는다.** Figma `17 - 38` · `17 - 39` 에서 `Frame 52` 는
+                // 사라지지 않고 막(`Rectangle 2`) **아래**에 깔려 어두워질 뿐이다 —
+                // 구운 도안에서 재면 인스타 버튼 원이 평소 252 에서 202 로, 딱 20% 만큼 눌린다.
+                // 이 줄이 막보다 먼저 그려지므로 그 효과가 저절로 난다.
+                //
+                // 다만 고르는 중에 **살아 있는 것은 인스타그램 하나뿐이다.**
+                // 정렬을 바꾸면 고른 카드가 눈앞에서 자리를 옮기고, 셋째 자리는
+                // 고르고 나면 파란 확정 단추가 덮는다.
+                //
+                // 인스타그램만 남기는 이유는 **그것이 나가는 길이기도 하기 때문이다.**
+                // 아직 아무것도 안 골랐으면 위쪽 조작부(닫기)가 뜨지 않으므로,
+                // 들어온 문을 한 번 더 눌러 되돌아 나온다.
+                if !isOverlayShowing || isSelecting {
                     HStack(spacing: Self.topButtonSpacing * chromeScale) {
+                        sortMenu
+                            .disabled(isSelecting)
                         if canExport { exportButton }
-                        if mode != .selecting {
-                            moreMenu
-                            receiveButton
-                        }
+                        // **고른 뒤에만 자리를 내준다.** 파란 「다음」이 같은 자리를 같은 크기로
+                        // 덮으므로 원 자체는 보이지 않는데, 이 버튼의 그림자(0 4 15 검정 5%)가
+                        // 아래로 4 밀려 파란 원 가장자리 밖으로 샜다 —
+                        // 구운 화면에서 재면 원 아래쪽이 (27,126,214)로 탁해졌다.
+                        // Figma 는 같은 자리가 (12,139,251)로 파랑 그대로다.
+                        //
+                        // `if` 로 빼지 않는 이유는 줄이 오른쪽 정렬이라, 하나가 빠지면
+                        // 옆의 정렬·인스타그램이 62 만큼 오른쪽으로 밀리기 때문이다.
+                        receiveButton
+                            .opacity(hasSelection ? 0 : 1)
+                            .allowsHitTesting(!isSelecting)
                     }
                     .padding(.top, headerLineTop(for: DoodleMetrics.side(scale: chromeScale)))
                     .padding(.trailing, contentInset + detailPaneWidth)
@@ -508,6 +563,8 @@ struct GalleryPage: View {
                         .allowsHitTesting(!isPickingProfile)
                 }
 
+                selectingScrim
+
                 // 세그먼트와 그리드.
                 //
                 // 좁은 화면에서 세그먼트가 머리말이 아니라 여기 있는 이유가 있다.
@@ -530,7 +587,6 @@ struct GalleryPage: View {
                         postPendingDelete: $postPendingDelete,
                         selectedPosts: $selectedPosts,
                         onShare: { sharingPost = $0 },
-                        onStartSelecting: { startSelecting(with: $0) },
                         postToShow: $postToShow,
                         onEmptyAreaTap: emptyAreaTapAction
                     )
@@ -544,6 +600,8 @@ struct GalleryPage: View {
                 .onChange(of: chooseProfileSignal) { _, _ in
                     withAnimation(.spring()) { mode = .choosingProfile }
                 }
+
+                selectionChromeLayer
                 .onChange(of: closeDetailSignal) { _, _ in
                     withAnimation(PostGridView.cardTransition) { selectedPost = nil }
                 }
@@ -636,18 +694,43 @@ struct GalleryPage: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.94)))
                 }
 
-                // 여러 장을 고르는 동안 탭바 자리에 서는 막대.
-                //
-                // 탭바가 물러난 그 자리를 그대로 쓴다.
-                // 다른 자리에 띄우면 화면 아래에 눌러야 할 것이 두 층으로 겹쳐 보인다.
-                if isSelecting {
-                    selectionBar
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            // 정렬 메뉴는 **맨 위에** 얹는다.
+            //
+            // ZStack 안쪽에 두었더니 뒤에 오는 프로필 원이 메뉴 위에 그려졌다.
+            // Figma 도 메뉴가 프로필을 가린다 — 메뉴는 화면에서 가장 앞에 서는 것이다.
+            .overlay {
+                ZStack {
+                    // 정렬 메뉴. Figma `iPhone 17 - 25` 의 `Menu`(222:1138) 가 (13, 118) 에 250x100.
+                    //
+                    // **오른쪽 끝을 정렬 버튼에 맞춘다.** 자리를 13 으로 못박지 않는 이유는
+                    // 그 13 이 「버튼 줄 오른쪽 끝(382)에서 메뉴 폭만큼 되짚은 값」이기 때문이다 —
+                    // 여백이나 버튼 크기가 달라지면 따라와야 한다.
+                    //   382(줄 오른쪽) - 44 - 18 - 44 - 18 = 258(정렬 버튼 오른쪽)
+                    //   메뉴는 거기서 5 더 나가 263 에서 끝난다 -> 왼쪽이 13.
+                    if showsSortMenu {
+                        // 바깥을 누르면 닫힌다. 시스템 메뉴가 거저 주던 것을 여기서 챙긴다.
+                        Color.clear
+                            .contentShape(.rect)
+                            .onTapGesture { closeSortMenu() }
+                            .ignoresSafeArea()
+
+                        GallerySortMenu(sortOrder: $sortOrder) { closeSortMenu() }
+                            .padding(.top, sortMenuTop)
+                            .padding(.trailing, sortMenuTrailing)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                            // 눌린 버튼 쪽에서 자라난다.
+                            .transition(.scale(scale: 0.9, anchor: .topTrailing)
+                                .combined(with: .opacity))
+                    }
                 }
             }
-            // 삭제 중에는 탭바 자리를 선택 바가 대신 쓴다.
-            .toolbarVisibility(isOverlayShowing ? .hidden : .visible, for: .tabBar)
+            // **고르는 중에는 탭바를 그대로 둔다.** Figma `17 - 35` · `17 - 38` · `17 - 39` 가
+            // 셋 다 탭바를 y=788 에 그대로 그려 둔다.
+            //
+            // 예전에는 탭바를 숨기고 그 자리에 선택 바를 깔았는데, 조작부가 위로 올라가면서
+            // 아래 자리를 비울 이유가 없어졌다. 카드를 크게 보거나 프로필을 고르는 동안에만 숨는다.
+            .toolbarVisibility(isOverlayShowing && !isSelecting ? .hidden : .visible, for: .tabBar)
             // **위아래만** 무시한다.
             //
             // 제목과 프로필은 화면 맨 위에서 잰 Figma 좌표에 놓여야 해서 세로는 무시해야 하지만,
@@ -714,6 +797,21 @@ struct GalleryPage: View {
             } message: { message in
                 Text(message)
             }
+            // 어느 판으로 낼지 먼저 묻는다. Figma `iPhone 17 - 36`.
+            //
+            // 시트로 띄운다 — 갤러리를 덮어 가리는 것이 아니라 그 위에 얹히는 물음이라,
+            // 아래로 쓸어내려 무르는 길이 저절로 생긴다.
+            .sheet(isPresented: $showTemplateChooser) {
+                ExportTemplateChooser(
+                    accountName: inputName.isEmpty ? "나" : inputName,
+                    onPick: { template in
+                        showTemplateChooser = false
+                        startSelection(template: template)
+                    },
+                    onClose: { showTemplateChooser = false }
+                )
+                .presentationDragIndicator(.visible)
+            }
             .fullScreenCover(isPresented: $showExportPreview) {
                 ExportPreviewScreen(
                     pages: exportPages,
@@ -732,10 +830,195 @@ struct GalleryPage: View {
             .sorted { $0.createdAt > $1.createdAt }
         return ExportComposer.pages(for: posts,
                                     myName: inputName.isEmpty ? "나" : inputName,
-                                    mine: isShowingMine)
+                                    mine: isShowingMine,
+                                    shuffle: exportShuffle)
     }
 
-    // MARK: - 선택 바
+    /// 내보내기 화면을 연다. **열 때마다 격자를 새로 흩뿌린다.**
+    ///
+    /// 씨앗을 여기서 한 번만 뽑는 이유가 있다. `exportPages` 는 계산 속성이라
+    /// 화면이 다시 그려질 때마다 다시 돌아가는데, 그 안에서 뽑으면 배치가 계속 흔들리고
+    /// **미리보기에서 본 것과 구운 파일이 달라진다.** 상태에 담아 두면 화면이 열려 있는
+    /// 동안에는 그대로 있다가, 다음에 열 때 새 배치가 된다.
+    private func openExportPreview() {
+        exportShuffle = .random(in: .min ... .max)
+        showExportPreview = true
+    }
+
+    // MARK: - 고르는 중의 조작부
+
+    /// 고르는 동안 **프로필과 바탕만** 어둡게 가라앉는다.
+    ///
+    /// Figma `iPhone 17 - 38` 의 층 순서 그대로다 — `Rectangle 2`(검정 20%)가
+    /// 제목·프로필·탭바 **위**, 격자·세그먼트·조작부 **아래**에 깔린다.
+    /// 구운 화면에서 재면 바탕 `#F2F2F7`(242)이 193 으로 내려앉아 정확히 20% 다.
+    ///
+    /// 고를 것(카드)과 고르는 데 쓰는 것(세그먼트·조작부)만 밝게 남으므로,
+    /// 지금 무엇을 하는 중인지가 명암만으로 읽힌다.
+    @ViewBuilder
+    private var selectingScrim: some View {
+        if isSelecting {
+            Color.doodleSelectingScrim
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .transition(.opacity)
+        }
+    }
+
+    /// 조작부를 제목 줄 자리에 얹는다. 격자 **위**에 서야 막에 묻히지 않는다.
+    @ViewBuilder
+    private var selectionChromeLayer: some View {
+        // 고르는 동안에는 **같은 줄이 통째로 조작부로 바뀐다.**
+        //
+        // **한 장이라도 고른 뒤에 나타난다.** Figma `17-35` 는 고르기에 막 들어온 화면인데
+        // 닫기도 다음도 없다 — 무엇을 고를지 정하기 전에는 조작부가 할 일이 없다.
+        // 아직 아무것도 안 골랐으면 인스타그램 버튼을 다시 눌러 빠져나온다.
+        if let template = selectionTemplate, hasSelection {
+            // 가로 여백을 **바깥에 주지 않는다.** 알약이 화면 정중앙(201)에 서려면
+            // 칸이 화면 폭 전체여야 한다. 여백은 X 와 파란 단추가 각자 갖는다.
+            selectionChrome(template: template)
+                .padding(.top, headerLineTop(for: DoodleMetrics.side(scale: chromeScale)))
+                .padding(.trailing, detailPaneWidth)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    /// 고르는 동안 제목 줄을 대신하는 조작부. Figma `iPhone 17 - 38` · `17 - 39`.
+    ///
+    /// **아래가 아니라 위에 선다.** 예전에는 탭바 자리에 막대를 깔았는데,
+    /// 디자인이 조작부를 제목 줄로 올렸다. 고른 카드가 화면을 채우는 화면이라
+    /// 눈이 머무는 위쪽에 「무엇을 하는 중인지(개수)」와 「나가는 길(X·→)」이 함께 있는 편이 낫다.
+    ///
+    /// 가운데 개수 알약은 **여러 장 판에서만** 뜬다.
+    /// 한 장 판은 세어 줄 것이 없다 — 누르는 순간 앞의 것과 바뀐다.
+    ///
+    /// Figma `17 - 39`(한 장 판)에는 가운데에 정렬·인스타그램이 그대로 그려져 있는데,
+    /// 그 둘은 고르는 중에 누를 수 없는 것이라 여기서는 비워 둔다.
+    /// 고르는 중에 정렬을 바꾸면 고른 카드가 눈앞에서 자리를 옮긴다.
+    private func selectionChrome(template: ExportTemplate) -> some View {
+        // **윗변을 맞춘다.** Figma 는 X·알약·파란 단추의 윗변이 셋 다 69 다.
+        //
+        // 가운데 정렬로 두었더니 가장 높은 알약(48)을 기준으로 44 짜리 둘이 2~3 내려앉아,
+        // 파란 단추가 평소의 받기 버튼(70)과 어긋났다 — 같은 자리에서 바뀌어야 하는 버튼이다.
+        ZStack(alignment: .top) {
+            // 닫기. Figma `Frame 6` 이 (18, 69) 에 44.
+            Button { exitSelection() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 17 * chromeScale, weight: .medium))
+                    .foregroundStyle(Color.doodlePrimary)
+                    .frame(width: DoodleMetrics.side(scale: chromeScale),
+                           height: DoodleMetrics.side(scale: chromeScale))
+                    .background(.white, in: Circle())
+                    // Figma: 0 4 20 검정 10%. SwiftUI 반경은 blur 의 절반.
+                    .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("고르기 그만두기")
+            .padding(.leading, Self.selectionCloseLeading * chromeScale)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // 개수 알약은 **여러 장 판에서만** 뜬다.
+            // 한 장 판은 세어 줄 것이 없다 — 누르는 순간 앞의 것과 바뀐다.
+            if template.selectionLimit == nil {
+                selectionCountPill
+            }
+
+            // 고른 것으로 카드를 만들러 간다. Figma `_Button - Symbol`:
+            // `accents/blue`(#0088FF) 36 원에 흰 􀯻.
+            // **받기 버튼과 정확히 겹친다.** 지름도 자리도 같은 44 다 —
+            // 구운 도안에서 재면 둘 다 x 338~382 · y 69~113 이다.
+            // 고르는 중에는 이 자리가 「받기」에서 「다음」으로 바뀔 뿐이라,
+            // 크기가 달라지면 버튼이 바뀐 것이 아니라 하나가 더 생긴 것처럼 보인다.
+            Button { openExportPreview() } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 17 * chromeScale, weight: .medium))
+                    .foregroundStyle(.white)
+                    .frame(width: DoodleMetrics.side(scale: chromeScale),
+                           height: DoodleMetrics.side(scale: chromeScale))
+                    .background(Color.doodleAccent, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(selectedPosts.isEmpty)
+            .opacity(selectedPosts.isEmpty ? 0.4 : 1)
+            .accessibilityLabel("고른 그림으로 카드 만들기")
+            .padding(.trailing, contentInset)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
+    /// 몇 장 골랐는지. Figma `_Search - Bottom`(424:2372) — (106, 69) 190x48.
+    ///
+    /// **폭이 190 으로 고정이고 화면 한가운데 선다.** 106 + 95 = 201 로 402 의 정중앙이다.
+    /// 글자 길이에 따라 늘었다 줄었다 하면 옆의 X·파란 단추와의 간격이 매번 달라진다.
+    ///
+    /// 글자는 세 조각이다 — 고른 개수만 **Bold**(`#1A1A1A`)이고
+    /// 「/N」과 「 선택됨」은 Medium `#424242` 다. 숫자 쪽에만 무게를 실어
+    /// 몇 장인지가 먼저 읽힌다. 「/N」까지는 자간 +2 로 벌어져 있다.
+    /// 알약에 적히는 세 조각. 조각마다 무게·자간·색이 달라 한 줄로 이어 붙인다.
+    ///
+    /// `Text + Text` 로 잇지 않는다. iOS 26 에서 걷어내겠다고 표시된 길이라 경고가 난다.
+    /// `AttributedString` 은 조각마다 속성을 지니면서도 `Text` 하나로 들어간다.
+    private var countedTitle: AttributedString {
+        func piece(_ text: String,
+                   weight: Font.Weight,
+                   tracking: CGFloat,
+                   color: Color) -> AttributedString {
+            var run = AttributedString(text)
+            run.font = .system(size: Self.countFont, weight: weight)
+            run.tracking = tracking
+            run.foregroundColor = color
+            return run
+        }
+
+        return piece("\(selectedPosts.count)",
+                     weight: .bold, tracking: Self.countTracking, color: .doodleTitle)
+            + piece("/\(postsInSection.count)",
+                    weight: .medium, tracking: Self.countTracking, color: .doodlePrimary)
+            + piece(" 선택됨",
+                    weight: .medium, tracking: 0, color: .doodlePrimary)
+    }
+
+    private var selectionCountPill: some View {
+        Group {
+            if selectedPosts.isEmpty {
+                Text("그림을 선택하세요")
+                    .font(.system(size: Self.countFont, weight: .medium))
+                    .foregroundStyle(Color.doodlePrimary)
+            } else {
+                Text(countedTitle)
+            }
+        }
+        .lineLimit(1)
+        .frame(width: Self.countPillWidth * chromeScale,
+               height: Self.countPillHeight * chromeScale)
+        // **유리에 살짝 어두운 틴트를 얹는다.**
+        //
+        // 맨 유리(`.regular`)는 밝은 바탕에서 흰빛을 많이 얹어, 구운 화면에서 재면
+        // 알약 안쪽이 236 으로 떴다 — Figma 는 213 이다(바깥 배경은 둘 다 193).
+        // Figma 의 `Fill + Shadow` 도 `#444444` 60% 를 섞어 한 단 눌러 둔다.
+        .glassEffect(.regular.tint(Color.doodlePillTint), in: .capsule)
+        // Figma `Fill + Shadow`: 0 0 0 0.5 `#E8E8E8` 테두리에 0 8 15 검정 2%.
+        //
+        // 옆면에 `#D0D0D0` 이 한 겹 더 있지만 `-0.75` 만큼 안으로 물려 있어 거의 드러나지 않는다.
+        // 한때 윗변에 흰 빛 테를 그라디언트로 넣어 봤는데, 구운 화면에서 253 으로 튀어
+        // 도안(221)보다 훨씬 밝았다. 스펙에 없는 테라 지웠다.
+        .overlay {
+            Capsule().strokeBorder(Color.doodlePillBorder, lineWidth: 0.5)
+        }
+        .shadow(color: .black.opacity(0.02), radius: 7.5, y: 8)
+    }
+
+    /// Figma `Frame 6` 의 왼쪽 여백. 머리말 버튼 줄(20)보다 2 안쪽이다.
+    private static let selectionCloseLeading: CGFloat = 18
+    /// Figma `_Search - Bottom` 의 크기와 글자.
+    private static let countPillWidth: CGFloat = 190
+    private static let countFont: CGFloat = 17
+    private static let countTracking: CGFloat = 2
+
+    /// Figma `_Search - Bottom` 의 높이.
+    private static let countPillHeight: CGFloat = 48
+
+    // MARK: - 선택 바 (쓰지 않음)
 
     /// 여러 장을 고르는 동안 화면 아래에 서는 막대.
     private var selectionBar: some View {
@@ -865,6 +1148,9 @@ struct GalleryPage: View {
     }
 
     /// 선택 바의 동작 사이.
+    /// 인스타그램 글리프의 한 변. Figma `Frame 52` 가 44 원 안에 26 을 (9, 9) 에 둔다.
+    private static let instagramGlyphSide: CGFloat = 26
+
     private static let selectionActionSpacing: CGFloat = 14
     /// 선택 바 알약의 안쪽 좌우 여백.
     private static let selectionBarInset: CGFloat = 24
@@ -1037,47 +1323,19 @@ struct GalleryPage: View {
     /// 리퀴드 글래스도, 고른 줄을 짚어 주는 회색 바탕도, 체크 표시도 시스템이 붙여 준다.
     /// Figma 의 `Frame 41`(198x90 · 흰색 80% · 45 짜리 두 줄 · 선택줄 `#DEDEDE` 80%)이
     /// 그리고 있는 것이 바로 그 시스템 메뉴다. 베껴 그리면 겉만 닮고 동작이 어긋난다.
-    private var moreMenu: some View {
-        Menu {
-            ForEach(GallerySortOrder.allCases, id: \.rawValue) { order in
-                Button {
-                    sortOrder = order.rawValue
-                } label: {
-                    // 지금 보고 있는 순서에만 체크가 붙는다. Figma `Frame 41` 의 􀆅.
-                    if order.rawValue == sortOrder {
-                        Label(order.title, systemImage: "checkmark")
-                    } else {
-                        Text(order.title)
-                    }
-                }
-            }
-
-            // 카드를 꾹 눌러야만 들어갈 수 있던 길을 주 화면에도 낸다.
-            //
-            // 애플 HIG 「Context menus」 —
-            // *Always make context menu items available in the main interface, too.*
-            // 내보내기는 􀈂 로 나와 있는데 지우기만 꾹 누르기에 숨어 있어 짝이 맞지 않았다.
-            Divider()
-
-            Button {
-                startDeleteSelection()
-            } label: {
-                Label("선택", systemImage: "checkmark.circle")
+    private var sortMenu: some View {
+        Button {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                showsSortMenu.toggle()
             }
         } label: {
-            // 글리프를 `list.bullet`(정렬) 에서 `ellipsis`(더 보기) 로 바꿨다.
+            // 글리프는 `list.bullet`(􀋲). Figma `iPhone 17 - 25` 의 `Frame 52` 가 이것이다.
             //
-            // 애플 HIG 「Toolbars」 —
-            // *Add a More menu to contain additional actions. Prioritize **less important**
-            // actions for inclusion in the More menu.*
-            // 정렬도 선택도 자주 쓰는 것이 아니라 이 메뉴의 조건에 맞는다.
-            //
-            // 버튼을 하나 더 세우지 않는 이유도 같은 문서에 있다 —
-            // *Choose items deliberately to avoid overcrowding.*
-            // 􀈂 내보내기와 􀝎 받기는 이 화면의 주된 두 동작이라 밖에 남는다.
+            // 한때 `ellipsis`(􀍠) 로 두었다 — HIG 「Toolbars」 의 *More 메뉴* 를 따른 것인데,
+            // 디자인이 이 자리를 **정렬 버튼**으로 못박았다. 눌러서 나오는 것도 정렬 둘이다.
             //
             // 원 크기·재질은 Figma `Frame 41` 그대로다. 바뀐 것은 안의 글리프뿐이다.
-            Image(systemName: "ellipsis")
+            Image(systemName: "list.bullet")
                 .font(.system(size: 20 * chromeScale, weight: .medium))
                 .foregroundStyle(Color.doodlePrimary)
                 .frame(width: DoodleMetrics.side(scale: chromeScale),
@@ -1086,14 +1344,19 @@ struct GalleryPage: View {
                 .background(.white.opacity(0.8), in: Circle())
                 .shadow(color: .black.opacity(0.05), radius: 7.5, y: 4)
         }
-        .accessibilityLabel("더 보기")
+        .buttonStyle(.plain)
+        .accessibilityLabel("정렬")
     }
 
-    /// 그림을 받으러 가는 버튼. Figma `iPhone 17 - 13` 의 `Frame 25`(92:612):
-    /// (338, 70) 에 44x44, `#424242` 90% 원에 `#F2F2F2` 아이콘.
+    /// 그림을 받으러 가는 버튼. (338, 70) 에 44x44.
     ///
-    /// 디자인이 흰 원에서 먹색 원으로 뒤집었다.
-    /// 옆에 흰 원(정렬)이 하나 더 서면서, 둘 다 흰색이면 무엇이 주된 동작인지 알 수 없어졌다.
+    /// **상태에 따라 색이 뒤집힌다.** 도안에 이 버튼이 두 벌 있는데 쓰이는 자리가 다르다.
+    ///   평소        `Frame 52` 의 셋째   `#424242` 90% + 밝은 글리프 — `17-13`·`17-25`·`17-36`
+    ///   고르는 중   `Frame 25`(424:993) 흰색 80% + 어두운 글리프   — `17-35`·`17-15`
+    ///
+    /// 평소에는 색이 찬 원 하나로 「받기」가 이 화면의 주된 동작임을 알리고,
+    /// 고르는 중에는 지금 할 일이 아니므로 흰 원으로 물러난다.
+    /// 고른 뒤에는 파란 「다음」이 같은 자리를 같은 크기로 덮는다.
     ///
     /// 프로필 설정과 삭제는 카드를 꾹 눌러서 하므로 이 버튼에 메뉴를 달지 않는다.
     /// 누르면 곧장 공유 화면이 열린다.
@@ -1108,11 +1371,13 @@ struct GalleryPage: View {
             // Figma 글리프 상자가 24. `Frame 6` 이 21 짜리를 18 로 쓰므로 같은 비율로 20.
             Image(systemName: "airplay.audio")
                 .font(.system(size: 20 * chromeScale, weight: .medium))
-                .foregroundStyle(Color.doodleOnDarkButton)
+                .foregroundStyle(isSelecting ? Color.doodlePrimary : Color.doodleOnDarkButton)
                 .frame(width: DoodleMetrics.side(scale: chromeScale),
                        height: DoodleMetrics.side(scale: chromeScale))
-                // Figma: `#424242` 90% · 그림자 0 4 15 검정 5%. SwiftUI 반경은 blur 의 절반.
-                .background(Color.doodlePrimary.opacity(0.9), in: Circle())
+                // 둘 다 그림자는 0 4 15 검정 5%. SwiftUI 반경은 blur 의 절반.
+                .background(isSelecting ? AnyShapeStyle(.white.opacity(0.8))
+                                        : AnyShapeStyle(Color.doodlePrimary.opacity(0.9)),
+                            in: Circle())
                 .shadow(color: .black.opacity(0.05), radius: 7.5, y: 4)
         }
         .buttonStyle(.plain)
@@ -1133,31 +1398,45 @@ struct GalleryPage: View {
     ///
     /// 정렬(흰 원)과 공유받기(먹색 원) 사이에서 흰 원 쪽에 선다.
     /// 이 화면의 주된 동작은 그림을 **받는** 것이라 먹색은 그 하나만 쓴다.
+    ///
+    /// **언제 눌러도 할 일이 있다.** 한때 고르는 중에 빈손이면 흐리게 죽여 두었는데,
+    /// 위쪽 조작부가 고른 뒤에야 뜨게 되면서 그 사이 나가는 길이 하나도 없어졌다.
+    /// 들어온 문이 나가는 문을 겸하므로 흐리게 두지 않는다.
     private var exportButton: some View {
         Button {
-            // 고르는 중이면 이미 고른 것으로 바로 넘어간다. 아니면 고르기부터 연다.
-            if mode == .selecting {
-                showExportPreview = true
+            // 고른 것이 있으면 바로 넘어간다.
+            // 고르는 중인데 아직 아무것도 안 골랐으면 **되돌아 나온다** —
+            // 그때는 위쪽 조작부(닫기)가 아직 뜨지 않아 여기가 유일한 출구다.
+            // 평소에는 **어느 판으로 낼지부터** 묻는다 — Figma `iPhone 17 - 36`.
+            if hasSelection {
+                openExportPreview()
+            } else if isSelecting {
+                exitSelection()
             } else {
-                startExportSelection()
+                showTemplateChooser = true
             }
         } label: {
-            Image(systemName: "square.and.arrow.up")
-                .font(.system(size: 20 * chromeScale, weight: .medium))
-                .foregroundStyle(isExportButtonEnabled ? Color.doodlePrimary : Color.doodleMuted)
+            // 􀈂 대신 **인스타그램 글리프**를 쓴다.
+            //
+            // 이 버튼이 여는 것은 시스템 공유 시트가 아니라 **인스타그램에 올릴 카드**를
+            // 만드는 화면이다. 􀈂 는 「어디로든 보낸다」 는 뜻이라 어디로 가는지 알 수 없었다.
+            // 상세 화면의 같은 동작도 같은 글리프를 쓴다.
+            //
+            // SF Symbols 에는 인스타그램 글리프가 없어(상표) Figma 가 쓰는 SVG 를 그대로 들였다.
+            // 획으로만 그려진 그림이라 템플릿으로 두면 `foregroundStyle` 이 그대로 먹는다.
+            Image(.instagram)
+                .renderingMode(.template)
+                .resizable()
+                .frame(width: Self.instagramGlyphSide * chromeScale,
+                       height: Self.instagramGlyphSide * chromeScale)
+                .foregroundStyle(Color.doodlePrimary)
                 .frame(width: DoodleMetrics.side(scale: chromeScale),
                        height: DoodleMetrics.side(scale: chromeScale))
                 .background(.white.opacity(0.8), in: Circle())
                 .shadow(color: .black.opacity(0.05), radius: 7.5, y: 4)
         }
         .buttonStyle(.plain)
-        .disabled(!isExportButtonEnabled)
-        .accessibilityLabel("그림 내보내기")
-    }
-
-    /// 고르는 중에는 한 장이라도 골랐을 때만 누를 수 있다.
-    private var isExportButtonEnabled: Bool {
-        mode != .selecting || !selectedPosts.isEmpty
+        .accessibilityLabel(isSelecting && !hasSelection ? "고르기 그만두기" : "인스타그램으로 내보내기")
     }
 
     /// 내보낼 것이 있는지.
@@ -1196,38 +1475,14 @@ struct GalleryPage: View {
         }
     }
 
-    /// 카드를 꾹 눌러 「선택」으로 들어온다. 누른 그 카드가 첫 선택이 된다.
+    /// 판을 고른 뒤 고르기를 연다. Figma `iPhone 17 - 36` 에서 돌아오는 자리다.
     ///
-    /// 빈손으로 시작하면 방금 고른 카드를 한 번 더 눌러야 한다.
-    /// 지우려고 고른 카드가 이미 눈앞에 있는데 다시 겨누게 할 이유가 없다.
-    private func startSelecting(with post: Post) {
-        withAnimation(.spring(response: 0.35)) {
-            selectedPosts = [post.persistentModelID]
-            mode = .selecting
-        }
-    }
-
-    /// 더 보기 메뉴의 「선택」 으로 들어온다.
-    ///
-    /// 카드를 꾹 눌러 들어오는 쪽과 달리 빈손으로 시작한다 — 누른 카드가 없기 때문이다.
-    private func startDeleteSelection() {
-        startSelection()
-    }
-
-    /// 상단 􀈂 로 들어온다. 내보내려고 들어가는 지름길이다.
-    ///
-    /// 꾹 눌러 들어오는 쪽과 달리 **빈손으로 시작한다.**
-    /// 누른 카드가 따로 없기도 하고, 내보내기는 「무엇을 넣을지 고르는 일」 자체가 목적이라
+    /// **빈손으로 시작한다.** 내보내기는 「무엇을 넣을지 고르는 일」 자체가 목적이라
     /// 한 장을 먼저 집어 주면 고른 적 없는 것이 섞인다.
-    private func startExportSelection() {
-        startSelection()
-    }
-
-    /// 고르기를 연다. 어느 길로 들어오든 같은 자리다.
-    private func startSelection() {
+    private func startSelection(template: ExportTemplate) {
         withAnimation(.spring(response: 0.35)) {
             selectedPosts = []
-            mode = .selecting
+            mode = .selecting(template)
         }
     }
 
