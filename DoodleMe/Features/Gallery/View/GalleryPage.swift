@@ -140,6 +140,16 @@ struct GalleryPage: View {
     /// 고르는 중이면 어느 판으로 내는 중인지. 아니면 `nil`.
     private var selectionTemplate: ExportTemplate? { mode.template }
 
+    /// 알약에 적히는 **고를 수 있는 장수.**
+    ///
+    /// 가진 장수가 아니라 **담을 수 있는 장수**다. 그림 여러개 판은 여섯 칸짜리라
+    /// 아홉 장을 갖고 있어도 여섯까지만 담긴다 — 「2/9」 라고 적으면 아홉까지 고를 수 있는 줄 안다.
+    /// 여섯 장보다 적게 가졌으면 가진 만큼이 곧 한도라 그대로 적는다.
+    private var selectableCount: Int {
+        guard let limit = selectionTemplate?.selectionLimit else { return postsInSection.count }
+        return min(limit, postsInSection.count)
+    }
+
     /// 저장소에 남은 숫자를 뜻이 있는 값으로 풀어 준다.
     /// 모르는 값이 들어 있으면 처음 열었을 때의 순서로 돌아간다.
     private var currentSortOrder: GallerySortOrder {
@@ -919,7 +929,7 @@ struct GalleryPage: View {
 
             // 개수 알약은 **여러 장 판에서만** 뜬다.
             // 한 장 판은 세어 줄 것이 없다 — 누르는 순간 앞의 것과 바뀐다.
-            if template.selectionLimit == nil {
+            if template.selectionLimit > 1 {
                 selectionCountPill
             }
 
@@ -972,7 +982,7 @@ struct GalleryPage: View {
 
         return piece("\(selectedPosts.count)",
                      weight: .bold, tracking: Self.countTracking, color: .doodleTitle)
-            + piece("/\(postsInSection.count)",
+            + piece("/\(selectableCount)",
                     weight: .medium, tracking: Self.countTracking, color: .doodlePrimary)
             + piece(" 선택됨",
                     weight: .medium, tracking: 0, color: .doodlePrimary)

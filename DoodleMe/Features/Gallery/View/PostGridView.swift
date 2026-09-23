@@ -492,9 +492,13 @@ struct PostGridView: View {
                     // Figma `iPhone 17 - 39`. 한 장만 담기는 판이라 「가득 찼으니 하나 푸세요」
                     // 하고 막아 세우는 것보다, 마지막에 누른 것을 그대로 받는 쪽이 짧다.
                     selectedPosts = [id]
-                } else {
+                } else if selectedPosts.count < template.selectionLimit {
                     selectedPosts.insert(id)
                 }
+                // 여섯 칸이 다 찼으면 **아무 일도 일어나지 않는다.**
+                // 여기서 앞의 것을 밀어내면 어느 것이 빠졌는지 알 길이 없다 —
+                // 한 장짜리 판은 고른 것이 하나뿐이라 밀어내도 눈에 보이지만 여기는 다르다.
+                // 개수 알약이 「6/6」 으로 차 있어 왜 안 눌리는지는 거기서 읽힌다.
             }
         }
     }
