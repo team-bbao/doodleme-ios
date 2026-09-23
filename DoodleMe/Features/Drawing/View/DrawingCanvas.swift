@@ -20,6 +20,16 @@ struct DrawingCanvas: View {
 
     var body: some View {
         CanvasRepresentable(session: session)
+            // 되돌리기·다시하기 때마다 캔버스를 통째로 새로 만든다.
+            //
+            // 획을 덜어낸 그림을 `PKCanvasView.drawing` 에 대입해도 PencilKit 이 받아들이지 않는다.
+            // 화면에서는 지워진 것처럼 보이다가, 다음 획을 긋는 순간
+            // 자기가 들고 있던 예전 상태를 되살려 지운 획이 새 획과 함께 다시 나타났다.
+            // 굵기 재계산·`undoManager` 가로채기·비웠다 다시 대입을 차례로 배제해도
+            // 증상이 그대로였다. 대입 그 자체가 반영되지 않는다.
+            //
+            // 새로 만든 캔버스에는 되살릴 예전 상태가 없다.
+            .id(session.drawingRevision)
             .frame(
                 width: DoodleMetrics.canvasSize.width,
                 height: DoodleMetrics.canvasSize.height
@@ -50,7 +60,9 @@ private struct CanvasRepresentable: UIViewRepresentable {
         canvas.isScrollEnabled = false
         canvas.contentInsetAdjustmentBehavior = .never
         canvas.tool = session.tool.pkTool
-        canvas.drawing = session.drawing
+        // 이 대입까지 편집으로 세면, 캔버스가 새로 만들어질 때마다
+        // 되돌리기 기록에 빈 칸이 하나씩 쌓이고 다시하기 기록은 지워진다.
+        context.coordinator.loadInitial(session.drawing, to: canvas)
 
         container.live.baseWidth = DrawingSession.Tool.penWidth
         context.coordinator.liveView = container.live
@@ -80,18 +92,10 @@ private struct CanvasRepresentable: UIViewRepresentable {
     func updateUIView(_ container: CanvasContainerView, context: Context) {
         let canvas = container.canvas
         canvas.tool = session.tool.pkTool
-
-        // 코드에서 그림을 갈아끼운 경우(초기화·되돌리기)에만 캔버스를 덮어쓴다.
-        // 사용자가 그리는 중에 덮어쓰면 획이 끊기므로 revision 으로 구분한다.
-        if context.coordinator.appliedRevision != session.drawingRevision {
-            context.coordinator.appliedRevision = session.drawingRevision
-            context.coordinator.apply(session.drawing, to: canvas)
-        }
     }
 
     final class Coordinator: NSObject, PKCanvasViewDelegate, UIGestureRecognizerDelegate {
         let session: DrawingSession
-        var appliedRevision = 0
 
         /// 굵기를 이미 매긴 획의 수.
         private var shapedStrokeCount = 0
@@ -132,8 +136,8 @@ private struct CanvasRepresentable: UIViewRepresentable {
             }
         }
 
-        /// 세션이 들고 있는 그림을 캔버스에 그대로 옮긴다. 초기화와 되돌리기가 이 길로 온다.
-        func apply(_ drawing: PKDrawing, to canvas: PKCanvasView) {
+        /// 세션이 들고 있는 그림을 갓 만든 캔버스에 옮겨 놓는다.
+        func loadInitial(_ drawing: PKDrawing, to canvas: PKCanvasView) {
             isApplyingOurOwnChange = true
             canvas.drawing = drawing
             isApplyingOurOwnChange = false
