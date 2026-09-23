@@ -26,8 +26,19 @@ struct ExportCard<Content: View>: View {
     var titleTop: CGFloat = ExportCardLayout.singleTitleTop
     @ViewBuilder var content: Content
 
+    /// 이 카드를 얼마나 넓게 그릴지. 기본은 도안 칸(390)이다.
+    ///
+    /// **인스타그램 스토리로 보낼 때만 9:16(474.75)으로 넓힌다.**
+    /// 스토리 편집기는 9:16 을 받으므로, 도안 칸 그대로 보내면 위아래를 잘리거나
+    /// 좌우에 띠가 생긴다. 넓히는 것은 **종이뿐**이고 안쪽 구성(402 좌표계)은 그대로다 —
+    /// 화면에서 보던 것과 스토리에 올라가는 것이 같은 그림으로 남는다.
+    @Environment(\.exportCardWidth) private var cardWidth
+
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        let size = CGSize(width: cardWidth, height: ExportCardLayout.size.height)
+        let contentLeft = (cardWidth - ExportCardLayout.contentWidth) / 2
+
+        return ZStack(alignment: .topLeading) {
             // 종이가 카드 전체를 덮는다. Figma 도 프레임(402)보다 넓게 x -70 에서 621 폭으로
             // 깔아 두었다 — 카드 폭 390 이 그 안에 넉넉히 들어간다.
             //
@@ -38,7 +49,7 @@ struct ExportCard<Content: View>: View {
             Image(.papertype1)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
-                .frame(width: ExportCardLayout.size.width, height: ExportCardLayout.size.height)
+                .frame(width: size.width, height: size.height)
                 .clipped()
                 .accessibilityHidden(true)
 
@@ -61,11 +72,11 @@ struct ExportCard<Content: View>: View {
                 paperDoodles
             }
             .frame(width: ExportCardLayout.contentWidth,
-                   height: ExportCardLayout.size.height,
+                   height: size.height,
                    alignment: .topLeading)
-            .offset(x: ExportCardLayout.contentLeft)
+            .offset(x: contentLeft)
         }
-        .frame(width: ExportCardLayout.size.width, height: ExportCardLayout.size.height)
+        .frame(width: size.width, height: size.height)
         .clipped()
     }
 
@@ -177,6 +188,12 @@ enum ExportCardLayout {
     /// 카드(390)가 도안 프레임(402)보다 좁아 좌우가 6 씩 잘린다 —
     /// Figma 도 390 짜리 칸 안에 `iPhone 17 - 29` 를 x = -6 에 넣어 똑같이 잘라 놓았다.
     static let contentLeft: CGFloat = (size.width - contentWidth) / 2
+
+    /// 인스타그램 스토리로 보낼 때의 폭. 9:16 이라 474.75 다.
+    ///
+    /// 메타 「스토리에 공유」 문서가 배경 이미지를 최소 720x1280, **9:16 또는 9:18** 로 두라고 한다.
+    /// 도안 칸(390x844)은 9:19.5 라 그보다 길어, 그대로 보내면 편집기가 손을 댄다.
+    static let storyWidth: CGFloat = contentHeight * 9 / 16
 
     /// 안쪽 구성이 쓰는 좌표계의 폭. **Figma `iPhone 17 - 29` 프레임 그대로다.**
     ///

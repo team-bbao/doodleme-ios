@@ -253,6 +253,19 @@ struct ExportPreviewScreen: View {
         }
     }
 
+    /// 인스타그램 스토리로 보낼 **9:16 그림.** 지금 보고 있는 한 장만 굽는다.
+    ///
+    /// 미리 구워 두지 않고 시트를 열 때 굽는다 — 스토리로 보내지 않는 사람에게는
+    /// 쓰지 않을 그림을 장마다 한 벌씩 더 굽는 셈이 된다.
+    ///
+    /// 화면에서 보던 카드와 **같은 그림**이다. 좌우로 종이만 더 이어 붙었다 —
+    /// 안쪽 구성은 402 좌표계에 그대로 있어 한 군데도 움직이지 않는다.
+    private func storyImage(in size: CGSize) -> Data? {
+        let slide = slides(in: size)
+        guard slide.indices.contains(current), let page = slide[current].first else { return nil }
+        return ExportRenderer.png(page.card, width: ExportCardLayout.storyWidth)
+    }
+
     /// 카드 위에 떠 있는 줄. 양 끝에 버튼, 가운데는 비어 있다.
     ///
     /// 고르는 중에는 가운데에 「몇 장 골랐는지」 가 선다.
@@ -287,7 +300,8 @@ struct ExportPreviewScreen: View {
     @ViewBuilder
     private func shareButton(in size: CGSize) -> some View {
         if isChoosing {
-            ShareLink(items: chosenFiles) {
+            // 고르는 중에는 여러 장이라 스토리로 보낼 한 장을 고를 수 없다.
+            Button { ShareSheet.present(chosenFiles) } label: {
                 buttonFace("square.and.arrow.up", scale: chromeScale(in: size))
             }
                 .disabled(chosen.isEmpty)
@@ -299,12 +313,16 @@ struct ExportPreviewScreen: View {
                 // 눕힌 아이패드에서 두 장을 나란히 보고 있으면 「보고 있는 2장」과
                 // 「전체 2장」이 같은 말이 되어 같은 것을 두 번 묻는 꼴이 된다.
                 if here.count < files.count {
-                    ShareLink(items: here) {
+                    Button {
+                        ShareSheet.present(here, story: storyImage(in: size))
+                    } label: {
                         Label(here.count > 1 ? "보고 있는 \(here.count)장" : "이 장만",
                               systemImage: "rectangle.portrait")
                     }
                 }
-                ShareLink(items: files) {
+                Button {
+                    ShareSheet.present(files, story: storyImage(in: size))
+                } label: {
                     Label("전체 \(files.count)장", systemImage: "rectangle.stack")
                 }
                 Button {
@@ -318,8 +336,9 @@ struct ExportPreviewScreen: View {
             .accessibilityLabel("공유")
         } else if !files.isEmpty {
             // 애플 HIG 「Activity views」 — 공유 버튼으로 시스템 시트를 연다.
-            // 사진 저장·인스타그램·AirDrop 이 전부 이 안에 들어 있어 버튼을 따로 두지 않는다.
-            ShareLink(items: files) {
+            // 사진 저장·AirDrop·인스타그램이 전부 이 안에 들어 있어 버튼을 따로 두지 않는다.
+            // 「인스타그램 스토리」 칸도 그 안에 함께 선다 — `InstagramStoryActivity` 참고.
+            Button { ShareSheet.present(files, story: storyImage(in: size)) } label: {
                 buttonFace("square.and.arrow.up", scale: chromeScale(in: size))
             }
                 .accessibilityLabel("공유")

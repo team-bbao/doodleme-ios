@@ -11,21 +11,21 @@ import SwiftUI
 @MainActor
 enum ExportRenderer {
 
-    /// 굽는 배율. **가로를 정확히 1080** 으로 맞춘다. 1080 은 인스타그램이 받는 가로다.
-    ///
-    /// 카드가 390x844 이므로 구운 그림은 1080x2338 이 된다 —
-    /// 844 x 2.7692 = 2337.23 이라 마지막 한 줄이 올림으로 붙는다.
-    static let scale: CGFloat = 1080 / ExportCardLayout.size.width
-
     /// 카드를 PNG 로 굽는다.
     ///
     /// 안에 `DoodleImageView` 같은 **늦게 채워지는 뷰**가 있으면 안 된다.
     /// 화면에 붙지 않은 뷰에서는 그 `task` 가 돌지 않아 빈 자리로 구워진다.
     /// 그림은 `DoodleImageCache` 가 이미 구워 둔 것을 쓴다.
     ///
-    static func png(_ card: some View) -> Data? {
-        let renderer = ImageRenderer(content: card)
-        renderer.scale = scale
+    /// **가로는 폭이 얼마든 정확히 1080 으로 나온다.** 1080 은 인스타그램이 받는 가로라
+    /// 배율을 고정하지 않고 폭에 맞춰 되잡는다. 도안 칸(390)이면 1080x2338 이,
+    /// 스토리 폭(474.75)이면 1080x1920 이 된다.
+    ///
+    /// - Parameter width: 카드를 얼마나 넓게 그릴지. 기본은 도안 칸이고,
+    ///   인스타그램 스토리로 보낼 때만 `ExportCardLayout.storyWidth` 를 넘긴다.
+    static func png(_ card: some View, width: CGFloat = ExportCardLayout.size.width) -> Data? {
+        let renderer = ImageRenderer(content: card.environment(\.exportCardWidth, width))
+        renderer.scale = 1080 / width
         // 종이 배경이 전부 채우므로 투명한 자리가 남을 일이 없다.
         renderer.isOpaque = true
         return renderer.uiImage?.pngData()
@@ -47,4 +47,12 @@ enum ExportRenderer {
             return nil
         }
     }
+}
+
+extension EnvironmentValues {
+    /// 카드를 얼마나 넓게 그릴지. `ExportCard` 가 읽는다.
+    ///
+    /// **굽는 쪽에서 직접 걸어 준다.** `ImageRenderer` 는 화면에 붙지 않은 뷰를 그리므로
+    /// 미리보기 화면이 내린 환경값이 따라오지 않는다.
+    @Entry var exportCardWidth: CGFloat = ExportCardLayout.size.width
 }
