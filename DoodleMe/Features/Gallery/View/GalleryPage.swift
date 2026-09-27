@@ -67,8 +67,6 @@ struct GalleryPage: View {
     @State private var postPendingDelete: Post?
     /// 여러 장을 골라 지우려고 표시해 둔 것들.
     @State private var selectedPosts: Set<PersistentIdentifier> = []
-    /// 골라 둔 것들을 정말 지울지 묻는 중인지.
-    @State private var isConfirmingBulkDelete = false
     /// 지금 고르는 것이 지우려는 것인지 내보내려는 것인지.
     ///
     /// 들어온 길이 정한다 — 카드를 꾹 누르면 지우기, 상단 􀈂 를 누르면 내보내기.
@@ -76,10 +74,6 @@ struct GalleryPage: View {
     @State private var showExportPreview = false
     /// 내보내기 격자를 흩뿌리는 씨앗. 화면을 열 때마다 새로 뽑는다.
     @State private var exportShuffle: UInt64 = 0
-    /// 여러 장 저장을 마치고 띄울 말. 비어 있으면 확인창이 뜨지 않는다.
-    @State private var saveResultMessage: String?
-    /// 저장하는 동안 같은 버튼을 또 누르지 못하게 막는다.
-    @State private var isSavingToPhotos = false
     @State private var selectedPost: Post?
     @State private var profileCandidatePost: Post?
     @State private var showSharingScreen = false
@@ -101,11 +95,6 @@ struct GalleryPage: View {
     @State private var screenSize = CGSize(width: DoodleLayout.baseContentWidth,
                                            height: DoodleLayout.baseHeight)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-
-    /// 아이폰 기준값을 지금 화면에 맞게 환산한다. 아이폰에서는 늘 1 배다.
-    private var layoutScale: CGFloat {
-        DoodleLayout.scale(forWidth: contentWidth, sizeClass: horizontalSizeClass)
-    }
 
     /// 세로로 놓이는 값에 쓰는 배율. 가로로 누우면 높이가 모자라 덜 키운다.
     /// 머리말(프로필·이름·세그먼트)이 쓰는 배율.
@@ -292,9 +281,6 @@ struct GalleryPage: View {
     /// 제목 한 줄이 차지하는 높이를 글자 크기에서 어림하는 계수 (SF Pro 한 줄).
     private static let titleLineFactor: CGFloat = 1.21
 
-    /// 제목 줄과 접힌 둘째 줄 사이.
-    private static let wideHeaderGap: CGFloat = 12
-
     /// 머리말과 격자 사이. 아이폰에서 세그먼트 아래에 두던 것과 같은 값이다.
     private static let headerToGrid: CGFloat = 20
 
@@ -396,15 +382,6 @@ struct GalleryPage: View {
     /// 실측한 알약 밑변(세로 93.5 · 가로 71)과 세그먼트 윗변 사이에
     /// 손가락 하나 들어갈 틈이 남는 만큼만 잡았다.
     private static let segmentToTabBar: CGFloat = 6
-
-    /// 접힌 둘째 줄이 시작하는 높이.
-    ///
-    /// 제목이 화면을 따라 커지므로 고정값을 쓸 수 없다 — 넓은 화면에서 제목과 겹친다.
-    /// 제목 줄(위 70 + 글자 한 줄) 바로 아래로 내려온다.
-    private var wideHeaderTop: CGFloat {
-        // 셋이 한 줄에 가운데로 맞춰 서므로 줄 밑변 하나만 보면 된다.
-        titleLineTop + titleLineHeight + Self.wideHeaderGap * headerScale
-    }
 
     /// 넓은 화면에서 격자가 시작하는 높이. 제목 줄 하나가 곧 머리말이다.
     private var wideGridTop: CGFloat {
@@ -785,28 +762,6 @@ struct GalleryPage: View {
                 Text("삭제한 그림은 되돌릴 수 없어요.")
             }
             // 여러 장을 한꺼번에 지울 때의 확인. 한 장짜리와 같은 이유로 `alert` 을 쓴다.
-            //
-            // 몇 장인지 제목에 넣는다.
-            // 고른 것이 화면 밖에 있을 수 있어, 되돌릴 수 없는 일 앞에서
-            // "무엇을 지우는지" 를 숫자로라도 다시 확인시켜 준다.
-            .alert(
-                "\(selectedPosts.count)장의 그림을 삭제할까요?",
-                isPresented: $isConfirmingBulkDelete
-            ) {
-                Button("삭제", role: .destructive) { deleteSelected() }
-                Button("취소", role: .cancel) {}
-            } message: {
-                Text("삭제한 그림은 되돌릴 수 없어요.")
-            }
-            // 저장 결과. 상세 화면의 한 장 저장과 같은 방식으로 알린다.
-            .alert("사진 저장",
-                   isPresented: Binding(get: { saveResultMessage != nil },
-                                        set: { if !$0 { saveResultMessage = nil } }),
-                   presenting: saveResultMessage) { _ in
-                Button("확인") { saveResultMessage = nil }
-            } message: { message in
-                Text(message)
-            }
             // 어느 판으로 낼지 먼저 묻는다. Figma `iPhone 17 - 36`.
             //
             // 시트로 띄운다 — 갤러리를 덮어 가리는 것이 아니라 그 위에 얹히는 물음이라,
@@ -1027,153 +982,8 @@ struct GalleryPage: View {
 
     /// Figma `_Search - Bottom` 의 높이.
     private static let countPillHeight: CGFloat = 48
-
-    // MARK: - 선택 바 (쓰지 않음)
-
-    /// 여러 장을 고르는 동안 화면 아래에 서는 막대.
-    private var selectionBar: some View {
-        HStack {
-            Button("취소") { exitSelection() }
-                .foregroundStyle(Color.doodlePrimary)
-
-            Spacer()
-
-            // 몇 장 골랐는지 가운데에서 계속 알려준다.
-            // 카드가 화면 밖으로 밀려나도 고른 개수는 여기 남는다.
-            Text(selectedPosts.isEmpty
-                 ? "그림을 선택하세요"
-                 : "\(selectedPosts.count)장 선택됨")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(Color.doodleDetail)
-
-            Spacer()
-
-            // 고른 뒤에 무엇을 할지 정한다.
-            //
-            // 예전에는 들어온 길이 할 일을 정했다 — ⋯ 로 들어오면 삭제만, 상단 􀈂 로 들어오면
-            // 내보내기만 섰다. 그래서 세 장을 골라 놓고 마음이 바뀌면 취소하고 다른 길로
-            // 들어가 **처음부터 다시 골라야** 했다. 고르는 일은 한 번이면 된다.
-            //
-            // 글자 대신 글리프를 쓴다. 저장 글리프는 상세 화면 툴바의 저장과 **같은 그림**이라
-            // 새로 배울 것이 없다.
-            //
-            // 내보내기는 여기 두지 않는다. 고르는 동안에도 헤더에 그대로 서 있어
-            // 굳이 막대에 한 번 더 둘 이유가 없다.
-            //
-            // 한 장도 고르지 않았으면 할 일이 없다.
-            // 색을 직접 지정하면 시스템이 비활성일 때 걸어 주는 흐림이 덮인다.
-            // 눌리지도 않으면서 또렷하게 서 있어, 눌러 보고 나서야 안 된다는 걸 알게 된다.
-            // 그래서 흐림도 직접 준다.
-            HStack(spacing: Self.selectionActionSpacing * chromeScale) {
-                selectionAction("square.and.arrow.down", label: "사진 앱에 저장") {
-                    saveSelectedToPhotos()
-                }
-                selectionAction("trash", label: "삭제", tint: .red) {
-                    isConfirmingBulkDelete = true
-                }
-            }
-        }
-        .font(.system(size: 17 * chromeScale, weight: .semibold))
-        // 막대 안쪽 치수도 함께 자란다. 버튼만 키우면 글자와 버튼이 알약 벽에 붙는다.
-        .padding(.horizontal, Self.selectionBarInset * chromeScale)
-        .frame(height: DoodleMetrics.side(scale: chromeScale) + Self.selectionBarPadding * chromeScale)
-        // 리퀴드 글래스. 흰 캡슐을 직접 그리지 않는다.
-        //
-        // 애플 HIG 「Materials」 — *Liquid Glass forms a distinct functional layer for controls
-        // and navigation elements … that floats above the content layer.*
-        // 이 막대는 **탭바가 서 있던 자리**를 그대로 물려받는데, iOS 26 탭바가 이미 유리라
-        // 흰 캡슐을 그려 두면 같은 자리에서 재질만 달라진다.
-        //
-        // 안에 누를 것이 들어 있으므로 `interactive` 를 건다.
-        // HIG: *for custom controls or containers with interactive elements, add the
-        // interactive modifier to the glass effect.*
-        .glassEffect(.regular.interactive(), in: .capsule)
-        // 넓은 화면에서 끝까지 늘어나지 않게 막는다.
-        //
-        // 아이패드 가로(1180)에서 화면 폭을 꽉 채우면 「취소」 가 맨 왼쪽,
-        // 「삭제」·「내보내기」 가 맨 오른쪽에 붙어 손이 닿지 않고 가운데만 휑하다.
-        // 탭바가 서 있던 자리를 물려받는 막대이므로 탭바처럼 가운데에 모아 둔다.
-        // 아이폰(402)에서는 이 값에 닿지 않아 지금과 똑같다.
-        .frame(maxWidth: DoodleLayout.controlMaxWidth)
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, contentInset)
-        .padding(.trailing, detailPaneWidth)
-        .padding(.bottom, Self.selectionBarBottomInset * chromeScale)
-    }
-
-    /// 선택 바의 동작 하나. 글리프만 서고 이름은 낭독기에게만 간다.
-    private func selectionAction(_ symbol: String,
-                                 label: String,
-                                 tint: Color = .doodlePrimary,
-                                 action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 19 * chromeScale, weight: .medium))
-                // 넓은 화면에서는 누를 자리를 조작부 규격(44 이상)으로 넓힌다.
-                //
-                // 30 은 HIG 의 최소 터치 영역 44 에 못 미친다. 아이폰은 이 값이 그대로라
-                // 화면이 달라지지 않지만, 30 짜리 터치 영역이 남아 있다는 사실은 따로 남겨 둔다.
-                .frame(width: selectionActionSide, height: selectionActionSide)
-                .contentShape(Rectangle())
-        }
-        .foregroundStyle(isSelectionActionEnabled ? tint : Color.doodleMuted)
-        .disabled(!isSelectionActionEnabled)
-        .accessibilityLabel(label)
-    }
-
-    /// 선택 바 동작 버튼의 한 변.
-    ///
-    /// 좁은 화면은 지금의 30 을 지킨다 — 넓히면 아이콘 자리가 밀려 화면이 달라진다.
-    /// 넓은 화면에서는 `DoodleMetrics.side` 를 써서 HIG 의 44 를 처음으로 넘긴다.
-    private var selectionActionSide: CGFloat {
-        DoodleLayout.isWide(contentWidth, sizeClass: horizontalSizeClass)
-            ? DoodleMetrics.side(scale: chromeScale)
-            : Self.baseSelectionActionSide
-    }
-
-    private static let baseSelectionActionSide: CGFloat = 30
-
-    /// 고른 것이 있고, 저장이 돌고 있지 않을 때만 누를 수 있다.
-    private var isSelectionActionEnabled: Bool {
-        !selectedPosts.isEmpty && !isSavingToPhotos
-    }
-
-    /// 고른 그림들을 사진 앱에 넣는다.
-    ///
-    /// 내보내기 카드가 아니라 **그린 그대로**를 넣는다 —
-    /// 상세 화면의 저장이 하던 일을 여러 장으로 늘린 것이다.
-    ///
-    /// **앞면만 낸다.** 상세 화면은 「보고 있는 면」 을 저장하지만 여기는 보고 있는 면이 없다 —
-    /// 격자에 선 것은 그림이고, 고른 사람이 기대하는 것도 그 그림이다.
-    /// 한마디가 필요하면 그 카드를 열어 뒤집어서 저장하면 된다.
-    private func saveSelectedToPhotos() {
-        let items = selectedPosts
-            .compactMap { modelContext.registeredModel(for: $0) as Post? }
-            .sorted { $0.createdAt > $1.createdAt }
-            .map { PhotoLibrarySaver.Item(face: .drawing($0.drawingData), date: $0.createdAt) }
-        guard !items.isEmpty else { return }
-
-        isSavingToPhotos = true
-        Task {
-            let outcome = await PhotoLibrarySaver.save(items)
-            isSavingToPhotos = false
-            saveResultMessage = outcome.message
-        }
-    }
-
-    /// 선택 바의 동작 사이.
     /// 인스타그램 글리프의 한 변. Figma `Frame 52` 가 44 원 안에 26 을 (9, 9) 에 둔다.
     private static let instagramGlyphSide: CGFloat = 26
-
-    private static let selectionActionSpacing: CGFloat = 14
-    /// 선택 바 알약의 안쪽 좌우 여백.
-    private static let selectionBarInset: CGFloat = 24
-    /// 버튼 위아래로 알약이 더 갖는 높이.
-    private static let selectionBarPadding: CGFloat = 12
-
-    /// 선택 바가 화면 아래에서 떨어져 있는 정도.
-    /// 탭바가 서 있던 자리와 같은 높이라 홈 인디케이터를 피한다.
-    private static let selectionBarBottomInset: CGFloat = 34
 
     // MARK: - 상단
 
@@ -1533,24 +1343,6 @@ struct GalleryPage: View {
     private func delete(_ post: Post) {
         modelContext.delete(post)
         postPendingDelete = nil
-    }
-
-    /// 골라 둔 그림을 한꺼번에 지운다.
-    ///
-    /// 식별자로 들고 있으므로 모델을 다시 찾아와 지운다.
-    /// 찾지 못한 것은 그냥 넘긴다 — 고르는 사이에 다른 경로로 이미 지워졌다는 뜻이라
-    /// 여기서 할 일이 남아 있지 않다.
-    ///
-    /// 한 장씩 지울 때와 달리 여기서 바로 저장한다.
-    /// 여러 장이 한 번에 빠지는 큰 변화라, 자동 저장을 기다리는 사이 앱이 꺼지면
-    /// 지운 줄 알았던 그림이 통째로 돌아와 있다.
-    private func deleteSelected() {
-        for id in selectedPosts {
-            guard let post = modelContext.registeredModel(for: id) as Post? else { continue }
-            modelContext.delete(post)
-        }
-        try? modelContext.save()
-        exitSelection()
     }
 }
 
