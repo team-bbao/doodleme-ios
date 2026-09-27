@@ -1142,11 +1142,15 @@ struct GalleryPage: View {
     ///
     /// 내보내기 카드가 아니라 **그린 그대로**를 넣는다 —
     /// 상세 화면의 저장이 하던 일을 여러 장으로 늘린 것이다.
+    ///
+    /// **앞면만 낸다.** 상세 화면은 「보고 있는 면」 을 저장하지만 여기는 보고 있는 면이 없다 —
+    /// 격자에 선 것은 그림이고, 고른 사람이 기대하는 것도 그 그림이다.
+    /// 한마디가 필요하면 그 카드를 열어 뒤집어서 저장하면 된다.
     private func saveSelectedToPhotos() {
         let items = selectedPosts
             .compactMap { modelContext.registeredModel(for: $0) as Post? }
             .sorted { $0.createdAt > $1.createdAt }
-            .map(\.photoItem)
+            .map { PhotoLibrarySaver.Item(face: .drawing($0.drawingData), date: $0.createdAt) }
         guard !items.isEmpty else { return }
 
         isSavingToPhotos = true

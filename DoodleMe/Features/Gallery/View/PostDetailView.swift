@@ -223,21 +223,22 @@ struct PostDetailView: View {
                 .buttonStyle(CardToolbarButtonStyle(scale: toolbarScale))
                 .accessibilityLabel("가까운 친구에게 보내기")
 
-                // 사진 앱에 **그림만** 남긴다. 흰 바탕에 획뿐이고 종이도 제목도 없다 —
-                // `snapshotData()` 에 그 뜻이 적혀 있다: 「사진첩에 남는 건 그림이지 종이가 아니다」.
+                // **보고 있는 면**을 사진 앱에 남긴다. 앞이면 그림, 뒤집어 놓았으면 한마디다.
+                // 둘 다 흰 바탕에 내용과 날짜뿐이고 종이는 담지 않는다 —
+                // 사진첩에 남는 건 그림이지 종이가 아니다.
                 //
                 // 옆의 공유 버튼과 겹치지 않는다.
                 // 애플 HIG 「Activity views」 가 금하는 것은 **액티비티 뷰에 이미 있는 동작**을
                 // 따로 만드는 것인데, 공유 시트가 넘기는 것은 종이·제목·꼬리말이 붙은 **카드**다.
                 // 남는 결과물이 서로 달라 중복이 아니다.
                 Button {
-                    Task { await saveDrawingToGallery() }
+                    Task { await saveCurrentFaceToGallery() }
                 } label: {
                     Image(systemName: "square.and.arrow.down")
                         .font(toolbarGlyphFont)
                 }
                 .buttonStyle(CardToolbarButtonStyle(scale: toolbarScale))
-                .accessibilityLabel("그림만 사진에 저장")
+                .accessibilityLabel(isFlipped && !isSpread ? "한마디를 사진에 저장" : "그림을 사진에 저장")
 
                 // 내보내기 카드를 먼저 보여 주고, 거기서 시스템 공유 시트로 넘긴다.
                 // 사진 저장·인스타그램·AirDrop 이 모두 그 시트 안에 들어 있다.
@@ -536,9 +537,24 @@ extension PostDetailView {
 
     // MARK: - 사진 저장
 
-    /// 사진 앱에 그림을 저장한다. 실제로 굽고 쓰는 일은 `PhotoLibrarySaver` 가 맡는다.
-    private func saveDrawingToGallery() async {
-        present(await PhotoLibrarySaver.save([post.photoItem]).message)
+    /// 사진 앱에 저장한다. 실제로 굽고 쓰는 일은 `PhotoLibrarySaver` 가 맡는다.
+    ///
+    /// **보고 있는 면이 저장된다.** 앞을 보며 누르면 그림이, 뒤집어 놓고 누르면 한마디가 간다 —
+    /// 눈에 보이는 것과 사진첩에 남는 것이 어긋나지 않는다.
+    /// 둘 다 필요하면 뒤집어 한 번 더 누르면 되고, 두 장은 같은 크기로 나와 한 벌이 된다.
+    ///
+    /// 펼쳐 놓은 화면(`isSpread`)에서는 두 면이 나란히 있어 「보고 있는 면」 이 없다.
+    /// 그때는 앞면을 낸다 — 이 카드의 본디는 그림이다.
+    private func saveCurrentFaceToGallery() async {
+        let face: PhotoLibrarySaver.Face = (isFlipped && !isSpread)
+            ? .message(text: post.text,
+                       counterpart: counterpartName,
+                       suffix: counterpartName.isEmpty ? "" : counterpartSuffix,
+                       avatar: post.isMine ? nil : post.senderProfileDrawingData)
+            : .drawing(post.drawingData)
+
+        let item = PhotoLibrarySaver.Item(face: face, date: post.createdAt)
+        present(await PhotoLibrarySaver.save([item]).message)
     }
 
     private func present(_ message: String) {
