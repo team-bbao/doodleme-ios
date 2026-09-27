@@ -27,9 +27,18 @@ struct DrawingPage: View {
     @State private var keyboardTop: CGFloat = 0
     /// 화면(또는 창)의 크기. 도구 막대를 얼마나 내려 붙일지 정하는 데 쓴다.
     @State private var screenSize: CGSize = .zero
+    /// 안전영역을 **뺀** 본문 크기. 제목의 크기와 위쪽 여백에만 쓴다.
+    ///
+    /// `screenSize` 를 그대로 쓸 수 없다 — 그쪽은 안전영역을 무시한 화면 전체라
+    /// 갤러리·공유가 재는 것과 기준이 다르다. 기준이 다르면 같은 기기에서
+    /// 제목만 다른 크기로 나온다 (13인치를 눕히면 1032 대 988 로 1.2pt 어긋났다).
+    /// 처음 한 번은 아이폰 값으로 두어, 재기 전에도 엉뚱한 크기가 스치지 않게 한다.
+    @State private var contentSize = CGSize(width: DoodleLayout.baseContentWidth,
+                                            height: DoodleLayout.baseHeight)
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     /// 카운트다운이 지금 돌아야 하는지.
     ///
@@ -82,10 +91,46 @@ struct DrawingPage: View {
 
     /// 종이 밑변부터 화면 바닥까지 비워 둘 자리.
     ///
-    /// 도구 막대(높이 약 52)와 그 아래 여백 40, 홈 인디케이터 20,
-    /// 그리고 종이와 막대 사이 틈 45 를 더한 값이다.
+    /// 한때 157 로 잡았다 — 막대 52 + 아래 여백 40 + 홈 인디케이터 20 + 종이와 막대 사이 45.
+    /// **재 보니 막대가 실제로 먹는 자리는 147 이었다.**
+    /// 막대 높이가 57 이고, `safeAreaPadding` 이 물고 오는 아래 여백이 40 이 아니라 90 이다.
+    /// 그러니 157 을 비워도 종이와 막대 사이에 **10** 밖에 남지 않는다 — 눕힌 mini 에서 둘이 붙어 보였다.
+    /// 실측한 147 에 틈 45 를 더해 192 로 잡는다.
+    ///
     /// 아이폰은 배율이 1 로 고정이라 이 값이 쓰이지 않는다.
-    private static let toolPickerReserve: CGFloat = 157
+    private static let baseToolPickerReserve: CGFloat = 192
+
+    /// 막대가 세로로 먹는 자리 중 **배율을 타는 부분**.
+    /// 알약 자체(실측 57)와 그 아래 여백(30). 더 아래의 `toolPickerBottomInset` 은
+    /// 기기가 정하는 몫이라 배율을 타지 않는다.
+    private static let scalingBarHeight: CGFloat = 57 + 30
+
+    /// 도구 막대가 화면 아래에서 실제로 먹는 자리.
+    ///
+    /// 실측으로 잡은 192 는 막대가 44 짜리 버튼일 때의 값이다.
+    /// 막대를 키우면 그만큼 더 비워야 한다 — 고정 192 로 두면 커진 막대가 종이를 덮는다.
+    /// 늘어난 몫만 더해, 아이폰(배율 1)에서는 192 그대로 남는다.
+    private static func toolPickerReserve(in size: CGSize) -> CGFloat {
+        baseToolPickerReserve + scalingBarHeight * (toolScale(in: size) - 1)
+    }
+
+    /// 도구 막대를 얼마나 키울지.
+    ///
+    /// **짧은 변**을 본다. 그리는 도중에 기기를 돌려 버튼 크기가 바뀌면 손이 헷갈린다 —
+    /// 제목보다 나쁘다. 제목은 읽기만 하지만 도구는 누르고 있는 중이다.
+    ///
+    /// `canvasScale` 을 쓰지 않는다. 막대 높이가 `toolPickerReserve` 로 들어가고
+    /// 그 값이 다시 `canvasScale` 의 입력이라 순환이 생긴다.
+    /// 도구는 종이가 아니라 **기기**를 따른다.
+    ///
+    /// 위로 묶는 까닭 — 짧은 변 배율을 그대로 쓰면 13인치에서 한 변이 73 이 되고
+    /// 알약이 99 까지 높아져 눕혔을 때 종이가 6% 줄어든다. 도구가 종이를 먹는 것은 본말전도다.
+    /// 60pt(11.5mm)면 펜을 쥔 채 30초 안에 누르기 넉넉하고, 종이가 내주는 몫은 3~4% 에 그친다.
+    /// 44 는 HIG 의 **최소값**이지 이 화면에 맞는 값이 아니다.
+    private static func toolScale(in size: CGSize) -> CGFloat {
+        min(DoodleLayout.maxControlSide / DrawingToolPicker.buttonSide,
+            DoodleLayout.scale(forWidth: min(size.width, size.height)))
+    }
 
     /// 도구 막대를 화면 바닥에서 얼마나 띄울지.
     ///
@@ -124,12 +169,18 @@ struct DrawingPage: View {
         //
         // 그래서 「무엇이 꼭 있어야 하는지」로 바꿔 잡는다.
         // 위로는 제목이 앉을 자리, 아래로는 도구 막대가 앉을 자리를 남기고 나머지를 종이에 준다.
-        let byHeight = (size.height - minTopMargin - toolPickerReserve) / compositionHeight
+        let byHeight = (size.height - minTopMargin - toolPickerReserve(in: size)) / compositionHeight
 
-        // 아래로 1 — 아이패드가 아이폰보다 작아 보이는 일은 없어야 한다.
-        // (11인치를 가로로 눕히면 높이 834 로 아이폰보다 짧다.)
+        // 아래로 0.85 — 아이패드가 아이폰보다 작아 보이는 일은 없어야 하지만,
+        // **아이폰보다 낮은 화면**에서는 이야기가 다르다.
+        // mini 를 눕히면 높이가 744 로 아이폰(874)보다 짧아 아이폰 구성이 통째로 들어가지 않는다.
+        // 하한을 1 로 붙들어 두면 모자란 23 을 위아래 어느 한쪽에서 빼야 하는데,
+        // 위는 `minTopMargin` 이 지켜 주므로 **아래가 전부 깎였다** —
+        // 종이와 도구 막대 사이가 45 에서 22 로 좁아져 둘이 붙어 보였다.
+        // 4.5% 줄어드는 것은 눈에 띄지 않지만 막대에 닿는 것은 눈에 띈다.
+        //
         // 위로 1.6 — 더 키우면 손이 종이 끝까지 닿지 않는다.
-        return min(1.6, max(1, min(byWidth, byHeight)))
+        return min(1.6, max(0.85, min(byWidth, byHeight)))
     }
 
     /// 타이머를 화면 꼭대기에서 얼마나 내려 붙일지.
@@ -177,6 +228,60 @@ struct DrawingPage: View {
         return min(needed, room)
     }
 
+    /// 메모 단계에서 카드가 **화면에서** 차지할 크기.
+    ///
+    /// 키보드가 올라오면 그 위에 남는 자리에 맞춰 줄인다. 비율(350:390)은 지킨다 —
+    /// 포스트잇은 거의 정사각이라 비율이 깨지면 종이로 보이지 않는다.
+    ///
+    /// 줄이는 것은 **카드와 여백**이지 글자가 아니다. 예전에는 카드를 그대로 둔 채
+    /// 위로 밀기만 해서(`keyboardLift`), 밀 자리가 없는 눕힌 아이패드에서는
+    /// 아래가 잘려 「0/30」 글자 수가 보이지 않았다 — 저장이 왜 흐린지 알 길이 없었다.
+    private func memoCardSize(in size: CGSize) -> CGSize {
+        let base = DoodleMetrics.canvasSize
+        let scale = Self.canvasScale(in: size)
+        let full = CGSize(width: base.width * scale, height: base.height * scale)
+
+        guard keyboardTop > 0, size.height > 0 else { return full }
+
+        let room = keyboardTop - Self.minTopMargin - Self.keyboardGap
+        guard room < full.height else { return full }
+
+        // 너무 작아지면 30자 한마디가 다섯 줄을 넘겨 읽을 수 없다. 그 아래로는 내려가지 않는다.
+        let height = max(Self.memoMinHeight, room)
+        return CGSize(width: height * base.width / base.height, height: height)
+    }
+
+    /// 메모 카드를 화면 정중앙에서 얼마나 올릴지.
+    ///
+    /// 키보드가 **올라와 있을 때만** 키보드 위 자리의 한가운데에 앉힌다.
+    /// 그 밖에는 그리기 단계와 같은 자리를 쓴다 — 같은 카드의 앞뒤라 뒤집었다고 자리가 튀면 안 된다.
+    ///
+    /// 언제 다시 앉히는지는 **카드가 실제로 덮이는지**로 본다.
+    ///
+    /// `keyboardTop` 이 0 보다 큰지로 보면 안 된다 — 키보드가 없어도 화면 아래(안전영역 끝)를
+    /// 가리켜 늘 참이라, 아이폰에서 메모 카드가 `minTopMargin`(아이패드 탭 바 몫인 100)과
+    /// 화면 아래의 한가운데로 앉아 **44pt 처졌다.** 같은 카드의 앞뒤인데 뒤집으면 54pt 내려앉았다.
+    ///
+    /// 글상자가 잡혔는지로 보는 것도 안 된다 — 하드웨어 키보드를 쓰면 글상자가 잡혀도
+    /// 화면을 덮는 것이 없다. 실제로 그렇게 고쳐 보니 같은 자리에서 다시 처졌다.
+    ///
+    /// `base` 에는 이미 `keyboardLift` 가 들어 있으므로, 밀어 올려도 여전히 덮일 때만 다시 앉힌다 —
+    /// 아이폰은 밀어 올리는 것으로 늘 해결되어 예전 자리를 그대로 쓰고,
+    /// 밀 자리가 모자란 눕힌 아이패드에서만 이 계산이 쓰인다.
+    private func memoCardOffset(in size: CGSize) -> CGFloat {
+        let base = Self.canvasOffset(in: size) - keyboardLift(in: size)
+        guard session.phase == .memo, keyboardTop > 0, size.height > 0 else { return base }
+
+        let cardBottom = size.height / 2 + base + memoCardSize(in: size).height / 2
+        guard cardBottom > keyboardTop - Self.keyboardGap else { return base }
+
+        let center = (Self.minTopMargin + (keyboardTop - Self.keyboardGap)) / 2
+        return center - size.height / 2
+    }
+
+    /// 메모 카드가 줄어들 수 있는 한계.
+    private static let memoMinHeight: CGFloat = 300
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -184,7 +289,7 @@ struct DrawingPage: View {
                 // 곧 iOS 의 systemGroupedBackground 와 같은 값이다.
                 // 값을 박아 두는 대신 시스템 색을 쓰면 대비 설정에도 따라간다.
                 Color(.systemGroupedBackground)
-                    .ignoresSafeArea()
+                    .ignoresSafeArea([.container, .keyboard], edges: .vertical)
 
                 // 타이머는 화면 맨 위에서 잰 자리에 고정한다.
                 // 툴바가 단계에 따라 나타났다 사라지는데, 그때마다 안전영역이 달라져
@@ -193,14 +298,25 @@ struct DrawingPage: View {
                 // 시작을 누르면 그 자리를 툴바가 쓰므로 누르기 전에만 둔다.
                 if session.phase == .notStarted {
                     Text("그리기")
-                        .font(.system(size: 34, weight: .bold))
-                        .kerning(0.4)
+                        // 크기는 갤러리·공유와 같은 공용 값을 쓴다.
+                        // 예전에는 여기만 34 로 못박혀 있어, 탭을 오갈 때 제목이 튀었다.
+                        .font(.system(size: DoodleLayout.titleSize(forWidth: contentSize.width,
+                                                                  height: contentSize.height,
+                                                                  sizeClass: horizontalSizeClass),
+                                      weight: .bold))
+                        .kerning(DoodleLayout.titleKerning)
                         .foregroundStyle(Color.doodleTitle)
+                        // 왼쪽 20 은 배율을 걸지 않는다.
+                        // 이 값은 화면별 여백이 아니라 제목·종이·도구가 함께 서는 기준선이고,
+                        // 갤러리의 `contentInset` 과 같은 20 이라야 탭을 오갈 때 왼쪽 끝이 맞는다.
                         .padding(.leading, Self.titleLeadingInset)
-                        .padding(.top, Self.titleTopInset)
+                        .padding(.top, Self.titleTopInset * DoodleLayout.verticalScale(
+                            forWidth: contentSize.width,
+                            height: contentSize.height,
+                            sizeClass: horizontalSizeClass))
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .allowsHitTesting(false)
-                        .ignoresSafeArea()
+                        .ignoresSafeArea([.container, .keyboard], edges: .vertical)
                 }
 
                 GeometryReader { proxy in
@@ -208,12 +324,13 @@ struct DrawingPage: View {
                         .padding(.top, Self.countdownTop(in: proxy.size))
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
-                .ignoresSafeArea()
+                .ignoresSafeArea([.container, .keyboard], edges: .vertical)
 
                 VStack {
                     Spacer()
                     if session.phase == .drawing {
-                        DrawingToolPicker(session: session)
+                        DrawingToolPicker(session: session,
+                                          scale: Self.toolScale(in: screenSize))
                             .padding(.bottom, Self.toolPickerBottomInset(in: screenSize))
                     }
                 }
@@ -232,23 +349,54 @@ struct DrawingPage: View {
                     Color.clear
                         .onGeometryChange(for: CGSize.self) { $0.size } action: { screenSize = $0 }
                 }
-                .ignoresSafeArea()
+                .ignoresSafeArea([.container, .keyboard], edges: .vertical)
+                .allowsHitTesting(false)
+
+                // 안전영역을 **뺀** 크기도 따로 재 둔다 — 제목 전용이다.
+                // 위의 자와 달리 `ignoresSafeArea` 를 걸지 않는다.
+                GeometryReader { proxy in
+                    Color.clear
+                        .onGeometryChange(for: CGSize.self) { $0.size } action: { contentSize = $0 }
+                }
                 .allowsHitTesting(false)
 
                 // 캔버스도 화면 한가운데에 못박는다.
                 // 단계마다 툴바와 탭바가 생겼다 사라지면서 안전영역이 달라지는데,
                 // 그때마다 캔버스가 따라 움직여 초기화를 누르면 자리가 어긋났다.
                 GeometryReader { proxy in
-                    memoCard
-                        // 넓은 화면에서는 종이를 키워 보여준다.
-                        //
-                        // `canvasSize`(350x390) 는 **저장된 획의 좌표계**라 건드리면 안 된다.
-                        // 그래서 크기 자체가 아니라 배율만 올린다 — 안에서 오가는 좌표는 그대로다.
-                        .scaleEffect(Self.canvasScale(in: proxy.size))
-                        .offset(x: shakeAmount, y: Self.canvasOffset(in: proxy.size) - keyboardLift(in: proxy.size))
+                    // 그리기 단계와 메모 단계가 크기를 다루는 방식이 다르다.
+                    //
+                    // 그리기는 `canvasSize`(350x390) 가 **저장된 획의 좌표계**라 건드릴 수 없어,
+                    // 크기는 그대로 두고 `scaleEffect` 로만 키운다.
+                    //
+                    // 메모는 뒷면이라 좌표계에 매이지 않는다. 그래서 `frame` 으로 직접 크기를 정하고
+                    // 글자에만 따로 배율을 물린다 — 키보드가 올라와 카드가 줄어도 **글씨는 그대로**다.
+                    let isMemo = session.phase == .memo
+                    let scale = Self.canvasScale(in: proxy.size)
+                    let cardSize = isMemo ? memoCardSize(in: proxy.size) : DoodleMetrics.canvasSize
+
+                    // 글자 배율은 `canvasScale` 이 아니라 **카드가 실제로 보이는 배율**이다.
+                    // 키보드가 올라오면 `memoCardSize` 는 줄어드는데 `canvasScale` 은 그대로라,
+                    // 둘을 따로 쓰면 카드와 글자가 어긋난다 — 눕힌 13인치에서 그 어긋남이
+                    // 자리글 「첫 대화를 건네보…」 로 잘려 나왔다.
+                    let shown = cardSize.height / DoodleMetrics.canvasSize.height
+
+                    memoCard(size: cardSize, textScale: isMemo ? shown : 1)
+                        .scaleEffect(isMemo ? 1 : scale)
+                        .offset(x: shakeAmount, y: memoCardOffset(in: proxy.size))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .ignoresSafeArea()
+                // `.keyboard` 를 빼먹으면 안 된다.
+                //
+                // 한때 `.container` 만 적었는데, 그러면 키보드가 올라올 때
+                // **이 칸의 높이가 함께 줄어든다.** 카드는 줄어든 칸의 한가운데로 앉고
+                // 거기에 `keyboardLift` 가 한 번 더 밀어 올려, 아이폰에서 「To.」 줄이
+                // 위쪽 툴바 밑으로 파고들었다 — 실측 카드 윗변 64.7pt.
+                //
+                // 이 카드는 화면 기준으로 자리를 직접 계산한다(`memoCardOffset`).
+                // 시스템의 자동 회피까지 겹치면 두 번 밀리므로, 키보드 영역은 무시하고
+                // 필요한 만큼만 우리가 민다. 좌우는 계속 지킨다 — 아이패드 사이드바 몫이다.
+                .ignoresSafeArea([.container, .keyboard], edges: .vertical)
                 .animation(.easeOut(duration: 0.25), value: keyboardTop)
             }
             .ignoresSafeArea(.container, edges: .bottom)
@@ -313,11 +461,18 @@ struct DrawingPage: View {
 
     // MARK: - 메모지
 
-    private var memoCard: some View {
+    /// 메모지 한 장.
+    ///
+    /// - Parameters:
+    ///   - size: 카드가 **화면에서** 차지할 크기. 그리기 단계에서는 저장 좌표계(350x390)를 그대로 쓰고
+    ///     바깥에서 `scaleEffect` 로 키우지만, 메모 단계에서는 키보드가 먹고 남은 자리에 맞춰 줄어든다.
+    ///   - textScale: 글자와 버튼에만 걸리는 배율. 카드가 줄어도 이 값은 그대로라
+    ///     **글씨는 작아지지 않는다** — 줄어드는 것은 여백이다.
+    private func memoCard(size: CGSize, textScale: CGFloat) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: DoodleMetrics.canvasCornerRadius)
                 .fill(.white)
-                .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
+                .frame(width: size.width, height: size.height)
                 .shadow(color: .black.opacity(0.3), radius: 40, x: 4, y: 4)
 
             peelCover
@@ -343,7 +498,7 @@ struct DrawingPage: View {
             }
 
             if session.phase == .memo {
-                memoFields
+                memoFields(in: size, textScale: textScale)
             }
         }
     }
@@ -369,29 +524,33 @@ struct DrawingPage: View {
             .accessibilityLabel("탭해서 그리기 시작")
     }
 
-    private var memoFields: some View {
-        VStack(spacing: 0) {
+    private func memoFields(in size: CGSize, textScale: CGFloat) -> some View {
+        // `textScale` 이 곧 카드가 보이는 배율이라, 여백도 같은 값으로 따라간다.
+        // 카드·여백·글자가 한 비율로 움직여야 종이 한 장으로 읽힌다.
+        let pad = { (value: CGFloat) in value * textScale }
+
+        return VStack(spacing: 0) {
             // 위쪽: 이름 입력 영역
             HStack(spacing: 6) {
                 Text("To.")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 24 * textScale, weight: .bold))
                     .foregroundStyle(.colorGray.opacity(0.8))
                 TextField(text: $recipientName, prompt: Text("이름").foregroundStyle(.black.opacity(0.42))) {
                     EmptyView()
                 }
-                .font(.system(size: 20))
+                .font(.system(size: 20 * textScale))
                 .fontWeight(.semibold)
                 .submitLabel(.done)
                 .focused($focusedField, equals: .name)
 
                 Spacer(minLength: 0)
             }
-            .padding(.top, 33.5)
-            .padding(.horizontal, 30)
+            .padding(.top, pad(33.5))
+            .padding(.horizontal, pad(30))
             .frame(maxWidth: .infinity)
             // 위 여백이 그대로 먹도록 위쪽에 붙인다.
             // 가운데 정렬이면 여백을 5 줄여도 절반인 2.5 만 움직인다.
-            .frame(height: 80, alignment: .top)
+            .frame(height: pad(80), alignment: .top)
             .contentShape(Rectangle())
             .onTapGesture { focusedField = .name }
 
@@ -412,7 +571,7 @@ struct DrawingPage: View {
                 TextField("", text: $inputText, axis: .vertical)
                     .lineLimit(1...5)
                     .multilineTextAlignment(.center)
-                    .font(.doodleHandwriting(size: Self.messageFontSize))
+                    .font(.doodleHandwriting(size: Self.messageFontSize * textScale))
                     .foregroundStyle(Color.doodlePrimary)
                     .focused($focusedField, equals: .text)
                     .onChange(of: inputText) { _, newValue in
@@ -425,29 +584,54 @@ struct DrawingPage: View {
                 .overlay {
                     if inputText.isEmpty {
                         Text("첫 대화를 건네보세요 :)")
-                            .font(.system(size: 25, weight: .semibold))
+                            .font(.system(size: 25 * textScale, weight: .semibold))
                             .foregroundStyle(.black.opacity(0.42))
                             .allowsHitTesting(false)
                     }
                 }
-                .padding(.horizontal, 30)
-                .padding(.bottom, 60)
+                .padding(.horizontal, pad(30))
+                .padding(.bottom, pad(60))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 Text("\(inputText.count)/\(Self.textLimit)")
-                    .font(.system(size: 17))
+                    .font(.system(size: 17 * textScale))
                     .foregroundStyle(.colorGray)
                     .opacity(0.5)
                     .fontWeight(.semibold)
-                    .padding(.bottom, 20)
+                    .padding(.bottom, pad(20))
             }
             .contentShape(Rectangle())
             .onTapGesture { focusedField = .text }
         }
-        .frame(width: DoodleMetrics.canvasSize.width, height: DoodleMetrics.canvasSize.height)
+        .frame(width: size.width, height: size.height)
     }
 
     // MARK: - 툴바
+
+    /// 툴바 단추 글씨. 넓은 화면에서만 커진다.
+    ///
+    /// `controlSize(.extraLarge)` 를 먼저 걸어 봤는데 툴바에서는 듣지 않았다 —
+    /// 실측으로 13인치 가로와 아이폰이 76.5x44 로 똑같았다.
+    /// 툴바는 제 항목 크기를 스스로 정하므로, 글씨를 키워 유리 알약이 따라 자라게 한다.
+    /// 높이를 못박지 않으니 손쉬운 사용의 글씨 크기 설정도 그대로 따라온다.
+    ///
+    /// 높이는 44 에서 멈춘다 — 세로 여백을 14 얹어 봐도 그대로였다.
+    /// 내비게이션 바가 제 높이를 지키기 때문이고, 44 는 HIG 가 말하는 최소 크기이기도 하다.
+    /// 그래서 키울 수 있는 것은 가로뿐이다 (13인치 가로 76.5x44 → 92.5x44).
+    ///
+    /// 좁은 화면에서는 `nil` 을 돌려준다. 시스템이 주던 글꼴이 그대로 남아
+    /// 아이폰 화면은 한 픽셀도 달라지지 않는다.
+    /// 갤러리·공유·내보내기의 조작부와 같은 기준(`chromeScale`)으로 갈린다.
+    private var toolbarLabelFont: Font? {
+        let scale = DoodleLayout.chromeScale(forWidth: screenSize.width,
+                                             height: screenSize.height,
+                                             sizeClass: horizontalSizeClass)
+        guard scale > 1 else { return nil }
+        return .system(size: Self.toolbarLabelSize * scale)
+    }
+
+    /// 시스템이 툴바 단추에 쓰는 글씨 크기(`.body`). 배율의 기준일 뿐 못박은 높이가 아니다.
+    private static let toolbarLabelSize: CGFloat = 17
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
@@ -456,6 +640,7 @@ struct DrawingPage: View {
         if session.phase != .notStarted {
             ToolbarItem(placement: .topBarLeading) {
                 Button("초기화") { showResetAlert = true }
+                    .font(toolbarLabelFont)
             }
         }
 
@@ -466,6 +651,7 @@ struct DrawingPage: View {
                 Button("다음") {
                     session.beginMemo()
                 }
+                .font(toolbarLabelFont)
             }
         }
 
@@ -473,6 +659,7 @@ struct DrawingPage: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("저장") { save() }
                     .buttonStyle(.glassProminent)
+                    .font(toolbarLabelFont)
                     .disabled(!canSave)
             }
         }

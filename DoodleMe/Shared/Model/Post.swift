@@ -46,3 +46,4 @@ extension Post {
     /// 저장을 마친 쪽이 켜 두면, 갤러리가 가장 최근에 만든 내 그림으로 옮겨 가고 도로 끈다.
     static let showsJustSavedKey = "showsJustSavedPost"
 }
+

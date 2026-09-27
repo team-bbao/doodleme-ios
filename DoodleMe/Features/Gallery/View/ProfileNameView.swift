@@ -11,6 +11,10 @@ struct ProfileNameView: View {
     /// 넓은 화면에서 얼마나 키울지. 아이폰에서는 1 이라 지금까지와 같다.
     var scale: CGFloat = 1
 
+    /// Figma 이름 글자. `17 - 25`(222:1188) · `17 - 36`(424:1216) 이 20 · 자간 0.4 다.
+    private static let nameSize: CGFloat = 20
+    private static let nameTracking: CGFloat = 0.4
+
     /// 이름 최대 글자 수. 세그먼트 위에 한 줄로 들어가야 해서 너무 길면 곤란하다.
     private static let nameLimit = 15
 
@@ -23,9 +27,16 @@ struct ProfileNameView: View {
             showingEditor = true
         } label: {
             Text(profileName.isEmpty ? "이름" : profileName)
-                // Figma `iPhone 17 - 1` 의 이름 스타일
-                // Figma 는 Semibold 이지만 화면에서 얇아 보여 한 단계 올렸다.
-                .font(.system(size: 20 * scale, weight: .bold))
+                // Figma `iPhone 17 - 25`(222:1188) · `17 - 36`(424:1216) 의 이름 스타일 —
+                // SF Pro **Semibold 20**, 자간 **+0.4**, `#424242`.
+                //
+                // 한때 「화면에서 얇아 보인다」는 이유로 Bold 로 한 단계 올려 두었는데,
+                // 도안이 정한 무게가 Semibold 라 되돌렸다. 자간도 빠져 있어 함께 넣는다.
+                //
+                // `17 - 13` 은 25 짜리인데 그건 옛 프레임이다 — 「닉네임 25 -> 20」 으로
+                // 줄이라는 지시를 받아 20 으로 맞췄고, 최신 프레임도 20 이다.
+                .font(.system(size: Self.nameSize * scale, weight: .semibold))
+                .tracking(Self.nameTracking * scale)
                 .foregroundStyle(profileName.isEmpty ? Color.gray : .doodlePrimary)
                 // 프로필 원 아래로 띄우는 간격. Figma 는 원 밑변에서 이름 상자까지 7.5.
                 // 원이 `offset(y: 5)` 로 내려가 있으므로 그만큼 더한다.

@@ -2,15 +2,23 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>UIAppFonts</key>
+	<key>FacebookAppID</key>
+	<string>1794734985276918</string>
+	<key>LSApplicationQueriesSchemes</key>
 	<array>
-		<string>CallifontDaynoteJellypen-Medium.ttf</string>
-		<string>CrimsonText-Bold.ttf</string>
+		<string>instagram-stories</string>
 	</array>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_doodleme._tcp</string>
 		<string>_doodleme._udp</string>
+	</array>
+	<key>UIAppFonts</key>
+	<array>
+		<string>CallifontDaynoteJellypen-Thin.ttf</string>
+		<string>CallifontDaynoteJellypen-Medium.ttf</string>
+		<string>CallifontDaynoteJellypen-Bold.ttf</string>
+		<string>CrimsonText-Bold.ttf</string>
 	</array>
 </dict>
 </plist>

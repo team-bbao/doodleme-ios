@@ -68,6 +68,85 @@ enum DoodleLayout {
         return min(scale(forWidth: width, sizeClass: sizeClass), max(1, byHeight))
     }
 
+    /// 격자의 칸 사이 간격과 본문 좌우 여백이 넓은 화면에서 커지는 비율.
+    ///
+    /// 전체 배율(13인치 가로 1.7)을 그대로 쓰면 안 된다 —
+    /// 간격과 여백이 커진 만큼 격자가 쓸 폭이 줄어 **열이 하나 사라진다.**
+    /// 13인치 가로에서 6열이 5열이 되면 카드는 커지지만 한 화면에 보이는 장수가
+    /// 세로(4열)보다 적어져, 눕히는 것이 손해가 된다.
+    ///
+    /// 경계를 재 보면 1.25 에서 무너진다. 여유를 두고 1.15 에서 묶는다.
+    /// 이 값이면 카드 대비 간격 비율이 아이폰과 같아진다 —
+    /// 아이폰 22/170 = 12.9%, 13인치 가로 25.3/198 = 12.8%.
+    ///
+    /// 넓은 화면은 어디서 재도 상한에 걸리므로(362 × 1.15² = 479 를 넘으면 상한),
+    /// 어느 폭을 넣든 같은 값이 나온다.
+    static func gridSpacingScale(forWidth width: CGFloat,
+                                 sizeClass: UserInterfaceSizeClass? = nil) -> CGFloat {
+        min(1.15, scale(forWidth: width, sizeClass: sizeClass))
+    }
+
+    /// 화면 제목(라지 타이틀) 기준 크기. Figma (20, 70) 의 34pt Bold.
+    ///
+    /// 갤러리·그리기·공유가 같은 규격을 쓴다. 값이 흩어져 있으면
+    /// 한 화면만 고쳐져 탭을 오갈 때 제목이 튄다.
+    static let titleFontSize: CGFloat = 34
+    static let titleKerning: CGFloat = 0.4
+
+    /// 제목이 이 화면에서 쓸 크기.
+    ///
+    /// **짧은 변**을 본다. 제목은 기기를 따르지 방향을 따르지 않는다 —
+    /// 가로 폭으로 재면 눕힐 때마다 제목이 커졌다 작아진다.
+    /// 11인치에서는 그 차이가 50.4 ↔ 57.8 로 15% 에 이른다(세로는 상한 1.7 에 닿지 않고
+    /// 가로만 닿아서, 상한을 낮춰 봐야 세로는 그대로다).
+    /// 짧은 변은 회전해도 같으므로 같은 기기에서 늘 같은 크기가 된다.
+    ///
+    /// 넣는 폭과 높이는 **안전영역을 뺀 본문 크기**로 통일한다.
+    /// 한쪽은 화면 전체, 한쪽은 본문이면 같은 기기에서 다른 값이 나온다.
+    ///
+    /// 넓은 화면인지 가리는 `isWide` 는 지금처럼 가로 폭으로 둔다.
+    /// 판정까지 짧은 변으로 바꾸면 눕힌 아이패드가 좁은 화면으로 갈린다.
+    static func titleSize(forWidth width: CGFloat,
+                          height: CGFloat,
+                          sizeClass: UserInterfaceSizeClass? = nil) -> CGFloat {
+        titleFontSize * scale(forWidth: min(width, height), sizeClass: sizeClass)
+    }
+
+    /// 가운데 모아 두는 조작부가 넓은 화면에서 늘어나지 않게 막는 폭.
+    ///
+    /// `readableWidth` 와 뜻이 다르다 — 그쪽은 글줄 길이고 이것은 손이 닿는 범위다.
+    /// 아이폰 본문 폭(402 - 좌우 20 = 362)에 조금 여유를 둔 값이라,
+    /// 아이폰에서는 어떤 조작부도 이 값에 닿지 않는다.
+    static let controlMaxWidth: CGFloat = 440
+
+    /// 조작부(닫기·공유·더 보기 같은 버튼)가 넓은 화면에서 커지는 비율.
+    ///
+    /// **콘텐츠 배율과 다르다.** 콘텐츠는 화면을 채우려고 커지지만 조작부는 손끝을 위해 커진다.
+    /// 공유 화면의 X 가 이 구분 없이 그 화면의 콘텐츠 배율을 따랐다가 13인치에서 70pt 까지
+    /// 부풀어, 같은 닫기 버튼인데 갤러리(47~55)와 40% 나 달랐다.
+    ///
+    /// **짧은 변**을 본다. 조작부는 기기를 따르지 방향을 따르지 않는다 —
+    /// 한때 `verticalScale` 을 썼다가 13인치에서 버튼이 세로 55, 가로 48 로 오갔고,
+    /// 세그먼트는 눕히면 38 까지 내려가 아이폰(35)과 구별되지 않았다.
+    /// 누르는 것이 방향에 따라 크기를 바꾸면 손이 헷갈린다.
+    ///
+    /// 위로 묶는 까닭은 그리기 도구 막대와 같다 — 짧은 변 배율을 그대로 쓰면
+    /// 13인치에서 버튼 한 변이 74 가 되어 조작부가 내용을 밀어낸다.
+    /// 60pt(11.5mm)에서 멈추면 넉넉하면서 자리를 덜 먹고,
+    /// **그리기 탭 도구 버튼과도 정확히 같은 크기**가 된다.
+    ///
+    /// 넣는 폭·높이는 **화면 전체**로 통일한다. 한 화면만 안전영역을 뺀 크기를 넣으면
+    /// 같은 기기에서 버튼 크기가 어긋난다.
+    static func chromeScale(forWidth width: CGFloat,
+                            height: CGFloat,
+                            sizeClass: UserInterfaceSizeClass? = nil) -> CGFloat {
+        min(maxControlSide / DoodleMetrics.buttonSide,
+            scale(forWidth: min(width, height), sizeClass: sizeClass))
+    }
+
+    /// 조작부 버튼 한 변이 커질 수 있는 끝. 그리기 도구 막대가 쓰는 값과 같다.
+    static let maxControlSide: CGFloat = 60
+
     /// 글줄이 지나치게 길어지지 않도록 묶어 두는 폭.
     ///
     /// 애플이 `readableContentGuide` 로 제공하는 것과 같은 뜻이다.

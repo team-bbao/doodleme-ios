@@ -42,6 +42,12 @@ struct NearbySharingScreen: View {
     /// 처음 한 번은 아이폰 값으로 두어, 재기 전에도 엉뚱한 크기가 스치지 않게 한다.
     @State private var screenSize = CGSize(width: DoodleLayout.baseContentWidth,
                                            height: DoodleLayout.baseHeight)
+    /// 안전영역을 **무시한** 화면 전체 크기. 조작부 버튼 크기에만 쓴다.
+    ///
+    /// `screenSize` 를 그대로 쓸 수 없다 — 그쪽은 안전영역 안쪽이라
+    /// 갤러리·내보내기가 재는 것과 기준이 달라 같은 기기에서 버튼이 1pt 어긋난다.
+    @State private var chromeSize = CGSize(width: DoodleLayout.baseContentWidth,
+                                           height: DoodleLayout.baseHeight)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     /// 아이폰 기준값을 지금 화면에 맞게 환산한다. 아이폰에서는 늘 1 배다.
@@ -56,6 +62,13 @@ struct NearbySharingScreen: View {
                                          sizeClass: horizontalSizeClass)
         guard byWidth > 1, screenSize.height > 0 else { return 1 }
         return max(1, min(byWidth, screenSize.height / Self.baseContentHeight))
+    }
+
+    /// 닫기 버튼처럼 **조작부**가 쓰는 배율. 콘텐츠 배율(`contentScale`)과 다르다.
+    private var chromeScale: CGFloat {
+        DoodleLayout.chromeScale(forWidth: chromeSize.width,
+                                 height: chromeSize.height,
+                                 sizeClass: horizontalSizeClass)
     }
 
     /// 아이폰에서 이 화면의 본문이 실제로 쓰는 세로 길이.
@@ -77,8 +90,14 @@ struct NearbySharingScreen: View {
     /// Figma: Large Title/Emphasized — SF Pro Bold 34 / `#1A1A1A` / 자간 0.4.
     private func largeTitle(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 34 * contentScale, weight: .bold))
-            .kerning(0.4)
+            // 크기만은 `contentScale` 이 아니라 공용 값을 쓴다.
+            // 갤러리·그리기와 **같은 크기**여야 화면을 오갈 때 제목이 튀지 않는데,
+            // `contentScale` 은 이 화면의 본문 높이(638)로 한 번 더 깎여 저들보다 작아진다.
+            .font(.system(size: DoodleLayout.titleSize(forWidth: screenSize.width,
+                                                      height: screenSize.height,
+                                                      sizeClass: horizontalSizeClass),
+                          weight: .bold))
+            .kerning(DoodleLayout.titleKerning)
             .foregroundStyle(Color.doodleTitle)
     }
 
@@ -138,6 +157,14 @@ struct NearbySharingScreen: View {
             // 그래서 이 버튼만 안전영역을 무시한다.
             // 이 화면의 다른 것들은 안전영역을 기준으로 놓이지만(이름줄이 그 아래 41),
             // 갤러리는 화면 맨 위를 기준으로 삼기 때문에 같은 기준을 써야 자리가 맞는다.
+            // 화면 전체 크기를 따로 재 둔다 — 조작부 버튼 크기 전용이다.
+            GeometryReader { proxy in
+                Color.clear
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { chromeSize = $0 }
+            }
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+
             closeButton
                 .padding(.top, Self.closeButtonTop * contentScale)
                 .padding(.trailing, Self.closeButtonTrailing * contentScale)
@@ -234,12 +261,15 @@ struct NearbySharingScreen: View {
 
             // Figma `Frame 20`(149:629): 제목과 안내 사이 22.
             VStack(spacing: 22) {
+                // Figma `149:630` — SF Pro **Bold** 25 / `#424242`.
                 Text("그림을 받으시겠어요?")
-                    .font(.system(size: 25 * contentScale, weight: .semibold))
+                    .font(.system(size: 25 * contentScale, weight: .bold))
                     .foregroundStyle(Self.primary)
 
+                // Figma `149:631` — SF Pro **Medium** 15 / 행높이 20 / `#6A6A6A`.
+                // 굵기를 적지 않아 regular 로 나오던 것을 맞췄다.
                 Text("확인을 누르면 해당 그림 갤러리 탭으로\n넘어가져요.")
-                    .font(.system(size: 15))
+                    .font(.system(size: 15, weight: .medium))
                     .lineSpacing(2)
                     .foregroundStyle(Color.doodleSubtext)
             }
@@ -326,6 +356,14 @@ struct NearbySharingScreen: View {
     private var doodleArea: some View {
         DoodleStrokeAnimation(
             strokes: animatedStrokes,
+            // 그림 상자가 `contentScale` 만큼 커지므로 굵기도 같이 키운다.
+            // 예전에는 화면상 2pt 로 못박혀 있어, 상자가 324 에서 454 로 커지는 13인치에서는
+            // 획이 아이폰보다 비율상 30% 가늘어졌다 — 0.62%(2/324) 대 0.44%(2/454).
+            // 철사처럼 보이던 것이 이것이다.
+            lineWidth: 2 * contentScale,
+            // 보낼 그림은 **캔버스 전체**를 기준으로 앉힌다. 갤러리와 같은 자리·같은 크기가 된다.
+            // 기본 낙서(`post == nil`)는 제 좌표계를 쓰므로 넘기지 않는다.
+            canvasSize: post == nil ? nil : DoodleMetrics.canvasSize,
             isAnimating: session?.searchTimedOut != true
         )
         // 자리를 꽉 채우면 그림이 답답하고 가장자리 획이 잘려 보인다.
@@ -410,12 +448,23 @@ struct NearbySharingScreen: View {
     private var closeButton: some View {
         Button(action: onClose) {
             Image(systemName: "xmark")
-                .font(.system(size: 18 * contentScale, weight: .medium))
+                // 크기는 **조작부** 배율을 따른다.
+                //
+                // 한때 `contentScale` 을 썼다. 그 값은 그림·제목·피어 목록을 키우려고
+                // 이 화면 본문 높이(638)로 잡은 콘텐츠 배율이라 13인치에서 1.6 까지 가고,
+                // X 가 70pt 까지 부풀어 갤러리의 같은 버튼(47~55)과 40% 달랐다.
+                // 닫기는 콘텐츠가 아니라 조작부다.
+                .font(.system(size: 18 * chromeScale, weight: .medium))
                 .foregroundStyle(Self.primary)
-                .frame(width: Self.buttonHeight * contentScale,
-                       height: Self.buttonHeight * contentScale)
+                .frame(width: DoodleMetrics.side(scale: chromeScale),
+                       height: DoodleMetrics.side(scale: chromeScale))
                 .background(.white, in: Circle())
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+                // 그림자를 10% 에서 5% 로 낮춘다.
+                //
+                // Figma 의 `Frame 6` 은 아직 `rgba(0,0,0,0.1)` 이지만 디자인에서 5% 로 정했다.
+                // 아래 두 알약 버튼(다시 찾기·확인)은 10% 그대로다 — 저쪽은 먹색 바탕이라
+                // 같은 농도라도 덜 도드라지는데, 이 단추는 흰 바탕이라 테두리처럼 보였다.
+                .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
         }
         .accessibilityLabel("닫기")
     }
@@ -435,8 +484,9 @@ struct NearbySharingScreen: View {
 
         // Figma `iPhone 17 - 9` 의 `Frame 20`: 제목과 안내 사이 22.
         VStack(alignment: post == nil ? .center : .leading, spacing: 22) {
+            // Figma `149:537` · `162:688` — SF Pro **Bold** 25.
             Text(statusTitle(count: count, timedOut: timedOut || blocked))
-                .font(.system(size: 25 * contentScale, weight: .semibold))
+                .font(.system(size: 25 * contentScale, weight: .bold))
                 .foregroundStyle(Self.primary)
                 // 디자인에서 제목은 한 줄이다(`whitespace-nowrap`, 폭 292).
                 // 폭을 좁게 잡으면 제멋대로 접히므로 줄바꿈 자체를 막는다.
@@ -554,6 +604,12 @@ struct NearbySharingScreen: View {
 
     /// 상대 한 명이 차지하는 높이.
     private static let peerRowHeight: CGFloat = 85
+    /// 줄 안쪽 치수. 줄 높이와 같은 배율로 함께 자란다.
+    private static let peerRowSpacing: CGFloat = 16
+    private static let peerRowInset: CGFloat = 22
+    private static let peerAvatarDiameter: CGFloat = 46
+    private static let peerAvatarGlyph: CGFloat = 24
+    private static let sendButtonWidth: CGFloat = 83
     /// 스크롤 없이 한 번에 보여줄 사람 수. 그보다 많으면 목록만 스크롤한다.
     private static let visiblePeerLimit = 3
 
@@ -591,11 +647,14 @@ struct NearbySharingScreen: View {
     private func peerRow(peer: MCPeerID, session: MultipeerSession) -> some View {
         let state = session.state(for: peer)
 
-        return HStack(spacing: 16) {
+        // 줄 높이가 `contentScale` 로 자라므로 **안쪽도 같은 배율을 쓴다.**
+        // 예전에는 높이만 커지고 아바타·이름·전송 버튼이 아이폰 크기로 남아,
+        // 13인치에서 143 짜리 줄 안에 46 짜리 아바타가 떠 있었다.
+        return HStack(spacing: Self.peerRowSpacing * contentScale) {
             avatar(for: peer, state: state)
 
             Text(peer.displayName)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 18 * contentScale, weight: .semibold))
                 .foregroundStyle(Self.primary)
                 .lineLimit(1)
 
@@ -607,12 +666,13 @@ struct NearbySharingScreen: View {
                     send(to: peer, session: session)
                 } label: {
                     Text(buttonTitle(for: state))
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.system(size: 15 * contentScale, weight: .medium))
                         .foregroundStyle(Color.doodleOnPrimary)
-                        .frame(width: 83, height: Self.buttonHeight)
+                        .frame(width: Self.sendButtonWidth * contentScale,
+                               height: Self.buttonHeight * contentScale)
                         .background(
                             canSend(in: state) ? Self.primary : Self.muted,
-                            in: RoundedRectangle(cornerRadius: 30)
+                            in: RoundedRectangle(cornerRadius: 30 * contentScale)
                         )
                 }
                 // 실패했으면 다시 눌러야 한다. 예전에는 idle 만 허용해서
@@ -620,7 +680,7 @@ struct NearbySharingScreen: View {
                 .disabled(!canSend(in: state))
             }
         }
-        .padding(.horizontal, 22)
+        .padding(.horizontal, Self.peerRowInset * contentScale)
     }
 
     /// 아직 상대의 진짜 프로필은 알 수 없어서 기본 그림을 골라 붙인다.
@@ -632,9 +692,11 @@ struct NearbySharingScreen: View {
             Image(PeerAvatarPalette.image(for: peer.displayName))
                 .resizable()
                 .scaledToFit()
-                .frame(width: 24, height: 24)
+                .frame(width: Self.peerAvatarGlyph * contentScale,
+                       height: Self.peerAvatarGlyph * contentScale)
         }
-        .frame(width: 46, height: 46)
+        .frame(width: Self.peerAvatarDiameter * contentScale,
+               height: Self.peerAvatarDiameter * contentScale)
         .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
         .overlay {
             switch state {
