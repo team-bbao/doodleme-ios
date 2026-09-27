@@ -90,23 +90,28 @@ struct MainTabView: View {
         TabView(selection: $selectedTabIndex) {
             // 자리만 바꾼다. value 는 그대로 두어야 저장 후 갤러리로 돌아가는 코드가 계속 맞는다.
             // Figma `iPhone 17 - 12` 의 `Tab Bar Buttons`(85:380) 는 갤러리를 왼쪽에 둔다.
-            Tab("갤러리", systemImage: "photo.on.rectangle.fill", value: 0) {
+            //
+            // **글리프는 디자인이 정한 둘로 되돌렸다.** 자리를 바꾸던 커밋(`30a0629`)이
+            // 순서와 함께 글리프까지 갈아치우는 바람에 격자와 연필심이 사라졌었다.
+            // 자리만 그때대로 두고 그림은 원래 것으로 돌린다.
+            //
+            // 격자는 `.fill` 을 붙이지 않는다. 탭 막대가 **채운 변형을 저절로** 골라 주므로
+            // 여기서 붙이면 고르지 않은 탭에서도 억지로 채워져 시스템 탭과 다르게 보인다.
+            Tab("갤러리", systemImage: "square.grid.2x2", value: 0) {
                 GalleryPage()
-                    .tint(Color.doodlePrimary)
             }
 
-            Tab("그리기", systemImage: "pencil.and.scribble", value: 1) {
+            // 연필심(`pencil.tip`)은 채운 변형이 없어 늘 윤곽으로 선다. 디자인도 그 모양이다.
+            Tab("그리기", systemImage: "pencil.tip", value: 1) {
                 DrawingPage(selectedTabIndex: $selectedTabIndex)
-                    .tint(Color.doodlePrimary)
             }
         }
-        // 고른 탭을 파랗게 둔다. Figma 의 탭바가 시스템 기본 강조색 그대로다.
+        // **색을 주지 않는다.** 고른 탭은 앱 기본 강조색(`AccentColor` = `#424242`)으로 선다.
         //
-        // 여기에 준 색은 아래로 흘러 화면 안까지 물들인다.
-        // 타이머 막대와 그리기 도구 선택기가 `Color.accentColor` 를 쓰고 있어
-        // 그냥 두면 그리기 화면이 함께 파래진다.
-        // 그래서 각 탭의 내용에서 앱 색(`#424242`)으로 되돌려 놓는다.
-        .tint(.blue)
+        // 한때 `.tint(.blue)` 로 시스템 파랑을 입혔다가 되돌렸다 —
+        // 그 색은 아래로 흘러 화면 안까지 물들여서, 타이머 막대와 그리기 도구 선택기가
+        // 함께 파래지는 것을 각 탭에서 다시 `#424242` 로 덮어야 했다.
+        // 주지 않으면 그 되돌림도 필요 없고, 앱 전체가 한 색으로 남는다.
     }
 
     // MARK: - 넓은 화면: 사이드바
